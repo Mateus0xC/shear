@@ -1,5 +1,6 @@
 #include "SettingsDialog.h"
 #include "platform/Windows.h"
+#include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
@@ -38,12 +39,6 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
                       "Automático"});
     // índices na ordem do enum: Fast=0, Exact=1, Auto=2
     m_mode->setCurrentIndex(int(c.mode));
-    m_preset = new QComboBox;
-    m_preset->addItems({"Corte rápido", "Mixar mic + desktop"});
-    m_preset->setCurrentIndex(int(c.preset));
-    m_tracks = new QComboBox;
-    m_tracks->addItems({"Só a faixa 1 (desktop)", "Todas as faixas"});
-    m_tracks->setCurrentIndex(int(c.tracks));
     m_threshold = new QDoubleSpinBox;
     m_threshold->setRange(0.0, 10.0);
     m_threshold->setSingleStep(0.1);
@@ -57,10 +52,13 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     auto *form = new QFormLayout;
     form->addRow("Modo de corte do início:", m_mode);
     form->addRow("Limite do modo Automático:", m_threshold);
-    form->addRow("Preset padrão:", m_preset);
-    form->addRow("Faixas exportadas por padrão:", m_tracks);
     form->addRow("Pasta dos clipes mantidos:", folderRow(m_out, this));
     form->addRow("Pasta do ShadowPlay:", folderRow(m_sp, this));
+    m_gpu = new QCheckBox("Decodificar o preview na GPU (NVDEC)");
+    m_gpu->setChecked(c.gpuDecode);
+    m_gpu->setToolTip("Usa a GPU NVIDIA só para decodificar (menos CPU). Se o codec não for suportado, usa a CPU.\n"
+                      "Nos testes isso não aciona o aviso do overlay da NVIDIA. Vale ao reabrir o Shear.");
+    form->addRow("Preview:", m_gpu);
 
     m_ctxState = new QLabel;
     auto *add = new QPushButton("Adicionar “Cortar com Shear” ao menu de contexto");
@@ -103,9 +101,8 @@ Config SettingsDialog::config() const
 {
     Config c;
     c.mode = static_cast<CutMode>(m_mode->currentIndex());
-    c.preset = static_cast<Preset>(m_preset->currentIndex());
-    c.tracks = static_cast<AudioTracks>(m_tracks->currentIndex());
     c.autoThresholdSec = m_threshold->value();
+    c.gpuDecode = m_gpu->isChecked();
     c.outputDir = m_out->text().trimmed();
     c.shadowPlayDir = m_sp->text().trimmed();
     return c;

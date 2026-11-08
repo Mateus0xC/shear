@@ -9,7 +9,7 @@ if(MSVC)
   add_compile_options(/utf-8 /W4 /permissive-)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Network Test)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Test)
 
 set(THIRD_PARTY "${CMAKE_SOURCE_DIR}/third_party" CACHE PATH "Dependências baixadas por setup-deps.ps1")
 

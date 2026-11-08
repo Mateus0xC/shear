@@ -12,7 +12,7 @@ add_executable(shear WIN32
 
 target_include_directories(shear PRIVATE ${S} ${MPV_DIR}/include ${FF_DIR}/include)
 target_link_directories(shear PRIVATE ${FF_DIR}/lib)
-target_link_libraries(shear PRIVATE shear_core Qt6::Widgets Qt6::OpenGLWidgets Qt6::Network
+target_link_libraries(shear PRIVATE shear_core Qt6::Widgets Qt6::Network
   ${MPV_DIR}/mpv.lib avformat avcodec avutil)
 target_link_options(shear PRIVATE /ENTRY:mainCRTStartup)
 

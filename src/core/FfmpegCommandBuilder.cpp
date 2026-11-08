@@ -15,33 +15,27 @@ static QString gainFilter(double g)
     return g == 0.0 ? QString("anull") : QString("volume=%1dB").arg(num(g));
 }
 
-int exportedTrackCount(const std::vector<AudioTrack> &tracks)
+int enabledTrackCount(const std::vector<AudioTrack> &tracks)
 {
-    return int(std::count_if(tracks.begin(), tracks.end(), [](const AudioTrack &t) { return t.exportIt; }));
+    return int(std::count_if(tracks.begin(), tracks.end(), [](const AudioTrack &t) { return t.enabled; }));
 }
 
-bool quickCutAudioIsCopy(const std::vector<AudioTrack> &tracks)
+QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, const QString &outLabel)
 {
-    return std::none_of(tracks.begin(), tracks.end(),
-                        [](const AudioTrack &t) { return t.exportIt && t.gainDb != 0.0; });
-}
-
-QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, Preset preset, bool useListen,
-                           bool forMpv, const QString &outLabel)
-{
+    const bool recipe = enabledTrackCount(tracks) >= 2; // junta: receita do usuário
     struct In { QString pad, chain, label; };
     std::vector<In> ins;
     for (size_t i = 0; i < tracks.size(); ++i) {
-        if (!(useListen ? tracks[i].listen : tracks[i].exportIt))
+        if (!tracks[i].enabled)
             continue;
         const double g = tracks[i].gainDb;
         In in;
         in.pad = forMpv ? QString("[aid%1]").arg(i + 1) : QString("[0:a:%1]").arg(i);
-        if (preset == Preset::MixMic && i == 1) {
+        if (recipe && i == 1) {
             in.chain = QString("highpass=f=100,lowpass=f=8000,volume=%1dB,agate=range=0:threshold=0.03:release=200")
                            .arg(num(20 + g));
             in.label = "mic";
-        } else if (preset == Preset::MixMic && i == 0) {
+        } else if (recipe && i == 0) {
             in.chain = QString("volume=%1dB").arg(num(10 + g));
             in.label = "desktop";
         } else {
@@ -84,29 +78,21 @@ QStringList buildFfmpegArgs(const ExportRequest &r, const CutPlan &plan)
     a << "-map" << "0:V:0";
 
     QStringList audio; // opções de áudio, depois das de vídeo
-    if (exportedTrackCount(r.audio) == 0) {
+    const int n = enabledTrackCount(r.audio);
+    if (n == 0) {
         audio << "-an";
-    } else if (r.preset == Preset::MixMic) {
-        a << "-filter_complex" << buildAudioMixGraph(r.audio, Preset::MixMic, false, false, "aout")
-          << "-map" << "[aout]";
-        audio << "-c:a" << "aac" << "-b:a" << "320k";
-    } else if (quickCutAudioIsCopy(r.audio)) { // faixas separadas, sem recodificar
-        for (size_t i = 0; i < r.audio.size(); ++i)
-            if (r.audio[i].exportIt)
-                a << "-map" << QString("0:a:%1").arg(i);
-        audio << "-c:a" << "copy";
-    } else { // volume alterado: as faixas continuam separadas, mas recodificadas
-        QStringList graph;
-        int k = 0;
-        for (size_t i = 0; i < r.audio.size(); ++i) {
-            if (!r.audio[i].exportIt)
-                continue;
-            graph << QString("[0:a:%1]%2[ao%3]").arg(i).arg(gainFilter(r.audio[i].gainDb)).arg(k);
-            ++k;
+    } else if (n == 1) {
+        size_t idx = 0;
+        while (!r.audio[idx].enabled) ++idx;
+        if (r.audio[idx].gainDb == 0.0) { // cópia direta
+            a << "-map" << QString("0:a:%1").arg(idx);
+            audio << "-c:a" << "copy";
+        } else {
+            a << "-filter_complex" << buildAudioMixGraph(r.audio, false, "aout") << "-map" << "[aout]";
+            audio << "-c:a" << "aac" << "-b:a" << "320k";
         }
-        a << "-filter_complex" << graph.join(';');
-        for (int j = 0; j < k; ++j)
-            a << "-map" << QString("[ao%1]").arg(j);
+    } else {
+        a << "-filter_complex" << buildAudioMixGraph(r.audio, false, "aout") << "-map" << "[aout]";
         audio << "-c:a" << "aac" << "-b:a" << "320k";
     }
 

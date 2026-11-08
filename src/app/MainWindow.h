@@ -57,7 +57,7 @@ private:
     static QString tempDir();
     void hideResultButtons();
     void rebuildAudioRows(int n);
-    void applyExportDefaults();
+    void changeVolume(int delta);
     void applyPreviewAudio();
     std::vector<AudioTrack> currentAudio() const;
     void startExport();
@@ -72,15 +72,11 @@ private:
     MpvWidget *m_mpv;
     TimelineWidget *m_timeline;
     QLabel *m_title, *m_times, *m_early, *m_warning, *m_status;
-    QComboBox *m_presetBox, *m_modeBox;
-    struct TrackRow { QToolButton *exp; QToolButton *listen; QSlider *gain; QToolButton *val; };
-    QFrame *m_audioBox = nullptr;      // painel lateral (mixer)
-    QWidget *m_audioRowsHost = nullptr; // colunas das faixas
+    QComboBox *m_modeBox;
+    struct TrackRow { QToolButton *on; QSlider *gain; QToolButton *val; };
+    QFrame *m_audioBox = nullptr;      // painel lateral fino, só com as faixas
     QHBoxLayout *m_audioRows = nullptr;
-    QSlider *m_volSlider = nullptr;
-    QToolButton *m_volLabel = nullptr;
-    QToolButton *m_muteBtn = nullptr;
-    QLabel *m_audioHint = nullptr;
+    int m_volume = 100;                // volume do preview (roda do mouse / setas ↑↓)
     QTimer *m_audioTimer = nullptr;
     std::vector<TrackRow> m_rows;
     QPushButton *m_exportBtn, *m_cancelBtn, *m_openFolderBtn, *m_copyBtn, *m_keepBtn, *m_deleteBtn;

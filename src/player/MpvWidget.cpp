@@ -1,33 +1,16 @@
 #include "MpvWidget.h"
-#include <QOpenGLContext>
+#include <QPainter>
+#include <QWheelEvent>
 #include <mpv/client.h>
-#include <mpv/render_gl.h>
+#include <mpv/render.h>
 
 namespace shear {
 
-static void *getProcAddress(void *, const char *name)
-{
-    auto *c = QOpenGLContext::currentContext();
-    return c ? reinterpret_cast<void *>(c->getProcAddress(name)) : nullptr;
-}
-
-MpvWidget::MpvWidget(QWidget *parent) : QOpenGLWidget(parent)
+MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
 {
     setFocusPolicy(Qt::NoFocus);
-}
+    setAttribute(Qt::WA_OpaquePaintEvent);
 
-MpvWidget::~MpvWidget()
-{
-    makeCurrent();
-    if (m_ctx)
-        mpv_render_context_free(m_ctx);
-    doneCurrent();
-    if (m_mpv)
-        mpv_terminate_destroy(m_mpv);
-}
-
-void MpvWidget::initializeGL()
-{
     m_mpv = mpv_create();
     mpv_set_option_string(m_mpv, "config", "no");
     mpv_set_option_string(m_mpv, "load-scripts", "no");
@@ -36,7 +19,12 @@ void MpvWidget::initializeGL()
     mpv_set_option_string(m_mpv, "input-default-bindings", "no");
     mpv_set_option_string(m_mpv, "input-vo-keyboard", "no");
     mpv_set_option_string(m_mpv, "keep-open", "yes");
-    mpv_set_option_string(m_mpv, "hwdec", "auto");
+    // GPU via NVDEC ("nvdec-copy": decodifica na GPU e copia o frame para a CPU; se o codec não for suportado,
+    // cai para software). Medido aqui: nvdec-copy NÃO aciona o overlay da NVIDIA, mas d3d11va/dxva2 acionam.
+    // SHEAR_HWDEC=... sobrepõe (diagnóstico).
+    const QByteArray hw = qEnvironmentVariableIsSet("SHEAR_HWDEC") ? qgetenv("SHEAR_HWDEC")
+                          : QByteArray(gpuDecode ? "nvdec-copy,no" : "no");
+    mpv_set_option_string(m_mpv, "hwdec", hw.constData());
     mpv_set_option_string(m_mpv, "vo", "libmpv");
     mpv_set_option_string(m_mpv, "terminal", "no");
     if (const QByteArray lg = qgetenv("SHEAR_MPV_LOG"); !lg.isEmpty()) { // diagnóstico opcional
@@ -52,36 +40,46 @@ void MpvWidget::initializeGL()
     mpv_observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
     mpv_set_wakeup_callback(m_mpv, &MpvWidget::wakeup, this);
 
-    mpv_opengl_init_params gl{getProcAddress, nullptr};
-    int advanced = 1;
     mpv_render_param params[] = {
-        {MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_OPENGL)},
-        {MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &gl},
-        {MPV_RENDER_PARAM_ADVANCED_CONTROL, &advanced},
+        {MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_SW)},
         {MPV_RENDER_PARAM_INVALID, nullptr}};
     if (mpv_render_context_create(&m_ctx, m_mpv, params) < 0)
         return;
     mpv_render_context_set_update_callback(m_ctx, &MpvWidget::renderUpdate, this);
-
-    if (!m_pending.isEmpty()) {
-        const QString p = m_pending;
-        m_pending.clear();
-        loadFile(p);
-    }
 }
 
-void MpvWidget::paintGL()
+MpvWidget::~MpvWidget()
 {
-    if (!m_ctx)
-        return;
+    if (m_ctx)
+        mpv_render_context_free(m_ctx);
+    if (m_mpv)
+        mpv_terminate_destroy(m_mpv);
+}
+
+void MpvWidget::paintEvent(QPaintEvent *)
+{
+    QPainter p(this);
     const qreal dpr = devicePixelRatioF();
-    mpv_opengl_fbo fbo{static_cast<int>(defaultFramebufferObject()), int(width() * dpr),
-                       int(height() * dpr), 0};
-    int flipY = 1;
-    mpv_render_param params[] = {{MPV_RENDER_PARAM_OPENGL_FBO, &fbo},
-                                 {MPV_RENDER_PARAM_FLIP_Y, &flipY},
-                                 {MPV_RENDER_PARAM_INVALID, nullptr}};
-    mpv_render_context_render(m_ctx, params);
+    const QSize px(int(width() * dpr), int(height() * dpr));
+    if (px.isEmpty())
+        return;
+    if (m_frame.size() != px) {
+        m_frame = QImage(px, QImage::Format_RGB32);
+        m_frame.fill(Qt::black);
+    }
+    if (m_ctx) {
+        int size[2] = {px.width(), px.height()};
+        size_t stride = size_t(m_frame.bytesPerLine());
+        mpv_render_param params[] = {
+            {MPV_RENDER_PARAM_SW_SIZE, size},
+            {MPV_RENDER_PARAM_SW_FORMAT, const_cast<char *>("bgr0")}, // = QImage::Format_RGB32 (little-endian)
+            {MPV_RENDER_PARAM_SW_STRIDE, &stride},
+            {MPV_RENDER_PARAM_SW_POINTER, m_frame.bits()},
+            {MPV_RENDER_PARAM_INVALID, nullptr}};
+        mpv_render_context_render(m_ctx, params);
+    }
+    m_frame.setDevicePixelRatio(dpr);
+    p.drawImage(0, 0, m_frame);
     if (m_awaitPaint) {
         m_awaitPaint = false;
         emit firstFrame();
@@ -104,10 +102,6 @@ void MpvWidget::command(const QStringList &args)
 
 void MpvWidget::loadFile(const QString &path)
 {
-    if (!m_mpv) { // GL ainda não inicializou: carrega assim que estiver pronto
-        m_pending = path;
-        return;
-    }
     m_awaitFirst = true;
     m_pos = m_dur = 0;
     command({"loadfile", path});
@@ -141,9 +135,29 @@ void MpvWidget::setVolume(int percent)
     command({"set", "volume", QString::number(percent)});
 }
 
+void MpvWidget::showText(const QString &text, int ms)
+{
+    command({"show-text", text, QString::number(ms)});
+}
+
+void MpvWidget::wheelEvent(QWheelEvent *e)
+{
+    const int notches = e->angleDelta().y() / 120;
+    if (notches != 0)
+        emit volumeWheel(notches * 5);
+    e->accept();
+}
+
 void MpvWidget::togglePause() { setPaused(!m_paused); }
 
 void MpvWidget::stepFrame(bool forward) { command({forward ? "frame-step" : "frame-back-step"}); }
+
+void MpvWidget::onRenderUpdate()
+{
+    if (m_ctx)
+        mpv_render_context_update(m_ctx);
+    update();
+}
 
 void MpvWidget::wakeup(void *ctx)
 {

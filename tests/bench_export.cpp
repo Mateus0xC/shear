@@ -22,19 +22,19 @@ int main(int argc, char **argv)
     base.keyframeBeforeStart = QString(argv[5]).toDouble();
     base.audio = {AudioTrack{}, AudioTrack{}}; // desktop + mic
 
-    struct Case { const char *name; Preset p; CutMode m; double micGain = 0; };
+    struct Case { const char *name; bool mic; CutMode m; double gain = 0; };
     const Case cases[] = {
-        {"Corte rápido (cópia, modo Rápido)", Preset::QuickCut, CutMode::Fast},
-        {"Corte rápido (modo Exato = recodifica)", Preset::QuickCut, CutMode::Exact},
-        {"Mixar mic+desktop (vídeo copiado)", Preset::MixMic, CutMode::Fast},
-        {"Corte rápido + mic com +6 dB (áudio recodificado)", Preset::QuickCut, CutMode::Fast, 6},
+        {"Só desktop, início rápido (cópia)", false, CutMode::Fast},
+        {"Só desktop, início exato (recodifica vídeo)", false, CutMode::Exact},
+        {"Desktop + mic juntos (vídeo copiado)", true, CutMode::Fast},
+        {"Só desktop com +6 dB (áudio recodificado)", false, CutMode::Fast, 6},
     };
     for (const auto &c : cases) {
         ExportRequest r = base;
-        r.preset = c.p;
         r.mode = c.m;
-        r.audio[1].gainDb = c.micGain;
-        r.outputPath = QString("bench_%1.mp4").arg(int(c.p) * 10 + int(c.m));
+        r.audio[0].gainDb = c.gain;
+        r.audio[1].enabled = c.mic;
+        r.outputPath = QString("bench_%1.mp4").arg(int(&c - cases));
         QFile::remove(r.outputPath);
         const auto args = buildFfmpegArgs(r, planCut(r));
         QElapsedTimer t;

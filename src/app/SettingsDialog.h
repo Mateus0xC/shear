@@ -2,6 +2,7 @@
 #include "util/Settings.h"
 #include <QDialog>
 
+class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
@@ -17,7 +18,8 @@ public:
 
 private:
     void refreshContextState();
-    QComboBox *m_mode, *m_preset, *m_tracks;
+    QComboBox *m_mode;
+    QCheckBox *m_gpu;
     QDoubleSpinBox *m_threshold;
     QLineEdit *m_out, *m_sp;
     QLabel *m_ctxState;

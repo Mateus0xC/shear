@@ -5,18 +5,18 @@
 namespace shear {
 
 // Argumentos do ffmpeg (sem o executável). Função pura.
+//  - 0 faixas ligadas: sem áudio.
+//  - 1 faixa ligada: copiada sem recodificar (ou recodificada só se o volume foi alterado).
+//  - 2+ faixas ligadas: juntadas em uma só (AAC 320k) com a receita de mixagem.
 QStringList buildFfmpegArgs(const ExportRequest &r, const CutPlan &plan);
 
-// Filtro que mixa as faixas em uma só, terminando em [outLabel]. Vazio se nenhuma faixa entra.
-// useListen=true usa as faixas "ouvidas" (preview); false usa as "exportadas".
+// Filtro que leva as faixas ligadas a uma só, terminando em [outLabel]. Vazio se nenhuma está ligada.
 // forMpv=true usa as entradas [aidN] do mpv (lavfi-complex); false usa [0:a:N] do ffmpeg.
-// No preset MixMic aplica o filtro do usuário: faixa 0 = desktop (+10 dB), faixa 1 = mic (filtros + 20 dB).
-QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, Preset preset, bool useListen,
-                           bool forMpv, const QString &outLabel);
+// Com 2+ faixas ligadas aplica a receita do usuário: faixa 0 = desktop (+10 dB), faixa 1 = mic
+// (highpass/lowpass/gate + 20 dB), amix; o volume de cada faixa soma-se a esses ganhos.
+QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, const QString &outLabel);
 
-// Corte rápido: o áudio pode ser copiado se nenhuma faixa exportada teve o volume alterado.
-bool quickCutAudioIsCopy(const std::vector<AudioTrack> &tracks);
-int exportedTrackCount(const std::vector<AudioTrack> &tracks);
+int enabledTrackCount(const std::vector<AudioTrack> &tracks);
 
 // Formata segundos com 3 casas, sempre com ponto.
 QString fmtSeconds(double s);

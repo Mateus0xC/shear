@@ -1,15 +1,20 @@
 #pragma once
-#include <QOpenGLWidget>
+#include <QImage>
+#include <QWidget>
 
 struct mpv_handle;
 struct mpv_render_context;
 
 namespace shear {
 
-class MpvWidget : public QOpenGLWidget {
+// Preview com libmpv pintando por SOFTWARE num buffer de CPU (sem OpenGL/D3D na janela).
+// Motivo: o overlay da NVIDIA/ShadowPlay se injeta em processos que apresentam com OpenGL/D3D e trata o app
+// como jogo. A decodificação usa a GPU só via NVDEC ("nvdec-copy"), que nos testes não aciona o overlay.
+class MpvWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit MpvWidget(QWidget *parent = nullptr);
+    // gpuDecode=true (padrão): decodifica no NVDEC; false: tudo na CPU.
+    explicit MpvWidget(bool gpuDecode = false, QWidget *parent = nullptr);
     ~MpvWidget() override;
 
     void loadFile(const QString &path);
@@ -21,6 +26,7 @@ public:
     void setAudioGraph(const QString &graph);
     void resetAudio(); // volta ao padrão do mpv (faixa 1), sem grafo
     void setVolume(int percent); // só o preview, não afeta a exportação
+    void showText(const QString &text, int ms = 900); // OSD sobre o vídeo
     bool paused() const { return m_paused; }
     double position() const { return m_pos; }
     double duration() const { return m_dur; }
@@ -30,15 +36,16 @@ signals:
     void durationChanged(double sec);
     void pausedChanged(bool paused);
     void fileLoaded();
+    void volumeWheel(int delta); // roda do mouse sobre o vídeo: +5 / -5 por "clique"
     void firstFrame();
 
 protected:
-    void initializeGL() override;
-    void paintGL() override;
+    void paintEvent(QPaintEvent *) override;
+    void wheelEvent(QWheelEvent *e) override;
 
 private slots:
     void handleEvents();
-    void onRenderUpdate() { update(); }
+    void onRenderUpdate();
 
 private:
     void command(const QStringList &args);
@@ -47,7 +54,7 @@ private:
 
     mpv_handle *m_mpv = nullptr;
     mpv_render_context *m_ctx = nullptr;
-    QString m_pending;
+    QImage m_frame;
     double m_pos = 0, m_dur = 0;
     bool m_paused = false;
     int m_volume = 100;

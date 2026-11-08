@@ -19,6 +19,7 @@ marcar início e fim, exportar e colar no Discord.
 | `I` / `O` | marca início / fim |
 | `←` / `→` (ou `,` / `.`) | frame anterior / seguinte |
 | `J` / `L` | −5 s / +5 s |
+| `↑` / `↓` ou roda do mouse sobre o vídeo | volume do preview (estilo VLC; não muda o arquivo) |
 | `K` | encaixa o início no keyframe mais próximo |
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
@@ -28,19 +29,24 @@ marcar início e fim, exportar e colar no Discord.
 - **Exato**: corta no frame certo recodificando o vídeo com NVENC (ou `libx264` sem NVENC). O smart cut chega na Fase 2.
 - **Automático** (padrão): usa Rápido se a distância ao keyframe anterior for menor que o limite (0,5 s por padrão); senão, Exato.
 
-### Presets
-- **Corte rápido**: copia vídeo e áudio. O Discord e a maioria dos players tocam só a primeira faixa de áudio, por isso o padrão é manter só a faixa do desktop; há a opção de manter todas.
-- **Mixar mic + desktop**: vídeo copiado, áudio recodificado com o filtro de mixagem (mic = faixa 2).
+### Áudio
+No canto inferior direito há um mini-mixer com uma coluna por faixa do vídeo: um botão (aceso = ligada) e um fader vertical
+de volume (−30 a +30 dB; clicar no valor zera).
 
-### Painel de áudio
-Cada faixa do vídeo tem três controles:
-- **Exportar**: se a faixa vai no arquivo final.
-- **Ouvir**: se você escuta a faixa no preview (não afeta a exportação).
-- **Volume** (−30 a +30 dB, ↺ zera): vale no preview *e* na exportação. No preset de mixagem soma-se ao ganho do seu filtro
-  (desktop +10 dB, mic +20 dB com filtros), então 0 = exatamente o seu filtro original.
+- **Ligada** = você ouve a faixa no preview **e** ela vai no arquivo exportado (o que você ouve é o que sai).
+- **Padrão:** só o **Desktop** (faixa 1) fica ligado; o **Mic** começa desligado.
+- **Ligando o Mic** (2+ faixas), elas são **juntadas em uma só** com a sua receita: desktop +10 dB, mic com
+  highpass/lowpass/gate +20 dB, `amix` (AAC 320k). O fader de cada faixa soma-se a esses ganhos, então 0 dB = o seu filtro original.
+- Com uma só faixa ligada e volume em 0 dB, o áudio é **copiado sem recodificar**; se o volume foi alterado, só o áudio é
+  recodificado (o vídeo continua em cópia).
+- Nenhuma faixa ligada: o clipe sai sem áudio.
 
-O **Volume do preview** é só para você ouvir aqui e não muda o arquivo. No Corte rápido, as faixas exportadas ficam separadas;
-se algum volume foi alterado, o áudio é recodificado (AAC) e o vídeo continua copiado. Na mixagem, as faixas viram uma só.
+O volume do preview (roda do mouse / setas) é independente e só serve para você ouvir.
+
+### Overlay da NVIDIA
+O Shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não
+aciona o aviso "pressione ... para abrir" do overlay da NVIDIA, enquanto `d3d11va`/`dxva2` acionam. Em Configurações dá para
+desligar o NVDEC e usar só a CPU.
 
 O ffmpeg roda com prioridade abaixo do normal para não derrubar o FPS do jogo.
 
@@ -77,7 +83,7 @@ essa pasta é portátil (copie-a inteira ou compacte em .zip).
 ## Medições
 
 O app grava em `%LOCALAPPDATA%\Shear\Shear\metrics.log` o tempo até a janela aparecer, até o primeiro frame,
-até os keyframes ficarem prontos e o tempo de cada exportação. Para medir os presets:
+até os keyframes ficarem prontos e o tempo de cada exportação. Para medir as exportações:
 
 ```
 build\bench_export.exe third_party\ffmpeg\bin\ffmpeg.exe clipe.mp4 <início> <fim> <keyframe_anterior>

@@ -7,14 +7,11 @@
 namespace shear {
 
 enum class CutMode { Fast, Exact, Auto };
-enum class Preset { QuickCut, MixMic };
-enum class AudioTracks { DesktopOnly, All };
 
-// Uma faixa de áudio do arquivo: se vai na exportação, se é ouvida no preview e o ajuste de volume.
+// Uma faixa de áudio do arquivo. Ligada = você ouve no preview e ela vai no arquivo exportado.
 struct AudioTrack {
-    bool exportIt = true;
-    bool listen = true;
-    double gainDb = 0.0; // no preset de mixagem, soma-se ao ganho-base do filtro
+    bool enabled = true;
+    double gainDb = 0.0; // ajuste de volume; com 2+ faixas ligadas soma-se ao ganho-base da receita de mixagem
 };
 
 struct ExportRequest {
@@ -25,7 +22,6 @@ struct ExportRequest {
     double keyframeBeforeStart = 0; // keyframe anterior ao início (para modo Auto/Rápido)
     CutMode mode = CutMode::Auto;
     double autoThresholdSec = 0.5;
-    Preset preset = Preset::QuickCut;
     std::vector<AudioTrack> audio; // uma entrada por faixa do arquivo (a:0, a:1, ...)
     bool hasNvenc = true;
 };

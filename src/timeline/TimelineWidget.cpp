@@ -257,8 +257,9 @@ void TimelineWidget::applyDrag(double t)
 {
     switch (m_drag) {
     case Drag::Seek:  emit seekRequested(t); break;
-    case Drag::Start: setStart(t); m_dragT = m_start; emit startChanged(m_start); break;
-    case Drag::End:   setEnd(t); m_dragT = m_end; emit endChanged(m_end); break;
+    // Os marcadores também levam o vídeo junto enquanto são arrastados (scrubbing em tempo real).
+    case Drag::Start: setStart(t); m_dragT = m_start; emit startChanged(m_start); emit seekRequested(m_start); break;
+    case Drag::End:   setEnd(t); m_dragT = m_end; emit endChanged(m_end); emit seekRequested(m_end); break;
     default: break;
     }
 }

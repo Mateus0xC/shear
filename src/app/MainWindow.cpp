@@ -294,8 +294,10 @@ QWidget *MainWindow::buildEditor()
         metrics::log(QString("primeiro frame: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
     });
     connect(m_timeline, &TimelineWidget::seekRequested, m_mpv, &MpvWidget::seek);
-    connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
-    connect(m_timeline, &TimelineWidget::endChanged, this, [this] { updateInfo(); });
+    // Arrastar um marcador pausa o vídeo e mostra o quadro dele (a timeline já pede o seek a cada movimento).
+    auto pauseForScrub = [this] { if (!m_mpv->paused()) m_mpv->setPaused(true); updateInfo(); };
+    connect(m_timeline, &TimelineWidget::startChanged, this, pauseForScrub);
+    connect(m_timeline, &TimelineWidget::endChanged, this, pauseForScrub);
     return w;
 }
 

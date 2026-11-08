@@ -3,7 +3,7 @@ set(MPV_DIR ${THIRD_PARTY}/mpv)
 set(FF_DIR ${THIRD_PARTY}/ffmpeg)
 
 add_executable(shear WIN32
-  main.cpp MainWindow.cpp SettingsDialog.cpp SingleInstance.cpp VerticalFader.cpp
+  main.cpp MainWindow.cpp SettingsDialog.cpp SingleInstance.cpp VerticalFader.cpp SoundToggle.cpp
   ${S}/player/MpvWidget.cpp ${S}/player/AudioScrubber.cpp
   ${S}/timeline/TimelineWidget.cpp ${S}/timeline/KeyframeScanner.cpp
   ${S}/export/ExportJob.cpp

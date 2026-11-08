@@ -35,7 +35,7 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     setWindowTitle("Configurações");
     setMinimumWidth(520);
     m_mode = new QComboBox;
-    m_mode->addItems({"Rápido (copia o vídeo; o início encaixa nos keyframes)", "Exato (recodifica; corta no frame certo)"});
+    m_mode->addItems({"Rápido (instantâneo; o início encaixa nas marcas da timeline)", "Exato (no frame escolhido; demora mais)"});
     m_mode->setCurrentIndex(c.mode == CutMode::Exact ? 1 : 0);
     m_out = new QLineEdit(c.outputDir);
     m_out->setPlaceholderText("Mesma pasta do vídeo original");
@@ -46,10 +46,9 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     form->addRow("Modo de corte padrão:", m_mode);
     form->addRow("Pasta dos clipes mantidos:", folderRow(m_out, this));
     form->addRow("Pasta do ShadowPlay:", folderRow(m_sp, this));
-    m_gpu = new QCheckBox("Decodificar o preview na GPU (NVDEC)");
+    m_gpu = new QCheckBox("Usar a placa de vídeo no preview");
     m_gpu->setChecked(c.gpuDecode);
-    m_gpu->setToolTip("Usa a GPU NVIDIA só para decodificar (menos CPU). Se o codec não for suportado, usa a CPU.\n"
-                      "Nos testes isso não aciona o aviso do overlay da NVIDIA. Vale ao reabrir o Shear.");
+    m_gpu->setToolTip("Deixa o preview mais leve para o processador. Vale ao reabrir o Shear.");
     form->addRow("Preview:", m_gpu);
 
     m_ctxState = new QLabel;

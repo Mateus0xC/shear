@@ -12,7 +12,7 @@ VerticalFader::VerticalFader(QWidget *parent) : QWidget(parent)
 {
     setFocusPolicy(Qt::NoFocus);
     setCursor(Qt::PointingHandCursor);
-    setToolTip("Volume do microfone (dB). Duplo clique ou o botão abaixo zera; a roda do mouse ajusta de 1 em 1.");
+    setToolTip("Volume do microfone. Duplo clique ou o botão abaixo zera; a roda do mouse ajusta de pouco em pouco.");
 }
 
 void VerticalFader::setValue(int v)

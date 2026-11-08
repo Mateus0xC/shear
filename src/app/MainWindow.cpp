@@ -5,6 +5,7 @@
 #include "core/OutputNaming.h"
 #include "export/ExportJob.h"
 #include "platform/Windows.h"
+#include "SoundToggle.h"
 #include "VerticalFader.h"
 #include "player/AudioScrubber.h"
 #include "player/MpvWidget.h"
@@ -229,18 +230,20 @@ QWidget *MainWindow::buildEditor()
         m_audioRows = new QVBoxLayout;
         m_audioRows->setSpacing(6);
         pv->addLayout(m_audioRows, 1);
-        pv->addSpacing(8);
-        m_scrubBtn = new QToolButton;
-        m_scrubBtn->setText("♪ ao arrastar");
-        m_scrubBtn->setCheckable(true);
+        pv->addSpacing(10);
+        m_scrubBtn = new SoundToggle;
         m_scrubBtn->setChecked(QSettings().value("player/scrubAudio", true).toBool());
-        m_scrubBtn->setProperty("role", "pill");
-        m_scrubBtn->setFocusPolicy(Qt::NoFocus);
-        m_scrubBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        m_scrubBtn->setToolTip("Ligado: toca um trecho de áudio a cada posição enquanto você arrasta na timeline (o vídeo "
-                               "fica pausado). Desligue para arrastar em silêncio.");
-        pv->addWidget(m_scrubBtn);
-        connect(m_scrubBtn, &QToolButton::toggled, this, [](bool on) { QSettings().setValue("player/scrubAudio", on); });
+        const QString scrubTip = "Ouvir o som enquanto você arrasta na timeline, com o vídeo parado. Clique para ligar ou desligar.";
+        m_scrubBtn->setToolTip(scrubTip);
+        auto *scrubCap = new QLabel("Som ao arrastar");
+        scrubCap->setProperty("role", "cap");
+        scrubCap->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+        scrubCap->setWordWrap(true);
+        scrubCap->setToolTip(scrubTip);
+        pv->addWidget(m_scrubBtn, 0, Qt::AlignHCenter);
+        pv->addSpacing(2);
+        pv->addWidget(scrubCap);
+        connect(m_scrubBtn, &QAbstractButton::toggled, this, [](bool on) { QSettings().setValue("player/scrubAudio", on); });
         m_audioBox->hide();
         root->addWidget(m_audioBox);
     }
@@ -263,10 +266,10 @@ QWidget *MainWindow::buildEditor()
     segLayout->setSpacing(0);
     m_fastBtn = new QToolButton;
     m_fastBtn->setText("Rápido");
-    m_fastBtn->setToolTip("Corta sem recodificar (instantâneo). O início encaixa nos keyframes (marcas na timeline).");
+    m_fastBtn->setToolTip("Corte instantâneo. O início encaixa nas marcas da timeline.");
     m_exactBtn = new QToolButton;
     m_exactBtn->setText("Exato");
-    m_exactBtn->setToolTip("Corta no frame exato recodificando o vídeo (mais lento).");
+    m_exactBtn->setToolTip("Corta exatamente no frame escolhido. A exportação demora mais.");
     m_fastBtn->setProperty("seg", "left");
     m_exactBtn->setProperty("seg", "right");
     m_modeGroup = new QButtonGroup(this);
@@ -619,7 +622,7 @@ void MainWindow::updateInfo()
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w + " — K encaixa no keyframe");
     if (!plan.copyVideo) {
-        msg << QString("Início exato: o vídeo será recodificado (%1).").arg(m_hasNvenc ? "NVENC" : "libx264");
+        msg << "Início exato: a exportação demora um pouco mais.";
     }
     const int nOn = enabledTrackCount(r.audio);
     if (r.audio.empty()) {
@@ -629,12 +632,13 @@ void MainWindow::updateInfo()
     } else if (nOn == 1) {
         size_t idx = 0;
         while (!r.audio[idx].enabled) ++idx;
-        msg << (r.audio[idx].gainDb == 0.0
-                    ? QString("Áudio: só %1, copiado sem recodificar.").arg(trackName(int(idx), int(r.audio.size())))
-                    : QString("Áudio: %1 recodificado (AAC) porque o volume foi alterado.")
-                          .arg(trackName(int(idx), int(r.audio.size()))));
+        const QString name = trackName(int(idx), int(r.audio.size()));
+        msg << (r.audio[idx].gainDb == 0.0 ? QString("Áudio: só %1.").arg(name)
+                                           : QString("Áudio: só %1, com o volume ajustado.").arg(name));
+    } else if (nOn == 2 && r.audio.size() >= 2 && r.audio[0].enabled && r.audio[1].enabled) {
+        msg << "Áudio: Desktop e Mic juntos.";
     } else {
-        msg << QString("Áudio: %1 faixas ligadas serão juntadas em uma só (AAC 320k).").arg(nOn);
+        msg << QString("Áudio: %1 faixas juntas em uma só.").arg(nOn);
     }
     m_warning->setText(msg.join("   ·   "));
 
@@ -885,7 +889,7 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addStretch(1);
     }
     m_audioBox->setFixedWidth(96);
-    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 44);
+    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 96);
     // 2+ faixas: o cartão preenche a altura toda; com 1 faixa só, um cartão mínimo no topo
     m_editorRoot->setAlignment(m_audioBox, n >= 2 ? Qt::Alignment() : Qt::AlignTop);
     m_audioBox->setVisible(n > 0);

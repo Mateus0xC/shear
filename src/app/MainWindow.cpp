@@ -234,7 +234,19 @@ QWidget *MainWindow::buildEditor()
         m_audioRows = new QVBoxLayout;
         m_audioRows->setSpacing(6);
         pv->addLayout(m_audioRows, 1);
-        pv->addSpacing(10);
+        pv->addSpacing(8);
+        auto *groupLine = new QFrame; // linha fina: separa o volume do mic do "som ao arrastar"
+        groupLine->setFixedHeight(1);
+        groupLine->setStyleSheet(QString("background: %1; border: none;").arg(mid));
+        pv->addWidget(groupLine);
+        pv->addSpacing(9);
+        // legenda curta: junto do alto-falante diz "som ao arrastar" (mesmo estilo do "Vol. do mic")
+        m_scrubCap = new QLabel("Ao arrastar");
+        m_scrubCap->setProperty("role", "cap");
+        m_scrubCap->setAlignment(Qt::AlignHCenter);
+        m_scrubCap->setToolTip(kScrubTip);
+        pv->addWidget(m_scrubCap);
+        pv->addSpacing(4);
         m_scrubBtn = new SoundToggle;
         m_scrubBtn->setChecked(QSettings().value("player/scrubAudio", true).toBool());
         m_scrubBtn->setToolTip(kScrubTip);
@@ -621,6 +633,7 @@ void MainWindow::updateInfo()
     const bool anyAudio = enabledTrackCount(r.audio) > 0;
     m_scrubBtn->setEnabled(anyAudio);
     m_scrubBtn->setToolTip(anyAudio ? kScrubTip : kScrubTipBlocked);
+    m_scrubCap->setToolTip(anyAudio ? kScrubTip : kScrubTipBlocked);
     msg << (r.mode == CutMode::Fast
                 ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
                 : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
@@ -873,7 +886,7 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addStretch(1);
     }
     m_audioBox->setFixedWidth(96);
-    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 50);
+    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 90);
     // 2+ faixas: o cartão preenche a altura toda; com 1 faixa só, um cartão mínimo no topo
     m_editorRoot->setAlignment(m_audioBox, n >= 2 ? Qt::Alignment() : Qt::AlignTop);
     m_audioBox->setVisible(n > 0);

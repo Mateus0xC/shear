@@ -6,7 +6,7 @@
 
 namespace shear {
 
-enum class CutMode { Fast, Exact, Auto };
+enum class CutMode { Fast, Exact };
 
 // Uma faixa de áudio do arquivo. Ligada = você ouve no preview e ela vai no arquivo exportado.
 struct AudioTrack {
@@ -19,9 +19,8 @@ struct ExportRequest {
     QString outputPath;
     double startSec = 0;          // início escolhido pelo usuário
     double endSec = 0;
-    double keyframeBeforeStart = 0; // keyframe anterior ao início (para modo Auto/Rápido)
-    CutMode mode = CutMode::Auto;
-    double autoThresholdSec = 0.5;
+    double keyframeBeforeStart = 0; // keyframe anterior ao início (modo Rápido)
+    CutMode mode = CutMode::Fast;
     std::vector<AudioTrack> audio; // uma entrada por faixa do arquivo (a:0, a:1, ...)
     bool hasNvenc = true;
 };

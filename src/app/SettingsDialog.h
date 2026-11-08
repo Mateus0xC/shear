@@ -20,7 +20,6 @@ private:
     void refreshContextState();
     QComboBox *m_mode;
     QCheckBox *m_gpu;
-    QDoubleSpinBox *m_threshold;
     QLineEdit *m_out, *m_sp;
     QLabel *m_ctxState;
 };

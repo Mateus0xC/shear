@@ -35,23 +35,15 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     setWindowTitle("Configurações");
     setMinimumWidth(520);
     m_mode = new QComboBox;
-    m_mode->addItems({"Rápido (copia, começa no keyframe anterior)", "Exato (no frame certo)",
-                      "Automático"});
-    // índices na ordem do enum: Fast=0, Exact=1, Auto=2
-    m_mode->setCurrentIndex(int(c.mode));
-    m_threshold = new QDoubleSpinBox;
-    m_threshold->setRange(0.0, 10.0);
-    m_threshold->setSingleStep(0.1);
-    m_threshold->setSuffix(" s");
-    m_threshold->setValue(c.autoThresholdSec);
+    m_mode->addItems({"Rápido (copia o vídeo; o início encaixa nos keyframes)", "Exato (recodifica; corta no frame certo)"});
+    m_mode->setCurrentIndex(c.mode == CutMode::Exact ? 1 : 0);
     m_out = new QLineEdit(c.outputDir);
     m_out->setPlaceholderText("Mesma pasta do vídeo original");
     m_sp = new QLineEdit(c.shadowPlayDir);
     m_sp->setPlaceholderText("Pasta Vídeos do usuário");
 
     auto *form = new QFormLayout;
-    form->addRow("Modo de corte do início:", m_mode);
-    form->addRow("Limite do modo Automático:", m_threshold);
+    form->addRow("Modo de corte padrão:", m_mode);
     form->addRow("Pasta dos clipes mantidos:", folderRow(m_out, this));
     form->addRow("Pasta do ShadowPlay:", folderRow(m_sp, this));
     m_gpu = new QCheckBox("Decodificar o preview na GPU (NVDEC)");
@@ -100,8 +92,7 @@ void SettingsDialog::refreshContextState()
 Config SettingsDialog::config() const
 {
     Config c;
-    c.mode = static_cast<CutMode>(m_mode->currentIndex());
-    c.autoThresholdSec = m_threshold->value();
+    c.mode = m_mode->currentIndex() == 1 ? CutMode::Exact : CutMode::Fast;
     c.gpuDecode = m_gpu->isChecked();
     c.outputDir = m_out->text().trimmed();
     c.shadowPlayDir = m_sp->text().trimmed();

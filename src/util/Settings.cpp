@@ -8,8 +8,7 @@ Config Config::load()
 {
     QSettings s;
     Config c;
-    c.mode = static_cast<CutMode>(s.value("cut/mode", int(c.mode)).toInt());
-    c.autoThresholdSec = s.value("cut/autoThreshold", c.autoThresholdSec).toDouble();
+    c.mode = s.value("cut/mode", 0).toInt() == 1 ? CutMode::Exact : CutMode::Fast; // o antigo Automático (2) vira Rápido
     c.gpuDecode = s.value("player/gpuDecode", true).toBool();
     c.outputDir = s.value("paths/output").toString();
     c.shadowPlayDir = s.value("paths/shadowplay").toString();
@@ -20,7 +19,6 @@ void Config::save() const
 {
     QSettings s;
     s.setValue("cut/mode", int(mode));
-    s.setValue("cut/autoThreshold", autoThresholdSec);
     s.setValue("player/gpuDecode", gpuDecode);
     s.setValue("paths/output", outputDir);
     s.setValue("paths/shadowplay", shadowPlayDir);

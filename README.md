@@ -24,10 +24,12 @@ marcar início e fim, exportar e colar no Discord.
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
 
-### Modos de corte do início
-- **Rápido**: `-c copy`. O clipe começa no keyframe anterior. Um marcador laranja mostra o ponto real e um aviso diz quanto antes ele começa.
-- **Exato**: corta no frame certo recodificando o vídeo com NVENC (ou `libx264` sem NVENC). O smart cut chega na Fase 2.
-- **Automático** (padrão): usa Rápido se a distância ao keyframe anterior for menor que o limite (0,5 s por padrão); senão, Exato.
+### Modo de corte (botões Rápido | Exato)
+- **Rápido**: copia o vídeo sem recodificar (instantâneo). O corte só pode começar num keyframe, então o marcador de
+  **início encaixa nos keyframes** (as marcas na timeline) ao arrastar, ao apertar `I` e ao trocar para este modo.
+  O fim pode ficar em qualquer frame.
+- **Exato**: corta no frame certo recodificando o vídeo (NVENC, ou `libx264` sem NVENC). É mais lento.
+  O smart cut, que só recodifica o começo, está planejado para a Fase 2.
 
 ### Áudio
 Um cartão compacto no canto superior direito tem um botão por faixa (aceso = ligada) e um fader de volume só para o **Mic**

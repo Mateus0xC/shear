@@ -19,6 +19,9 @@ public:
     void setEnd(double e);
     void addKeyframes(const QVector<double> &batch);
     void setScanDone(bool done) { m_scanDone = done; }
+    // Modo Rápido: o marcador de início só existe em keyframes, então ele "gruda" neles ao arrastar.
+    void setSnapStart(bool snap) { m_snapStart = snap; }
+    double snapToKeyframe(double t) const; // keyframe mais próximo (ou t, se ainda não foi lido)
     void setGhostStart(std::optional<double> g);
 
     double duration() const { return m_dur; }
@@ -52,6 +55,7 @@ private:
     std::vector<double> m_kf;
     std::optional<double> m_ghost;
     bool m_scanDone = false;
+    bool m_snapStart = false;
     Drag m_drag = Drag::None;
     TimelineLens *m_lens = nullptr;
     bool m_zoom = false;      // mouse puxado para baixo: régua ampliada

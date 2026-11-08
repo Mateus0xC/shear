@@ -11,6 +11,7 @@
 #include "timeline/TimelineWidget.h"
 #include "util/Metrics.h"
 
+#include <QButtonGroup>
 #include <QComboBox>
 #include <QFrame>
 #include <QPainter>
@@ -231,16 +232,44 @@ QWidget *MainWindow::buildEditor()
     // Uma linha de opções + uma de resultado (altura fixa), para o player ficar o maior possível.
     auto *opts = new QHBoxLayout;
     opts->setSpacing(10);
-    m_modeBox = new QComboBox;
-    m_modeBox->addItems({"Início: Rápido", "Início: Exato", "Início: Automático"});
-    m_modeBox->setFocusPolicy(Qt::TabFocus);
+    // Seletor segmentado (dois botões lado a lado), em vez de menu dropdown
+    auto *seg = new QWidget;
+    auto *segLayout = new QHBoxLayout(seg);
+    segLayout->setContentsMargins(0, 0, 0, 0);
+    segLayout->setSpacing(0);
+    m_fastBtn = new QToolButton;
+    m_fastBtn->setText("Rápido");
+    m_fastBtn->setToolTip("Corta sem recodificar (instantâneo). O início encaixa nos keyframes (marcas na timeline).");
+    m_exactBtn = new QToolButton;
+    m_exactBtn->setText("Exato");
+    m_exactBtn->setToolTip("Corta no frame exato recodificando o vídeo (mais lento).");
+    m_fastBtn->setProperty("seg", "left");
+    m_exactBtn->setProperty("seg", "right");
+    m_modeGroup = new QButtonGroup(this);
+    m_modeGroup->setExclusive(true);
+    for (auto *b : {m_fastBtn, m_exactBtn}) {
+        b->setCheckable(true);
+        b->setFocusPolicy(Qt::NoFocus);
+        m_modeGroup->addButton(b);
+        segLayout->addWidget(b);
+    }
+    {
+        const QPalette pal = palette();
+        seg->setStyleSheet(QString(R"(
+            QToolButton { border: 1px solid %1; padding: 5px 16px; background: transparent; color: %2; }
+            QToolButton[seg="left"]  { border-top-left-radius: 7px;  border-bottom-left-radius: 7px;  border-right-width: 0; }
+            QToolButton[seg="right"] { border-top-right-radius: 7px; border-bottom-right-radius: 7px; }
+            QToolButton:checked { background: %3; border-color: %3; color: %4; font-weight: 600; }
+        )").arg(pal.color(QPalette::Mid).name(), pal.color(QPalette::WindowText).name(),
+                pal.color(QPalette::Highlight).name(), pal.color(QPalette::HighlightedText).name()));
+    }
     m_warning = new ElideLabel; // resumo do que vai acontecer (uma linha; a dica mostra o texto inteiro)
     m_eta = new QLabel;
     m_eta->setToolTip("Previsão do tempo de exportação, calibrada com as suas exportações anteriores.");
     m_exportBtn = new QPushButton("Exportar (Enter)");
     m_exportBtn->setFixedSize(150, 30);
     m_exportBtn->setFocusPolicy(Qt::NoFocus);
-    opts->addWidget(m_modeBox);
+    opts->addWidget(seg);
     opts->addWidget(m_warning, 1);
     opts->addWidget(m_eta);
     opts->addWidget(m_exportBtn);
@@ -274,7 +303,7 @@ QWidget *MainWindow::buildEditor()
     l->addLayout(bottom);
 
     // preencher com os padrões
-    m_modeBox->setCurrentIndex(int(m_cfg.mode));
+    setCutMode(m_cfg.mode);
 
     connect(m_exportBtn, &QPushButton::clicked, this, &MainWindow::startExport);
     connect(m_cancelBtn, &QPushButton::clicked, this, &MainWindow::cancelExport);
@@ -282,7 +311,8 @@ QWidget *MainWindow::buildEditor()
     connect(m_openFolderBtn, &QPushButton::clicked, this, [this] { revealInExplorer(m_lastOutput); });
     connect(m_keepBtn, &QPushButton::clicked, this, &MainWindow::keepLastOutput);
     connect(m_deleteBtn, &QPushButton::clicked, this, &MainWindow::deleteLastOutput);
-    connect(m_modeBox, &QComboBox::currentIndexChanged, this, [this] { updateInfo(); });
+    connect(m_modeGroup, &QButtonGroup::buttonToggled, this, [this](QAbstractButton *, bool on) { if (on) onModeChanged(); });
+    onModeChanged();
     connect(m_mpv, &MpvWidget::fileLoaded, this, &MainWindow::applyPreviewAudio);
 
     connect(m_mpv, &MpvWidget::positionChanged, m_timeline, &TimelineWidget::setPosition);
@@ -389,7 +419,7 @@ void MainWindow::openSettings()
     m_cfg = d.config();
     m_cfg.save();
     if (m_editor) {
-        m_modeBox->setCurrentIndex(int(m_cfg.mode));
+        setCutMode(m_cfg.mode);
     }
     refreshRecent();
     updateInfo();
@@ -460,6 +490,7 @@ QString MainWindow::fmt(double s)
 
 void MainWindow::markStart(double t)
 {
+    t = snapIfFast(t);
     if (t >= m_timeline->end()) m_timeline->setEnd(m_timeline->duration());
     m_timeline->setStart(t);
     updateInfo();
@@ -487,16 +518,15 @@ ExportRequest MainWindow::currentRequest() const
     r.inputPath = m_file;
     r.startSec = m_timeline->start();
     r.endSec = m_timeline->end();
-    r.mode = static_cast<CutMode>(m_modeBox->currentIndex());
-    r.autoThresholdSec = m_cfg.autoThresholdSec;
+    r.mode = m_exactBtn->isChecked() ? CutMode::Exact : CutMode::Fast;
     r.hasNvenc = m_hasNvenc;
     r.audio = currentAudio();
     if (auto k = m_timeline->keyframeAtOrBefore(r.startSec))
         r.keyframeBeforeStart = *k;
     else if (m_timeline->scanDone())
         r.keyframeBeforeStart = 0.0;
-    else // keyframe ainda desconhecido: Automático cai no Exato, Rápido deixa o ffmpeg buscar
-        r.keyframeBeforeStart = r.mode == CutMode::Auto ? r.startSec - 1000.0 : r.startSec;
+    else // keyframe ainda desconhecido: o ffmpeg busca sozinho o keyframe anterior
+        r.keyframeBeforeStart = r.startSec;
     return r;
 }
 
@@ -792,6 +822,30 @@ void MainWindow::applyPreviewAudio()
 {
     if (m_rows.empty() || !m_mpv) return;
     m_mpv->setAudioGraph(buildAudioMixGraph(currentAudio(), true, "ao")); // o que você ouve = o que vai no arquivo
+}
+
+void MainWindow::setCutMode(CutMode m)
+{
+    (m == CutMode::Exact ? m_exactBtn : m_fastBtn)->setChecked(true);
+}
+
+double MainWindow::snapIfFast(double t) const
+{
+    return m_exactBtn->isChecked() ? t : m_timeline->snapToKeyframe(t);
+}
+
+void MainWindow::onModeChanged()
+{
+    const bool fast = !m_exactBtn->isChecked();
+    m_timeline->setSnapStart(fast);
+    if (fast) { // no modo Rápido o início só existe em keyframes: encaixa o marcador que já estava lá
+        const double s = m_timeline->snapToKeyframe(m_timeline->start());
+        if (s != m_timeline->start()) {
+            m_timeline->setStart(s);
+            m_mpv->seek(s);
+        }
+    }
+    updateInfo();
 }
 
 void MainWindow::changeVolume(int delta)

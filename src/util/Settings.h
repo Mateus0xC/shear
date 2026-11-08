@@ -6,8 +6,7 @@
 namespace shear {
 
 struct Config {
-    CutMode mode = CutMode::Auto;
-    double autoThresholdSec = 0.5;
+    CutMode mode = CutMode::Fast;
     bool gpuDecode = true; // preview decodificado no NVDEC (GPU NVIDIA); false = CPU
     QString outputDir;      // vazio = pasta do original
     QString shadowPlayDir;  // vazio = Vídeos do usuário

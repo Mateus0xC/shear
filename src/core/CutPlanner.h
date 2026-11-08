@@ -9,7 +9,7 @@ struct CutPlan {
     double earlyBySec = 0;     // quanto antes do pedido (modo rápido)
 };
 
-// Resolve Auto -> Rápido/Exato e diz se o vídeo pode ser copiado.
+// Rápido: copia o vídeo (o início cai num keyframe). Exato: recodifica para cortar no frame certo.
 CutPlan planCut(const ExportRequest &r);
 
 // "o clipe vai começar 1,4 s antes"; vazio se não houver aviso.

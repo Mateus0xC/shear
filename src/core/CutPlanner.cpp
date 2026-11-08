@@ -8,12 +8,7 @@ CutPlan planCut(const ExportRequest &r)
     CutPlan p;
     const double gap = std::max(0.0, r.startSec - r.keyframeBeforeStart);
 
-    bool fast = false;
-    switch (r.mode) {
-    case CutMode::Fast:  fast = true; break;
-    case CutMode::Exact: fast = false; break;
-    case CutMode::Auto:  fast = gap < r.autoThresholdSec; break;
-    }
+    const bool fast = r.mode == CutMode::Fast;
 
     p.copyVideo = fast;
     p.actualStartSec = fast ? r.keyframeBeforeStart : r.startSec;

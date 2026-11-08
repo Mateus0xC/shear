@@ -6,6 +6,7 @@
 #include <QMainWindow>
 #include <vector>
 
+class QButtonGroup;
 class QComboBox;
 class QFrame;
 class QHBoxLayout;
@@ -61,6 +62,9 @@ private:
     void hideResultButtons();
     void rebuildAudioRows(int n);
     void changeVolume(int delta);
+    void setCutMode(CutMode m);
+    void onModeChanged();
+    double snapIfFast(double t) const;
     void applyPreviewAudio();
     std::vector<AudioTrack> currentAudio() const;
     void startExport();
@@ -75,7 +79,8 @@ private:
     MpvWidget *m_mpv;
     TimelineWidget *m_timeline;
     QLabel *m_title, *m_times, *m_early, *m_warning, *m_status;
-    QComboBox *m_modeBox;
+    QToolButton *m_fastBtn = nullptr, *m_exactBtn = nullptr; // seletor Rápido | Exato
+    QButtonGroup *m_modeGroup = nullptr;
     struct TrackRow { QToolButton *on; };
     QFrame *m_audioBox = nullptr;      // painel lateral fino, só com as faixas
     QVBoxLayout *m_audioRows = nullptr;

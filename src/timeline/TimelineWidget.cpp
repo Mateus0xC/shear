@@ -189,6 +189,15 @@ std::optional<double> TimelineWidget::nearestKeyframe(double t) const
     return best;
 }
 
+double TimelineWidget::snapToKeyframe(double t) const
+{
+    if (m_kf.empty())
+        return t;
+    if (!m_scanDone && t > m_kf.back())
+        return t; // região ainda não lida: não puxa de volta para o último keyframe conhecido
+    return nearestKeyframe(t).value_or(t);
+}
+
 double TimelineWidget::secToX(double s) const
 {
     const double w = width() - 2.0 * kMargin;
@@ -258,7 +267,7 @@ void TimelineWidget::applyDrag(double t)
     switch (m_drag) {
     case Drag::Seek:  emit seekRequested(t); break;
     // Os marcadores também levam o vídeo junto enquanto são arrastados (scrubbing em tempo real).
-    case Drag::Start: setStart(t); m_dragT = m_start; emit startChanged(m_start); emit seekRequested(m_start); break;
+    case Drag::Start: setStart(m_snapStart ? snapToKeyframe(t) : t); m_dragT = m_start; emit startChanged(m_start); emit seekRequested(m_start); break;
     case Drag::End:   setEnd(t); m_dragT = m_end; emit endChanged(m_end); emit seekRequested(m_end); break;
     default: break;
     }

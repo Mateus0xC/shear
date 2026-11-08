@@ -19,14 +19,17 @@ class CoreTest : public QObject {
         return r;
     }
 private slots:
-    void auto_mode_threshold()
+    void fast_copies_and_exact_reencodes()
     {
-        auto r = base(); // gap 1.4 > 0.5 -> exato
-        QVERIFY(!planCut(r).copyVideo);
-        r.keyframeBeforeStart = 59.8; // gap 0.2 -> rápido
+        auto r = base();
+        r.mode = CutMode::Fast;
         auto p = planCut(r);
         QVERIFY(p.copyVideo);
-        QCOMPARE(p.actualStartSec, 59.8);
+        QCOMPARE(p.actualStartSec, 58.6); // cai no keyframe anterior
+        r.mode = CutMode::Exact;
+        p = planCut(r);
+        QVERIFY(!p.copyVideo);
+        QCOMPARE(p.actualStartSec, 60.0); // no frame pedido
     }
     void fast_mode_warning()
     {
@@ -126,7 +129,8 @@ private slots:
     }
     void exact_reencodes_with_nvenc_or_x264()
     {
-        auto r = base(); // auto, gap grande -> exato
+        auto r = base();
+        r.mode = CutMode::Exact;
         auto a = buildFfmpegArgs(r, planCut(r));
         QVERIFY(a.contains("h264_nvenc"));
         r.hasNvenc = false;

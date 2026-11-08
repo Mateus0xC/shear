@@ -393,9 +393,18 @@ QWidget *MainWindow::buildEditor()
     connect(m_exportBtn, &QPushButton::clicked, this, &MainWindow::startExport);
     connect(m_cancelBtn, &QPushButton::clicked, this, &MainWindow::cancelExport);
     connect(m_copyBtn, &QPushButton::clicked, this, [this] { copyFileToClipboard(m_lastOutput); });
+    // Vale o que o botão mostra (ou o Shift no instante do clique): o que você vê é o que acontece.
     connect(m_keepBtn, &QPushButton::clicked, this, [this] {
-        keepLastOutput(QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier));
+        const bool shift = QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier) ||
+                           m_keepBtn->text() != "Manter";
+        keepLastOutput(shift);
     });
+    // Botões do resultado todos do mesmo tamanho (o do maior texto).
+    {
+        const int w = m_keepBtn->fontMetrics().horizontalAdvance("Manter e apagar original") + 28;
+        for (QPushButton *b : {m_cancelBtn, m_copyBtn, m_keepBtn, m_deleteBothBtn})
+            b->setFixedSize(w, 28);
+    }
     connect(m_modeGroup, &QButtonGroup::buttonToggled, this, [this](QAbstractButton *, bool on) { if (on) onModeChanged(); });
     onModeChanged();
     connect(m_mpv, &MpvWidget::fileLoaded, this, &MainWindow::applyPreviewAudio);

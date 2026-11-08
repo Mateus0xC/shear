@@ -50,6 +50,16 @@ Ao arrastar o cursor ou os marcadores de início/fim, **puxe o mouse para baixo*
 centrada na posição atual. Quanto mais para baixo, maior o zoom (janela de ~12 s até ~0,4 s) e mais fino fica o movimento
 horizontal. Soltar o botão fecha a régua.
 
+### Controle preciso (puxar o mouse para baixo)
+Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para baixo** e solte-o quando estiver no ponto certo:
+- Abre uma régua ampliada logo abaixo da timeline e uma moldura mostra, na timeline, qual trecho está ampliado.
+- **Quanto mais para baixo, mais zoom**, em quatro níveis com janelas de 20 s, 5 s, 1,5 s e 0,4 s (o nível atual fica destacado
+  na régua). O vídeo acompanha em tempo real.
+- Dentro de um nível o mapeamento é absoluto: o ponto sob o mouse na timeline fica na mesma coluna da régua, e a linha branca
+  mostra o tempo exato (com a taxa de quadros do vídeo, nos dois níveis mais finos o marcador anda de frame em frame).
+- Entrar no zoom e trocar de nível não faz o marcador pular. Voltar com o mouse para dentro da timeline sai do zoom.
+- Durante o arrasto, uma dica na própria timeline lembra do gesto.
+
 ### Overlay da NVIDIA
 O Shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não
 aciona o aviso "pressione ... para abrir" do overlay da NVIDIA, enquanto `d3d11va`/`dxva2` acionam. Em Configurações dá para

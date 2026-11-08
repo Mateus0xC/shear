@@ -59,6 +59,7 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
     mpv_observe_property(m_mpv, 0, "time-pos", MPV_FORMAT_DOUBLE);
     mpv_observe_property(m_mpv, 0, "duration", MPV_FORMAT_DOUBLE);
     mpv_observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
+    mpv_observe_property(m_mpv, 0, "container-fps", MPV_FORMAT_DOUBLE);
     mpv_set_wakeup_callback(m_mpv, &MpvWidget::wakeup, this);
 
     mpv_render_param params[] = {
@@ -244,6 +245,8 @@ void MpvWidget::handleEvents()
             } else if (p->format == MPV_FORMAT_DOUBLE && n == "duration") {
                 m_dur = *static_cast<double *>(p->data);
                 emit durationChanged(m_dur);
+            } else if (n == "container-fps") {
+                emit fpsChanged(p->format == MPV_FORMAT_DOUBLE ? *static_cast<double *>(p->data) : 0.0);
             } else if (p->format == MPV_FORMAT_FLAG && n == "pause") {
                 m_paused = *static_cast<int *>(p->data) != 0;
                 emit pausedChanged(m_paused);

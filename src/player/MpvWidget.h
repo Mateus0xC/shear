@@ -36,6 +36,7 @@ signals:
     void durationChanged(double sec);
     void pausedChanged(bool paused);
     void fileLoaded();
+    void fpsChanged(double fps); // taxa de quadros do arquivo (0 se desconhecida)
     void volumeWheel(int delta); // roda do mouse sobre o vídeo: +5 / -5 por "clique"
     void firstFrame();
 

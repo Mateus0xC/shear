@@ -23,6 +23,7 @@ public:
     void setSnapStart(bool snap) { m_snapStart = snap; }
     double snapToKeyframe(double t) const; // keyframe mais próximo (ou t, se ainda não foi lido)
     void setGhostStart(std::optional<double> g);
+    void setFps(double fps) { m_fps = fps; } // com a taxa de quadros, o zoom fino anda de frame em frame
 
     double duration() const { return m_dur; }
     double start() const { return m_start; }
@@ -47,7 +48,8 @@ protected:
 private:
     enum class Drag { None, Seek, Start, End };
     void applyDrag(double t);
-    void showLens(double span);
+    void showLens();
+    void leaveZoom();
     double xToSec(double x) const;
     double secToX(double s) const;
 
@@ -56,10 +58,16 @@ private:
     std::optional<double> m_ghost;
     bool m_scanDone = false;
     bool m_snapStart = false;
+    double m_fps = 0;
     Drag m_drag = Drag::None;
+    double m_dragT = 0; // valor que está sendo arrastado
+
+    // Zoom fino (arrastar puxando o mouse para baixo): régua ampliada com mapeamento ABSOLUTO sob o mouse.
     TimelineLens *m_lens = nullptr;
-    bool m_zoom = false;      // mouse puxado para baixo: régua ampliada
-    double m_lastX = 0, m_dragT = 0;
+    bool m_zoom = false;
+    int m_level = -1;     // 0..3: janelas de 20 s, 5 s, 1,5 s, 0,4 s
+    double m_win0 = 0;    // início da janela ampliada (s)
+    double m_span = 1;    // largura da janela ampliada (s)
     static constexpr int kMargin = 14;
 };
 

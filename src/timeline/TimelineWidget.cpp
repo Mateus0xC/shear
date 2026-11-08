@@ -1,5 +1,6 @@
 #include "TimelineWidget.h"
 #include <QApplication>
+#include <QFontMetrics>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPalette>
@@ -8,7 +9,33 @@
 
 namespace shear {
 
-// Régua ampliada que aparece abaixo da timeline enquanto você arrasta com o mouse puxado para baixo.
+// Janelas do zoom fino. Quanto mais o mouse desce, menor a janela (mais zoom).
+static const double kSpans[] = {20.0, 5.0, 1.5, 0.4};
+static constexpr int kLevels = 4;
+static constexpr double kEnterBeyond = 8;   // px abaixo da timeline para abrir o zoom
+static constexpr double kLevelHeight = 55;  // px de descida por nível de zoom
+static constexpr double kHysteresis = 10;   // px de folga para o nível não ficar piscando
+
+static QString fmtSpan(double s) { return QString::number(s, 'g', 3).replace('.', ',') + " s"; }
+
+static QString fmtTime(double t, int dec)
+{
+    t = std::max(0.0, t);
+    const int m = int(t) / 60;
+    const double sec = t - m * 60;
+    QString s = QString::number(sec, 'f', dec);
+    if (sec < 10) s.prepend('0');
+    return QString("%1:%2").arg(m).arg(s).replace('.', ',');
+}
+
+struct LensState {
+    double win0 = 0, span = 1, dur = 0, start = 0, end = 0, cur = 0, fps = 0;
+    int level = 0;
+    const std::vector<double> *kf = nullptr;
+};
+
+// Régua ampliada que aparece logo abaixo da timeline enquanto você arrasta com o mouse puxado para baixo.
+// O ponto sob o mouse na timeline fica na mesma coluna aqui (mapeamento absoluto): o que você vê é onde você está.
 class TimelineLens : public QWidget {
 public:
     explicit TimelineLens(QWidget *owner) : QWidget(owner, Qt::ToolTip | Qt::FramelessWindowHint)
@@ -16,107 +43,136 @@ public:
         setAttribute(Qt::WA_ShowWithoutActivating);
         setAttribute(Qt::WA_TransparentForMouseEvents);
     }
-    void setState(double center, double span, double dur, const std::vector<double> *kf, double st, double en)
+    void setState(const LensState &s)
     {
-        m_c = center; m_span = span; m_dur = dur; m_kf = kf; m_start = st; m_end = en;
+        m_s = s;
         update();
     }
 
 protected:
-    static QString fmtT(double t, int dec)
-    {
-        t = std::max(0.0, t);
-        const int m = int(t) / 60;
-        const double sec = t - m * 60;
-        QString s = QString::number(sec, 'f', dec);
-        if (sec < 10) s.prepend('0');
-        return QString("%1:%2").arg(m).arg(s).replace('.', ',');
-    }
-
     void paintEvent(QPaintEvent *) override
     {
+        const LensState &s = m_s;
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
         const QPalette pal = qApp->palette();
         const QColor text = pal.color(QPalette::WindowText), mid = pal.color(QPalette::Mid);
+        const QColor accent = pal.color(QPalette::Highlight);
         QColor dim = text;
         dim.setAlpha(140);
 
         p.setBrush(pal.color(QPalette::Base));
-        p.setPen(QPen(mid, 1));
-        p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
+        p.setPen(QPen(accent, 1.5));
+        p.drawRoundedRect(QRectF(rect()).adjusted(0.75, 0.75, -0.75, -0.75), 9, 9);
 
-        const double m = 14, w = width() - 2 * m, t0 = m_c - m_span / 2;
-        auto X = [&](double t) { return m + (t - t0) / m_span * w; };
-        const double top = 26, base = height() - 10;
+        const double m = 14, w = width() - 2 * m, t0 = s.win0;
+        auto X = [&](double t) { return m + (t - t0) / s.span * w; };
+        const double top = 48, base = height() - 10;
+
+        // linha de dicas (esquerda) e níveis de zoom (direita, o atual destacado)
+        QFont f = font();
+        f.setPixelSize(11);
+        p.setFont(f);
+        p.setPen(dim);
+        p.drawText(QRectF(m, 5, w * 0.5, 18), Qt::AlignLeft | Qt::AlignVCenter, "↓ mais zoom    ↑ menos zoom");
+        double rx = width() - m;
+        for (int i = kLevels - 1; i >= 0; --i) {
+            const bool active = i == s.level;
+            f.setBold(active);
+            p.setFont(f);
+            const QString lab = fmtSpan(kSpans[i]);
+            const int tw = QFontMetrics(f).horizontalAdvance(lab);
+            const QRectF box(rx - tw - 14, 5, tw + 14, 18);
+            if (active) {
+                QColor bg = accent;
+                bg.setAlpha(255);
+                p.setPen(Qt::NoPen);
+                p.setBrush(bg);
+                p.drawRoundedRect(box, 9, 9);
+                p.setPen(pal.color(QPalette::HighlightedText));
+            } else {
+                p.setPen(dim);
+            }
+            p.drawText(box, Qt::AlignCenter, lab);
+            rx -= tw + 18;
+        }
+        f.setBold(false);
 
         // fora do clipe (antes de 0 ou depois do fim): escurecido
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(0, 0, 0, 110));
         if (t0 < 0) p.drawRect(QRectF(m, top, X(0) - m, base - top));
-        if (t0 + m_span > m_dur) p.drawRect(QRectF(X(m_dur), top, m + w - X(m_dur), base - top));
+        if (t0 + s.span > s.dur) p.drawRect(QRectF(X(s.dur), top, m + w - X(s.dur), base - top));
 
         // seleção
         p.setBrush(QColor(60, 110, 200, 70));
-        const double xs = std::clamp(X(m_start), m, m + w), xe = std::clamp(X(m_end), m, m + w);
+        const double xs = std::clamp(X(s.start), m, m + w), xe = std::clamp(X(s.end), m, m + w);
         if (xe > xs) p.drawRect(QRectF(xs, top, xe - xs, base - top));
 
         // régua: passo "redondo" com no máximo ~8 marcas principais na janela
         static const double steps[] = {0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60};
         double major = 60;
         for (double st : steps)
-            if (m_span / st <= 8) { major = st; break; }
+            if (s.span / st <= 8) { major = st; break; }
         const double minor = major / 5;
         const int dec = major >= 1 ? 0 : (major >= 0.1 ? 1 : 2);
-        QFont f = font();
         f.setPixelSize(10);
         p.setFont(f);
-        for (long long k = (long long)std::ceil(t0 / minor); k * minor <= t0 + m_span; ++k) {
+        for (long long k = (long long)std::ceil(t0 / minor); k * minor <= t0 + s.span; ++k) {
             const double t = k * minor, x = X(t);
             const bool isMajor = std::abs(t - std::round(t / major) * major) < minor * 0.01;
             p.setPen(QPen(isMajor ? text : dim, 1));
             p.drawLine(QPointF(x, base), QPointF(x, base - (isMajor ? 22 : 10)));
             if (isMajor) {
                 p.setPen(dim);
-                p.drawText(QRectF(x - 34, base - 38, 68, 14), Qt::AlignHCenter, fmtT(t, dec));
+                p.drawText(QRectF(x - 34, base - 38, 68, 14), Qt::AlignHCenter, fmtTime(t, dec));
             }
         }
 
+        // marcas de frame (quando há espaço): cada traço é um quadro
+        if (s.fps > 0 && w / s.span / s.fps >= 3.0) {
+            QColor fc = text;
+            fc.setAlpha(70);
+            p.setPen(QPen(fc, 1));
+            for (long long k = (long long)std::ceil(t0 * s.fps); k / s.fps <= t0 + s.span; ++k)
+                p.drawLine(QPointF(X(k / s.fps), base), QPointF(X(k / s.fps), base - 5));
+        }
+
         // keyframes (laranja) na janela
-        if (m_kf) {
+        if (s.kf) {
             p.setPen(QPen(QColor(255, 160, 40), 2));
-            auto it = std::lower_bound(m_kf->begin(), m_kf->end(), t0);
-            for (; it != m_kf->end() && *it <= t0 + m_span; ++it)
-                p.drawLine(QPointF(X(*it), base), QPointF(X(*it), base - 6));
+            auto it = std::lower_bound(s.kf->begin(), s.kf->end(), t0);
+            for (; it != s.kf->end() && *it <= t0 + s.span; ++it)
+                p.drawLine(QPointF(X(*it), base), QPointF(X(*it), base - 8));
         }
 
         // marcadores de início/fim
         p.setPen(QPen(QColor(90, 170, 255), 3));
-        if (m_start >= t0 && m_start <= t0 + m_span) p.drawLine(QPointF(X(m_start), top), QPointF(X(m_start), base));
+        if (s.start >= t0 && s.start <= t0 + s.span) p.drawLine(QPointF(X(s.start), top), QPointF(X(s.start), base));
         p.setPen(QPen(QColor(255, 110, 110), 3));
-        if (m_end >= t0 && m_end <= t0 + m_span) p.drawLine(QPointF(X(m_end), top), QPointF(X(m_end), base));
+        if (s.end >= t0 && s.end <= t0 + s.span) p.drawLine(QPointF(X(s.end), top), QPointF(X(s.end), base));
 
-        // posição atual (fixa no centro; a régua desliza por baixo)
-        const double cx = X(m_c);
+        // posição atual: linha branca exatamente embaixo do mouse, com o tempo preciso numa etiqueta
+        const double cx = X(s.cur);
         p.setPen(QPen(Qt::white, 2));
         p.drawLine(QPointF(cx, top - 4), QPointF(cx, base));
         f.setPixelSize(12);
         f.setBold(true);
         p.setFont(f);
-        p.setPen(text);
-        p.drawText(QRectF(cx - 60, 3, 120, 18), Qt::AlignCenter, fmtT(m_c, 3));
-        f.setBold(false);
-        f.setPixelSize(10);
-        p.setFont(f);
-        p.setPen(dim);
-        p.drawText(QRectF(width() - 170, 4, 156, 16), Qt::AlignRight, QString("zoom: janela de %1 s").arg(QString::number(m_span, 'f', m_span < 1 ? 2 : 1).replace('.', ',')));
+        const QString label = fmtTime(s.cur, 3);
+        const double bw = QFontMetrics(f).horizontalAdvance(label) + 18;
+        const double bx = std::clamp(cx - bw / 2, m, m + w - bw);
+        const QRectF bubble(bx, 26, bw, 18);
+        p.setPen(Qt::NoPen);
+        p.setBrush(accent);
+        p.drawRoundedRect(bubble, 9, 9);
+        p.setPen(pal.color(QPalette::HighlightedText));
+        p.drawText(bubble, Qt::AlignCenter, label);
     }
 
 private:
-    double m_c = 0, m_span = 1, m_dur = 0, m_start = 0, m_end = 0;
-    const std::vector<double> *m_kf = nullptr;
+    LensState m_s;
 };
-
 
 TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent)
 {
@@ -133,6 +189,7 @@ void TimelineWidget::reset(double duration)
     m_kf.clear();
     m_ghost.reset();
     m_scanDone = false;
+    m_fps = 0;
     update();
 }
 
@@ -244,6 +301,32 @@ void TimelineWidget::paintEvent(QPaintEvent *)
     p.setPen(QPen(Qt::white, 2));
     const double px = secToX(m_pos);
     p.drawLine(QPointF(px, top), QPointF(px, bottom));
+
+    const QColor accent = palette().color(QPalette::Highlight);
+    if (m_zoom) {
+        // moldura mostrando QUAL trecho da timeline está ampliado na régua de baixo
+        const double a = std::clamp(secToX(m_win0), double(kMargin), double(width() - kMargin));
+        const double b = std::clamp(secToX(m_win0 + m_span), double(kMargin), double(width() - kMargin));
+        QColor fill = accent;
+        fill.setAlpha(60);
+        p.setPen(QPen(accent, 2));
+        p.setBrush(fill);
+        const double bw = std::max(14.0, b - a); // largura mínima visível, mesmo nos níveis de zoom mais finos
+        p.drawRoundedRect(QRectF((a + b) / 2 - bw / 2, top - 3, bw, bottom - top + 6), 3, 3);
+    } else if (m_drag != Drag::None) {
+        // dica de descoberta enquanto arrasta
+        QFont f = font();
+        f.setPixelSize(11);
+        p.setFont(f);
+        const QString hint = "↓ puxe o mouse para baixo para ampliar";
+        const double tw = QFontMetrics(f).horizontalAdvance(hint) + 20;
+        const QRectF box((width() - tw) / 2, top + 2, tw, bottom - top - 4);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0, 0, 0, 150));
+        p.drawRoundedRect(box, 6, 6);
+        p.setPen(QColor(255, 255, 255, 220));
+        p.drawText(box, Qt::AlignCenter, hint);
+    }
 }
 
 void TimelineWidget::mousePressEvent(QMouseEvent *e)
@@ -260,12 +343,14 @@ void TimelineWidget::mousePressEvent(QMouseEvent *e)
         emit seekRequested(m_dragT);
     }
     m_zoom = false;
+    m_level = -1;
+    update();
 }
 
 void TimelineWidget::applyDrag(double t)
 {
     switch (m_drag) {
-    case Drag::Seek:  emit seekRequested(t); break;
+    case Drag::Seek:  m_dragT = t; emit seekRequested(t); break;
     // Os marcadores também levam o vídeo junto enquanto são arrastados (scrubbing em tempo real).
     case Drag::Start: setStart(m_snapStart ? snapToKeyframe(t) : t); m_dragT = m_start; emit startChanged(m_start); emit seekRequested(m_start); break;
     case Drag::End:   setEnd(t); m_dragT = m_end; emit endChanged(m_end); emit seekRequested(m_end); break;
@@ -273,13 +358,24 @@ void TimelineWidget::applyDrag(double t)
     }
 }
 
-void TimelineWidget::showLens(double span)
+void TimelineWidget::showLens()
 {
     if (!m_lens) m_lens = new TimelineLens(this);
-    m_lens->resize(width(), 92);
-    m_lens->move(mapToGlobal(QPoint(0, height() + 8)));
-    m_lens->setState(m_dragT, span, m_dur, &m_kf, m_start, m_end);
+    m_lens->resize(width(), 108);
+    m_lens->move(mapToGlobal(QPoint(0, height() + 6)));
+    LensState s;
+    s.win0 = m_win0; s.span = m_span; s.dur = m_dur; s.start = m_start; s.end = m_end;
+    s.cur = m_dragT; s.fps = m_fps; s.level = m_level; s.kf = &m_kf;
+    m_lens->setState(s);
     if (!m_lens->isVisible()) m_lens->show();
+}
+
+void TimelineWidget::leaveZoom()
+{
+    m_zoom = false;
+    m_level = -1;
+    if (m_lens) m_lens->hide();
+    update();
 }
 
 void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
@@ -287,34 +383,46 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
     if (m_drag == Drag::None) return;
     const QPointF pos = e->position();
     const double beyond = pos.y() - height(); // quanto o mouse foi puxado para baixo da timeline
-    if (beyond > 6) {
-        // Quanto mais para baixo, mais zoom (12 s -> ~0,4 s). O movimento horizontal passa a ser relativo e fino.
-        const double span = std::clamp(12.0 * std::exp(-(beyond - 6) / 70.0), 0.4, std::max(0.4, std::min(m_dur, 12.0)));
-        if (!m_zoom) {
-            m_zoom = true;
-            m_lastX = pos.x();
-        }
-        const double w = width() - 2.0 * kMargin;
-        m_dragT = std::clamp(m_dragT + (pos.x() - m_lastX) / w * span, 0.0, m_dur);
-        m_lastX = pos.x();
-        applyDrag(m_dragT);
-        showLens(span);
-    } else {
-        if (m_zoom) {
-            m_zoom = false;
-            if (m_lens) m_lens->hide();
-        }
-        m_dragT = xToSec(pos.x());
-        applyDrag(m_dragT);
+    const double w = width() - 2.0 * kMargin;
+    const double frac = std::clamp((pos.x() - kMargin) / w, 0.0, 1.0); // posição horizontal dentro da timeline/régua
+
+    // Entra no zoom ao passar de kEnterBeyond e só sai ao voltar para dentro da timeline (histerese).
+    const bool wantZoom = m_zoom ? beyond > 0 : beyond > kEnterBeyond;
+    if (!wantZoom) {
+        if (m_zoom) leaveZoom();
+        applyDrag(xToSec(pos.x()));
+        return;
     }
+
+    // Nível de zoom por faixas de altura, com folga para não ficar trocando na borda.
+    auto bandStart = [](int L) { return kEnterBeyond + kLevelHeight * L; };
+    int level = m_level;
+    if (level < 0 || beyond < bandStart(level) - kHysteresis || (level < kLevels - 1 && beyond >= bandStart(level + 1) + kHysteresis))
+        level = std::clamp(int((beyond - kEnterBeyond) / kLevelHeight), 0, kLevels - 1);
+    const double span = std::min(kSpans[level], std::max(0.4, m_dur));
+
+    // (Re)ancora a janela de modo que a posição atual fique exatamente embaixo do mouse: sem saltos ao entrar
+    // ou ao trocar de nível. Dentro de um nível o mapeamento é absoluto: mouse na coluna X = tempo daquela coluna.
+    if (!m_zoom || level != m_level) {
+        m_zoom = true;
+        m_level = level;
+        m_span = span;
+        m_win0 = m_dragT - frac * span;
+    }
+    double t = std::clamp(m_win0 + frac * m_span, 0.0, m_dur);
+    if (m_fps > 0 && m_span <= 2.0)
+        t = std::clamp(std::round(t * m_fps) / m_fps, 0.0, m_dur); // zoom fino: anda de frame em frame
+    applyDrag(t);
+    showLens();
+    update();
 }
 
 void TimelineWidget::mouseReleaseEvent(QMouseEvent *)
 {
     if (m_drag == Drag::Start) emit seekRequested(m_start);
-    if (m_lens) m_lens->hide();
-    m_zoom = false;
+    if (m_zoom) leaveZoom();
     m_drag = Drag::None;
+    update();
 }
 
 } // namespace shear

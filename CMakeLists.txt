@@ -30,6 +30,13 @@ add_test(NAME core COMMAND test_core)
 add_executable(bench_export tests/bench_export.cpp)
 target_link_libraries(bench_export PRIVATE shear_core)
 
+# teclas de navegação (Shift/Ctrl/Alt + setas): teste que simula as teclas dentro do Qt, fora da tela
+add_executable(test_navkeys tests/test_navkeys.cpp src/app/NavKeys.cpp)
+target_include_directories(test_navkeys PRIVATE src/app)
+target_link_libraries(test_navkeys PRIVATE Qt6::Widgets Qt6::Test)
+add_test(NAME navkeys COMMAND test_navkeys)
+set_tests_properties(navkeys PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/src/app/CMakeLists.txt")
   add_subdirectory(src/app)
 endif()

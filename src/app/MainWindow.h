@@ -63,7 +63,8 @@ private:
     void undo();
     void redo();
     void applyState(const EditState &s);
-    void stepBy(int dir, int frames);  // frame a frame (1) ou mais rápido (Shift = 10, Ctrl = 60 quadros)
+    void jumpBy(double sec);           // pula para frente/trás SEM pausar o vídeo
+    void stepOneFrame(int dir);        // 1 quadro: pausa, senão o quadro não fica na tela
     void updateInfo();
     ExportRequest currentRequest() const;
     void keepLastOutput();

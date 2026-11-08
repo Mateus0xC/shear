@@ -17,9 +17,12 @@ marcar início e fim, exportar e colar no Discord.
 |---|---|
 | `Espaço` | play/pause |
 | `I` / `O` | marca início / fim |
-| `←` `→` ou `A` `D` (ou `,` `.`) | frame anterior / seguinte |
-| `Shift` + `←` `→` / `A` `D` | anda mais rápido (10 quadros por passo; segurando, repete) |
-| `Ctrl` + `←` `→` / `A` `D` | anda ainda mais rápido (60 quadros por passo) |
+| `←` `→` ou `A` `D` | pula 1 s para trás / frente, sem pausar o vídeo (segurando, repete) |
+| `Shift` + `←` `→` / `A` `D` | 5 s |
+| `Ctrl` + `←` `→` / `A` `D` | 15 s |
+| `Ctrl` + `Shift` + `←` `→` / `A` `D` | 1 min |
+| `Alt` + `←` `→` / `A` `D` (ou `,` `.`) | 1 frame (pausa o vídeo para mostrar o quadro) |
+| `Home` / `End` | início / fim do vídeo |
 | `J` / `L` | −5 s / +5 s |
 | `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`) |
 | `0` a `9` | pula para 0% a 90% do vídeo (como no YouTube) |

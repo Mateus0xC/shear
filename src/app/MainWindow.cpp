@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "NavKeys.h"
 #include "SettingsDialog.h"
 #include "core/CutPlanner.h"
 #include "core/FfmpegCommandBuilder.h"
@@ -124,16 +125,19 @@ MainWindow::MainWindow()
     sc(Qt::Key_Space, [=, this] { if (inEditor()) m_mpv->togglePause(); });
     sc(Qt::Key_I, [=, this] { if (inEditor()) markStart(m_mpv->position()); });
     sc(Qt::Key_O, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
-    // Frame a frame com , e . ; ← → (ou A D) também, e com Shift/Ctrl andam mais rápido (10 e 60 quadros por passo).
-    sc(Qt::Key_Comma, [=, this] { stepBy(-1, 1); });
-    sc(Qt::Key_Period, [=, this] { stepBy(+1, 1); });
-    for (const auto &kd : {std::pair<Qt::Key, int>{Qt::Key_Left, -1}, {Qt::Key_Right, +1}, {Qt::Key_A, -1}, {Qt::Key_D, +1}}) {
-        const Qt::Key key = kd.first;
-        const int dir = kd.second;
-        sc(QKeySequence(key), [=, this] { stepBy(dir, 1); });
-        sc(QKeySequence(Qt::SHIFT | key), [=, this] { stepBy(dir, 10); });
-        sc(QKeySequence(Qt::CTRL | key), [=, this] { stepBy(dir, 60); });
-    }
+    // Pular com o teclado (não pausa o vídeo): setas ou A/D = 1 s; Shift = 5 s; Ctrl = 15 s; Ctrl+Shift = 1 min.
+    // Alt (ou , e .) = 1 quadro. O mapa de teclas fica em NavKeys.cpp (testado em tests/test_navkeys.cpp).
+    registerNavShortcuts(this, [this](const NavAction &a) {
+        if (a.kind == NavAction::Kind::JumpSeconds)
+            jumpBy(a.seconds);
+        else
+            stepOneFrame(a.dir);
+    });
+    sc(Qt::Key_Home, [=, this] { if (inEditor()) m_mpv->seek(0); });
+    sc(Qt::Key_End, [=, this] {
+        if (inEditor() && m_timeline->duration() > 0) // o último quadro (um quadro antes do fim exato)
+            m_mpv->seek(std::max(0.0, m_timeline->duration() - 1.0 / (m_fps > 0 ? m_fps : 30.0)));
+    });
     sc(Qt::Key_Up, [=, this] { if (inEditor()) changeVolume(+5); });
     sc(Qt::Key_Down, [=, this] { if (inEditor()) changeVolume(-5); });
     sc(Qt::Key_J, [=, this] { if (inEditor()) m_mpv->seek(std::max(0.0, m_mpv->position() - 5)); });
@@ -691,15 +695,19 @@ void MainWindow::redo()
     applyState(s);
 }
 
-void MainWindow::stepBy(int dir, int frames)
+void MainWindow::jumpBy(double sec)
 {
     if (m_stack->currentIndex() != 1)
         return;
-    m_mpv->setPaused(true);
-    if (frames <= 1)
-        m_mpv->stepFrame(dir > 0);
-    else
-        m_mpv->seekBy(dir * frames / (m_fps > 0 ? m_fps : 60.0));
+    m_mpv->seekBy(sec); // não pausa: se estava tocando, continua tocando do ponto novo
+}
+
+void MainWindow::stepOneFrame(int dir)
+{
+    if (m_stack->currentIndex() != 1)
+        return;
+    m_mpv->setPaused(true); // para ver o quadro é preciso parar
+    m_mpv->stepFrame(dir > 0);
 }
 
 ExportRequest MainWindow::currentRequest() const

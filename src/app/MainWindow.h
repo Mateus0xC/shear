@@ -5,13 +5,12 @@
 #include <QMainWindow>
 #include <vector>
 
-class QCheckBox;
 class QComboBox;
-class QGroupBox;
+class QFrame;
+class QHBoxLayout;
 class QSlider;
 class QTimer;
 class QToolButton;
-class QVBoxLayout;
 class QLabel;
 class QListWidget;
 class QProgressBar;
@@ -74,12 +73,14 @@ private:
     TimelineWidget *m_timeline;
     QLabel *m_title, *m_times, *m_early, *m_warning, *m_status;
     QComboBox *m_presetBox, *m_modeBox;
-    struct TrackRow { QCheckBox *exp; QToolButton *listen; QSlider *gain; QLabel *val; };
-    QGroupBox *m_audioBox = nullptr;
-    QWidget *m_audioRowsHost = nullptr;
-    QVBoxLayout *m_audioRows = nullptr;
+    struct TrackRow { QToolButton *exp; QToolButton *listen; QSlider *gain; QToolButton *val; };
+    QFrame *m_audioBox = nullptr;      // painel lateral (mixer)
+    QWidget *m_audioRowsHost = nullptr; // colunas das faixas
+    QHBoxLayout *m_audioRows = nullptr;
     QSlider *m_volSlider = nullptr;
-    QLabel *m_volLabel = nullptr;
+    QToolButton *m_volLabel = nullptr;
+    QToolButton *m_muteBtn = nullptr;
+    QLabel *m_audioHint = nullptr;
     QTimer *m_audioTimer = nullptr;
     std::vector<TrackRow> m_rows;
     QPushButton *m_exportBtn, *m_cancelBtn, *m_openFolderBtn, *m_copyBtn, *m_keepBtn, *m_deleteBtn;

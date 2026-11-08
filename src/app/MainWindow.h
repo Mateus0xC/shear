@@ -98,6 +98,8 @@ private:
     QToolButton *m_fastBtn = nullptr, *m_exactBtn = nullptr; // seletor Rápido | Exato
     QButtonGroup *m_modeGroup = nullptr;
     struct TrackRow { QToolButton *on; };
+    QHBoxLayout *m_topBar = nullptr;   // barra de cima do editor (voltar, título, áudio de 1 faixa, engrenagem)
+    QToolButton *m_soloAudioBtn = nullptr; // alto-falante: só existe quando o vídeo tem uma única faixa
     QFrame *m_audioBox = nullptr;      // painel lateral fino, só com as faixas
     QVBoxLayout *m_audioRows = nullptr;
     QHBoxLayout *m_editorRoot = nullptr; // [coluna principal | cartão de áudio]

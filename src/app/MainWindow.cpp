@@ -201,6 +201,7 @@ QWidget *MainWindow::buildEditor()
     root->addLayout(l, 1);
 
     auto *top = new QHBoxLayout;
+    m_topBar = top;
     auto *back = new QPushButton("← Clipes");
     back->setFocusPolicy(Qt::NoFocus);
     connect(back, &QPushButton::clicked, this, [this] { if (!m_job) showHome(); });
@@ -1076,6 +1077,8 @@ std::vector<AudioTrack> MainWindow::currentAudio() const
 void MainWindow::rebuildAudioRows(int n)
 {
     m_rows.clear();
+    delete m_soloAudioBtn; // o botão de áudio da barra de cima (caso de 1 faixa só)
+    m_soloAudioBtn = nullptr;
     m_micFader = nullptr;
     m_micVal = nullptr;
     while (auto *it = m_audioRows->takeAt(0)) {
@@ -1085,16 +1088,38 @@ void MainWindow::rebuildAudioRows(int n)
     for (int i = 0; i < n; ++i) {
         // um botão só por faixa: aceso = você ouve e vai no vídeo; apagado = fora
         auto *on = new QToolButton;
-        on->setText(trackName(i, n));
         on->setCheckable(true);
         on->setChecked(i == 0); // padrão: só o desktop; o mic fica desligado
-        on->setProperty("role", "pill");
         on->setFocusPolicy(Qt::NoFocus);
-        on->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        on->setToolTip(i == 1 && n >= 2
-            ? "Ligue para ouvir o microfone e juntá-lo ao desktop numa faixa só no vídeo exportado."
-            : "Ligada: você ouve esta faixa e ela vai no vídeo exportado.");
-        m_audioRows->addWidget(on);
+        if (n == 1) {
+            // Uma faixa só: sem painel lateral. Um alto-falante na barra de cima liga/desliga o som (preview e vídeo).
+            m_soloAudioBtn = on;
+            const QString family = iconFontFamily();
+            on->setFixedSize(38, on->sizeHint().height());
+            if (!family.isEmpty()) {
+                QFont f(family);
+                f.setPixelSize(16);
+                on->setFont(f);
+            }
+            const auto refresh = [on, family] {
+                const bool isOn = on->isChecked();
+                on->setText(!family.isEmpty() ? QString(QChar(isOn ? 0xE767 : 0xE74F))
+                                              : QString::fromUcs4(isOn ? U"🔊" : U"🔇"));
+                on->setToolTip(isOn ? "Áudio ligado: você ouve e ele vai no vídeo exportado (clique para tirar o áudio)"
+                                    : "Áudio desligado: o vídeo exportado fica sem som (clique para ligar)");
+            };
+            refresh();
+            connect(on, &QToolButton::toggled, on, refresh);
+            m_topBar->insertWidget(m_topBar->count() - 1, on); // antes da engrenagem
+        } else {
+            on->setText(trackName(i, n));
+            on->setProperty("role", "pill");
+            on->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            on->setToolTip(i == 1 && n >= 2
+                ? "Ligue para ouvir o microfone e juntá-lo ao desktop numa faixa só no vídeo exportado."
+                : "Ligada: você ouve esta faixa e ela vai no vídeo exportado.");
+            m_audioRows->addWidget(on);
+        }
         m_rows.push_back({on});
         connect(on, &QToolButton::toggled, this, [this, i](bool isOn) {
             if (i == 1 && m_micFader) {
@@ -1144,10 +1169,8 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addStretch(1);
     }
     m_audioBox->setFixedWidth(96);
-    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32);
-    // 2+ faixas: o cartão preenche a altura toda; com 1 faixa só, um cartão mínimo no topo
-    m_editorRoot->setAlignment(m_audioBox, n >= 2 ? Qt::Alignment() : Qt::AlignTop);
-    m_audioBox->setVisible(n > 0);
+    m_audioBox->setMaximumHeight(QWIDGETSIZE_MAX);
+    m_audioBox->setVisible(n >= 2); // 2+ faixas: painel lateral; 1 faixa: só o alto-falante na barra de cima
 }
 
 void MainWindow::applyPreviewAudio()

@@ -52,7 +52,8 @@ a menos que você use o menu clássico do Windows. Quem instalou o menu numa ver
   O smart cut, que só recodifica o começo, está planejado para a Fase 2.
 
 ### Áudio
-Um cartão compacto no canto superior direito tem um botão por faixa (aceso = ligada) e um fader de volume só para o **Mic**
+Com **uma única faixa** não há painel lateral: só um alto-falante na barra de cima, ao lado da engrenagem, que liga/desliga o som (preview e vídeo exportado).
+Com **duas ou mais**, um painel à direita tem um botão por faixa (aceso = ligada) e um fader de volume só para o **Mic**
 (−30 a +30 dB, com escala; duplo clique ou o botão com o valor zera). O desktop não tem ajuste de volume.
 
 - **Ligada** = você ouve a faixa no preview **e** ela vai no arquivo exportado (o que você ouve é o que sai).

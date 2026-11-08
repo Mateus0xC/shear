@@ -68,7 +68,7 @@ private:
     void stepOneFrame(int dir);        // 1 quadro: pausa, senão o quadro não fica na tela
     void updateInfo();
     ExportRequest currentRequest() const;
-    void keepLastOutput();
+    void keepLastOutput(bool deleteOriginalToo = false);
     bool trashOriginal();
     void setResultLink(const QString &path);
     void deleteBoth();

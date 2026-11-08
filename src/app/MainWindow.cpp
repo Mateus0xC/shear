@@ -351,9 +351,21 @@ QWidget *MainWindow::buildEditor()
     m_copyBtn = new QPushButton("Copiar");
     m_copyBtn->setToolTip("Copiar o arquivo de novo para a área de transferência (Ctrl+V no Discord)");
     m_keepBtn = new QPushButton("Manter");
-    m_keepBtn->setToolTip("Move o clipe para a pasta de clipes mantidos e impede que seja apagado ao fechar.");
+    m_keepBtn->setToolTip("Move o clipe para a pasta de clipes mantidos e impede que seja apagado ao fechar.\n"
+                          "Segure Shift para manter o clipe e já apagar o vídeo original.");
+    // Com Shift segurado o botão vira "Manter e apagar original". Largura fixa: nada pula quando o texto troca.
+    m_keepBtn->setMinimumWidth(m_keepBtn->fontMetrics().horizontalAdvance("Manter e apagar original") + 28);
+    auto *shiftPoll = new QTimer(this);
+    shiftPoll->setInterval(60);
+    connect(shiftPoll, &QTimer::timeout, this, [this] {
+        if (!m_keepBtn->isVisible()) return;
+        const bool shift = QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier);
+        const QString want = shift ? "Manter e apagar original" : "Manter";
+        if (m_keepBtn->text() != want) m_keepBtn->setText(want);
+    });
+    shiftPoll->start();
     // À vista: Copiar, Manter e (enquanto o clipe é temporário) apagar tudo. Abrir a pasta = clicar no nome do arquivo.
-    m_deleteBothBtn = new QPushButton("Apagar original e clipe");
+    m_deleteBothBtn = new QPushButton("Apagar original");
     m_deleteBothBtn->setToolTip("Manda o vídeo original para a Lixeira e apaga o clipe cortado.");
     m_fileLink = new QPushButton;
     m_fileLink->setFlat(true);
@@ -381,7 +393,9 @@ QWidget *MainWindow::buildEditor()
     connect(m_exportBtn, &QPushButton::clicked, this, &MainWindow::startExport);
     connect(m_cancelBtn, &QPushButton::clicked, this, &MainWindow::cancelExport);
     connect(m_copyBtn, &QPushButton::clicked, this, [this] { copyFileToClipboard(m_lastOutput); });
-    connect(m_keepBtn, &QPushButton::clicked, this, &MainWindow::keepLastOutput);
+    connect(m_keepBtn, &QPushButton::clicked, this, [this] {
+        keepLastOutput(QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier));
+    });
     connect(m_modeGroup, &QButtonGroup::buttonToggled, this, [this](QAbstractButton *, bool on) { if (on) onModeChanged(); });
     onModeChanged();
     connect(m_mpv, &MpvWidget::fileLoaded, this, &MainWindow::applyPreviewAudio);
@@ -911,9 +925,16 @@ void MainWindow::deleteBoth()
     showHome();
 }
 
-void MainWindow::keepLastOutput()
+void MainWindow::keepLastOutput(bool deleteOriginalToo)
 {
     if (m_lastOutput.isEmpty() || !m_tempFiles.contains(m_lastOutput)) return;
+    // Shift: não pergunta "quer apagar o original?", mas ainda pede confirmação (antes de mexer em qualquer arquivo).
+    if (deleteOriginalToo && !m_file.isEmpty() &&
+        !confirmDestructive(this, "Manter e apagar o original",
+                            "Manter o clipe cortado e mandar o vídeo original para a Lixeira?\n\n" +
+                                QDir::toNativeSeparators(m_file),
+                            "Manter e apagar original", "Cancelar"))
+        return;
     const QString dir = m_cfg.outputDir.isEmpty() ? QFileInfo(m_file).absolutePath() : m_cfg.outputDir;
     QDir().mkpath(dir);
     const QFileInfo src(m_lastOutput);
@@ -932,6 +953,11 @@ void MainWindow::keepLastOutput()
     setResultLink(dest);
     m_status->setText("· Mantido");
     if (m_file.isEmpty() || !QFileInfo::exists(m_file)) return;
+    if (deleteOriginalToo) {
+        if (trashOriginal())
+            showHome();
+        return;
+    }
     if (confirmDestructive(this, "Apagar o original?",
                            "Clipe mantido. Mandar o vídeo original para a Lixeira também?\n\n" + QDir::toNativeSeparators(m_file),
                            "Apagar original", "Manter original")) {

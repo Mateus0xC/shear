@@ -325,10 +325,20 @@ QWidget *MainWindow::buildEditor()
     });
     connect(m_timeline, &TimelineWidget::seekRequested, m_mpv, &MpvWidget::seek);
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
-    // Arrastar um marcador pausa o vídeo e mostra o quadro dele (a timeline já pede o seek a cada movimento).
-    auto pauseForScrub = [this] { if (!m_mpv->paused()) m_mpv->setPaused(true); updateInfo(); };
-    connect(m_timeline, &TimelineWidget::startChanged, this, pauseForScrub);
-    connect(m_timeline, &TimelineWidget::endChanged, this, pauseForScrub);
+    connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
+    connect(m_timeline, &TimelineWidget::endChanged, this, [this] { updateInfo(); });
+    // Enquanto o mouse está pressionado na timeline o vídeo fica pausado (a timeline pede o seek a cada movimento,
+    // então você vê o quadro sob o mouse). Ao soltar, volta a tocar se estava tocando.
+    connect(m_timeline, &TimelineWidget::dragStarted, this, [this] {
+        m_resumeAfterDrag = !m_mpv->paused();
+        if (m_resumeAfterDrag)
+            m_mpv->setPaused(true);
+    });
+    connect(m_timeline, &TimelineWidget::dragFinished, this, [this] {
+        if (m_resumeAfterDrag)
+            m_mpv->setPaused(false);
+        m_resumeAfterDrag = false;
+    });
     return w;
 }
 

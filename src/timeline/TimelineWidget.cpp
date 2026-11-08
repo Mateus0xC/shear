@@ -174,6 +174,35 @@ private:
     LensState m_s;
 };
 
+// Etiqueta flutuante logo abaixo da timeline: ensina o gesto de zoom enquanto você arrasta.
+class TimelineHint : public QWidget {
+public:
+    explicit TimelineHint(QWidget *owner) : QWidget(owner, Qt::ToolTip | Qt::FramelessWindowHint)
+    {
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        QFont f = font();
+        f.setPixelSize(12);
+        setFont(f);
+        resize(QFontMetrics(f).horizontalAdvance(text()) + 28, 26);
+    }
+    static QString text() { return QStringLiteral("↓  Puxe o mouse para baixo para ampliar e ajustar com precisão"); }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        const QPalette pal = qApp->palette();
+        const QColor accent = pal.color(QPalette::Highlight);
+        p.setBrush(pal.color(QPalette::Base));
+        p.setPen(QPen(accent, 1.5));
+        p.drawRoundedRect(QRectF(rect()).adjusted(0.75, 0.75, -0.75, -0.75), 13, 13);
+        p.setPen(pal.color(QPalette::WindowText));
+        p.drawText(rect(), Qt::AlignCenter, text());
+    }
+};
+
 TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent)
 {
     setMinimumHeight(60);
@@ -313,19 +342,6 @@ void TimelineWidget::paintEvent(QPaintEvent *)
         p.setBrush(fill);
         const double bw = std::max(14.0, b - a); // largura mínima visível, mesmo nos níveis de zoom mais finos
         p.drawRoundedRect(QRectF((a + b) / 2 - bw / 2, top - 3, bw, bottom - top + 6), 3, 3);
-    } else if (m_drag != Drag::None) {
-        // dica de descoberta enquanto arrasta
-        QFont f = font();
-        f.setPixelSize(11);
-        p.setFont(f);
-        const QString hint = "↓ puxe o mouse para baixo para ampliar";
-        const double tw = QFontMetrics(f).horizontalAdvance(hint) + 20;
-        const QRectF box((width() - tw) / 2, top + 2, tw, bottom - top - 4);
-        p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0, 0, 0, 150));
-        p.drawRoundedRect(box, 6, 6);
-        p.setPen(QColor(255, 255, 255, 220));
-        p.drawText(box, Qt::AlignCenter, hint);
     }
 }
 
@@ -345,6 +361,7 @@ void TimelineWidget::mousePressEvent(QMouseEvent *e)
     m_zoom = false;
     m_level = -1;
     update();
+    emit dragStarted();
 }
 
 void TimelineWidget::applyDrag(double t)
@@ -370,6 +387,18 @@ void TimelineWidget::showLens()
     if (!m_lens->isVisible()) m_lens->show();
 }
 
+void TimelineWidget::showHint()
+{
+    if (!m_hint) m_hint = new TimelineHint(this);
+    m_hint->move(mapToGlobal(QPoint((width() - m_hint->width()) / 2, height() + 6)));
+    if (!m_hint->isVisible()) m_hint->show();
+}
+
+void TimelineWidget::hideHint()
+{
+    if (m_hint) m_hint->hide();
+}
+
 void TimelineWidget::leaveZoom()
 {
     m_zoom = false;
@@ -391,8 +420,11 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
     if (!wantZoom) {
         if (m_zoom) leaveZoom();
         applyDrag(xToSec(pos.x()));
+        showHint();
         return;
     }
+
+    hideHint();
 
     // Nível de zoom por faixas de altura, com folga para não ficar trocando na borda.
     auto bandStart = [](int L) { return kEnterBeyond + kLevelHeight * L; };
@@ -419,10 +451,13 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
 
 void TimelineWidget::mouseReleaseEvent(QMouseEvent *)
 {
+    const bool was = m_drag != Drag::None;
     if (m_drag == Drag::Start) emit seekRequested(m_start);
+    hideHint();
     if (m_zoom) leaveZoom();
     m_drag = Drag::None;
     update();
+    if (was) emit dragFinished();
 }
 
 } // namespace shear

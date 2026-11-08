@@ -6,6 +6,7 @@
 namespace shear {
 
 class TimelineLens;
+class TimelineHint;
 
 class TimelineWidget : public QWidget {
     Q_OBJECT
@@ -37,6 +38,8 @@ signals:
     void seekRequested(double sec);
     void startChanged(double sec);
     void endChanged(double sec);
+    void dragStarted();  // botão do mouse pressionado na timeline (o vídeo deve pausar)
+    void dragFinished(); // soltou o botão
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -49,6 +52,8 @@ private:
     enum class Drag { None, Seek, Start, End };
     void applyDrag(double t);
     void showLens();
+    void showHint();
+    void hideHint();
     void leaveZoom();
     double xToSec(double x) const;
     double secToX(double s) const;
@@ -64,6 +69,7 @@ private:
 
     // Zoom fino (arrastar puxando o mouse para baixo): régua ampliada com mapeamento ABSOLUTO sob o mouse.
     TimelineLens *m_lens = nullptr;
+    TimelineHint *m_hint = nullptr; // dica "puxe para baixo", logo abaixo da timeline
     bool m_zoom = false;
     int m_level = -1;     // 0..3: janelas de 20 s, 5 s, 1,5 s, 0,4 s
     double m_win0 = 0;    // início da janela ampliada (s)

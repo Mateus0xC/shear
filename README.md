@@ -58,7 +58,8 @@ Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para bai
 - Dentro de um nível o mapeamento é absoluto: o ponto sob o mouse na timeline fica na mesma coluna da régua, e a linha branca
   mostra o tempo exato (com a taxa de quadros do vídeo, nos dois níveis mais finos o marcador anda de frame em frame).
 - Entrar no zoom e trocar de nível não faz o marcador pular. Voltar com o mouse para dentro da timeline sai do zoom.
-- Durante o arrasto, uma dica na própria timeline lembra do gesto.
+- Durante o arrasto, uma etiqueta logo abaixo da timeline lembra do gesto.
+- **Enquanto o botão do mouse está pressionado na timeline, o vídeo fica pausado** (você vê o quadro sob o mouse); ao soltar, volta a tocar se estava tocando.
 
 ### Overlay da NVIDIA
 O Shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não

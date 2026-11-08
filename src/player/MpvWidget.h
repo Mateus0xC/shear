@@ -19,6 +19,7 @@ public:
 
     void loadFile(const QString &path);
     void seek(double sec);
+    void seekBy(double sec); // relativo (negativo = para trás)
     void setPaused(bool p);
     void togglePause();
     void stepFrame(bool forward);

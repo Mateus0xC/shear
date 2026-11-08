@@ -124,15 +124,23 @@ MainWindow::MainWindow()
     sc(Qt::Key_Space, [=, this] { if (inEditor()) m_mpv->togglePause(); });
     sc(Qt::Key_I, [=, this] { if (inEditor()) markStart(m_mpv->position()); });
     sc(Qt::Key_O, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
-    sc(Qt::Key_Comma, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(false); } });
-    sc(Qt::Key_Period, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(true); } });
-    sc(Qt::Key_Left, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(false); } });
-    sc(Qt::Key_Right, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(true); } });
+    // Frame a frame com , e . ; ← → (ou A D) também, e com Shift/Ctrl andam mais rápido (10 e 60 quadros por passo).
+    sc(Qt::Key_Comma, [=, this] { stepBy(-1, 1); });
+    sc(Qt::Key_Period, [=, this] { stepBy(+1, 1); });
+    for (const auto &kd : {std::pair<Qt::Key, int>{Qt::Key_Left, -1}, {Qt::Key_Right, +1}, {Qt::Key_A, -1}, {Qt::Key_D, +1}}) {
+        const Qt::Key key = kd.first;
+        const int dir = kd.second;
+        sc(QKeySequence(key), [=, this] { stepBy(dir, 1); });
+        sc(QKeySequence(Qt::SHIFT | key), [=, this] { stepBy(dir, 10); });
+        sc(QKeySequence(Qt::CTRL | key), [=, this] { stepBy(dir, 60); });
+    }
     sc(Qt::Key_Up, [=, this] { if (inEditor()) changeVolume(+5); });
     sc(Qt::Key_Down, [=, this] { if (inEditor()) changeVolume(-5); });
     sc(Qt::Key_J, [=, this] { if (inEditor()) m_mpv->seek(std::max(0.0, m_mpv->position() - 5)); });
     sc(Qt::Key_L, [=, this] { if (inEditor()) m_mpv->seek(m_mpv->position() + 5); });
-    sc(Qt::Key_K, [=, this] { if (inEditor()) snapStartToKeyframe(); });
+    sc(Qt::Key_Q, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->start()); }); // vai para o ponto I
+    sc(Qt::Key_E, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->end()); });   // vai para o ponto O
+    sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Enter, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Escape, [=, this] { if (inEditor() && !m_job) showHome(); });
@@ -374,11 +382,13 @@ QWidget *MainWindow::buildEditor()
         }
     });
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
+    connect(m_mpv, &MpvWidget::fpsChanged, this, [this](double f) { m_fps = f; });
     connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
     connect(m_timeline, &TimelineWidget::endChanged, this, [this] { updateInfo(); });
     // Enquanto o mouse está pressionado na timeline o vídeo fica pausado (a timeline pede o seek a cada movimento,
     // então você vê o quadro sob o mouse). Ao soltar, volta a tocar se estava tocando.
     connect(m_timeline, &TimelineWidget::dragStarted, this, [this] {
+        m_dragSnapshot = currentState();
         m_resumeAfterDrag = !m_mpv->paused();
         if (m_resumeAfterDrag)
             m_mpv->setPaused(true);
@@ -387,6 +397,9 @@ QWidget *MainWindow::buildEditor()
     connect(m_timeline, &TimelineWidget::dragFinished, this, [this] {
         m_scrubbing = false;
         m_scrub->stop();
+        const EditState now = currentState(); // moveu um marcador? então dá para desfazer
+        if (std::abs(now.start - m_dragSnapshot.start) > 1e-6 || std::abs(now.end - m_dragSnapshot.end) > 1e-6)
+            pushUndo(m_dragSnapshot);
         if (m_resumeAfterDrag)
             m_mpv->setPaused(false);
         m_resumeAfterDrag = false;
@@ -547,6 +560,9 @@ void MainWindow::openFile(const QString &path)
     m_title->setText(QFileInfo(path).fileName());
     setWindowTitle("Shear — " + QFileInfo(path).fileName());
     m_timeline->reset(0);
+    m_undo.clear();
+    m_micClock.invalidate();
+    m_lastMicGain = 0;
     m_status->clear();
     hideResultButtons();
     m_stack->setCurrentIndex(1);
@@ -594,6 +610,8 @@ QString MainWindow::fmt(double s)
 void MainWindow::markStart(double t)
 {
     t = snapIfFast(t);
+    if (std::abs(t - m_timeline->start()) > 1e-6)
+        pushUndo(currentState());
     if (t >= m_timeline->end()) m_timeline->setEnd(m_timeline->duration());
     m_timeline->setStart(t);
     updateInfo();
@@ -601,18 +619,62 @@ void MainWindow::markStart(double t)
 
 void MainWindow::markEnd(double t)
 {
+    if (std::abs(t - m_timeline->end()) > 1e-6)
+        pushUndo(currentState());
     if (t <= m_timeline->start()) m_timeline->setStart(0);
     m_timeline->setEnd(t);
     updateInfo();
 }
 
-void MainWindow::snapStartToKeyframe()
+MainWindow::EditState MainWindow::currentState() const
 {
-    if (auto k = m_timeline->nearestKeyframe(m_timeline->start())) {
-        m_timeline->setStart(*k);
-        m_mpv->seek(*k);
-        updateInfo();
+    return {m_timeline->start(), m_timeline->end(), m_micFader ? m_micFader->value() : 0};
+}
+
+void MainWindow::pushUndo(const EditState &s)
+{
+    if (m_restoring)
+        return;
+    if (!m_undo.empty()) {
+        const EditState &b = m_undo.back();
+        if (b.start == s.start && b.end == s.end && b.micGain == s.micGain)
+            return;
     }
+    m_undo.push_back(s);
+    if (m_undo.size() > 100)
+        m_undo.erase(m_undo.begin());
+}
+
+void MainWindow::undo()
+{
+    if (m_undo.empty() || m_job)
+        return;
+    const EditState s = m_undo.back();
+    m_undo.pop_back();
+    const double oldStart = m_timeline->start(), oldEnd = m_timeline->end();
+    m_restoring = true;
+    m_timeline->setRange(s.start, s.end);
+    if (m_micFader)
+        m_micFader->setValue(s.micGain);
+    m_restoring = false;
+    m_micClock.invalidate(); // o próximo ajuste do mic começa um gesto novo
+    updateInfo();
+    applyPreviewAudio();
+    if (std::abs(s.start - oldStart) > 1e-6)
+        m_mpv->seek(s.start); // mostra o ponto que voltou
+    else if (std::abs(s.end - oldEnd) > 1e-6)
+        m_mpv->seek(s.end);
+}
+
+void MainWindow::stepBy(int dir, int frames)
+{
+    if (m_stack->currentIndex() != 1)
+        return;
+    m_mpv->setPaused(true);
+    if (frames <= 1)
+        m_mpv->stepFrame(dir > 0);
+    else
+        m_mpv->seekBy(dir * frames / (m_fps > 0 ? m_fps : 60.0));
 }
 
 ExportRequest MainWindow::currentRequest() const
@@ -647,7 +709,7 @@ void MainWindow::updateInfo()
     QStringList msg;
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
-                                 : "⚠ " + w + " — K encaixa no keyframe");
+                                 : "⚠ " + w);
     msg << (r.mode == CutMode::Fast
                 ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
                 : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
@@ -890,7 +952,16 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addWidget(cap);
         m_audioRows->addWidget(m_micFader, 1); // o fader ocupa toda a altura disponível: grande e sem espaço vazio
         m_audioRows->addWidget(m_micVal, 0, Qt::AlignHCenter);
+        m_lastMicGain = 0;
         connect(m_micFader, &VerticalFader::valueChanged, this, [this](int g) {
+            if (!m_restoring && (!m_micClock.isValid() || m_micClock.elapsed() > 500)) {
+                EditState before = currentState(); // início de um gesto: guarda o volume de ANTES
+                before.micGain = m_lastMicGain;
+                pushUndo(before);
+            }
+            if (!m_restoring)
+                m_micClock.restart();
+            m_lastMicGain = g;
             m_micVal->setText(QString("%1%2 dB").arg(g > 0 ? "+" : "").arg(g));
             updateInfo();
             m_audioTimer->start(); // evita reconfigurar o filtro a cada pixel arrastado
@@ -931,6 +1002,7 @@ void MainWindow::onModeChanged()
     if (fast) { // no modo Rápido o início só existe em keyframes: encaixa o marcador que já estava lá
         const double s = m_timeline->snapToKeyframe(m_timeline->start());
         if (s != m_timeline->start()) {
+            pushUndo(currentState());
             m_timeline->setStart(s);
             m_mpv->seek(s);
         }

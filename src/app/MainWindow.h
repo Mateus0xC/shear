@@ -56,7 +56,12 @@ private:
 
     void markStart(double t);
     void markEnd(double t);
-    void snapStartToKeyframe();
+    // Desfazer (Ctrl+Z): marcadores de início/fim e volume do mic
+    struct EditState { double start = 0, end = 0; int micGain = 0; };
+    EditState currentState() const;
+    void pushUndo(const EditState &s); // guarda o estado ANTES de uma alteração
+    void undo();
+    void stepBy(int dir, int frames);  // frame a frame (1) ou mais rápido (Shift = 10, Ctrl = 60 quadros)
     void updateInfo();
     ExportRequest currentRequest() const;
     void keepLastOutput();
@@ -103,6 +108,12 @@ private:
     qint64 m_fileSize = 0;
     bool m_scrubbing = false;          // mouse pressionado na timeline
     AudioScrubber *m_scrub = nullptr; // player só de áudio para o "áudio ao arrastar"
+    std::vector<EditState> m_undo;
+    EditState m_dragSnapshot;           // estado no momento em que o mouse foi pressionado na timeline
+    bool m_restoring = false;           // desfazendo: as mudanças não entram na pilha
+    QElapsedTimer m_micClock;           // agrupa os ajustes de volume do mic de um mesmo gesto
+    int m_lastMicGain = 0;
+    double m_fps = 0;
     bool m_resumeAfterDrag = false; // o vídeo estava tocando quando o mouse foi pressionado na timeline
 
     QString m_file, m_lastOutput;

@@ -15,13 +15,12 @@ class SettingsDialog : public QDialog {
 public:
     explicit SettingsDialog(const Config &cfg, QWidget *parent = nullptr);
     Config config() const;
+    void accept() override; // aplica o menu de contexto do Windows ao salvar
 
 private:
-    void refreshContextState();
     QComboBox *m_mode;
-    QCheckBox *m_gpu, *m_scrub;
+    QCheckBox *m_gpu, *m_scrub, *m_ctx;
     QLineEdit *m_out, *m_sp;
-    QLabel *m_ctxState;
 };
 
 } // namespace shear

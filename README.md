@@ -17,15 +17,18 @@ marcar início e fim, exportar e colar no Discord.
 |---|---|
 | `Espaço` | play/pause |
 | `I` / `O` | marca início / fim |
-| `←` / `→` (ou `,` / `.`) | frame anterior / seguinte |
+| `←` `→` ou `A` `D` (ou `,` `.`) | frame anterior / seguinte |
+| `Shift` + `←` `→` / `A` `D` | anda mais rápido (10 quadros por passo; segurando, repete) |
+| `Ctrl` + `←` `→` / `A` `D` | anda ainda mais rápido (60 quadros por passo) |
 | `J` / `L` | −5 s / +5 s |
+| `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`) |
 | `↑` / `↓` ou roda do mouse sobre o vídeo | volume do preview (estilo VLC; não muda o arquivo) |
-| `K` | encaixa o início no keyframe mais próximo |
+| `Ctrl` + `Z` | desfaz: marcadores de início/fim e volume do mic |
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
 
 ### Menu de contexto do Explorer
-Em **Configurações → Adicionar “Cortar com Shear” ao menu de contexto** o item passa a aparecer ao clicar com o botão direito em
+Em **Configurações → Menu do Windows** (caixa de seleção) o item “Cortar com Shear” passa a aparecer ao clicar com o botão direito em
 vídeos (mp4, mkv, mov, webm, avi). Não precisa de administrador. No Windows 11 o item fica em **Mostrar mais opções** (Shift+F10),
 a menos que você use o menu clássico do Windows. Quem instalou o menu numa versão antiga é migrado sozinho ao abrir o app.
 

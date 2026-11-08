@@ -244,6 +244,13 @@ void TimelineWidget::setEnd(double e)
     update();
 }
 
+void TimelineWidget::setRange(double s, double e)
+{
+    m_start = std::clamp(s, 0.0, m_dur);
+    m_end = std::clamp(e, m_start, m_dur);
+    update();
+}
+
 void TimelineWidget::addKeyframes(const QVector<double> &batch)
 {
     m_kf.insert(m_kf.end(), batch.begin(), batch.end());

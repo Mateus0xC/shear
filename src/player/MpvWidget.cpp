@@ -134,6 +134,11 @@ void MpvWidget::seek(double sec)
     command({"seek", QString::number(sec, 'f', 3), "absolute+exact"});
 }
 
+void MpvWidget::seekBy(double sec)
+{
+    command({"seek", QString::number(sec, 'f', 3), "relative+exact"});
+}
+
 void MpvWidget::setPaused(bool p)
 {
     if (m_mpv) {

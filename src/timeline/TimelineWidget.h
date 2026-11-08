@@ -18,6 +18,7 @@ public:
     void setPosition(double p);
     void setStart(double s);
     void setEnd(double e);
+    void setRange(double s, double e); // início e fim de uma vez (desfazer)
     void addKeyframes(const QVector<double> &batch);
     void setScanDone(bool done) { m_scanDone = done; }
     // Modo Rápido: o marcador de início só existe em keyframes, então ele "gruda" neles ao arrastar.

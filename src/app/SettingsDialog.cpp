@@ -55,20 +55,10 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     m_scrub->setToolTip("Toca um trecho do áudio a cada posição, com o vídeo parado. Quanto maior o zoom, mais curto o trecho.");
     form->addRow("Som ao arrastar:", m_scrub);
 
-    m_ctxState = new QLabel;
-    auto *add = new QPushButton("Adicionar “Cortar com Shear” ao menu de contexto");
-    auto *rem = new QPushButton("Remover");
-    connect(add, &QPushButton::clicked, this, [this] {
-        installContextMenu(QCoreApplication::applicationFilePath());
-        refreshContextState();
-    });
-    connect(rem, &QPushButton::clicked, this, [this] {
-        removeContextMenu();
-        refreshContextState();
-    });
-    auto *ctx = new QHBoxLayout;
-    ctx->addWidget(add);
-    ctx->addWidget(rem);
+    m_ctx = new QCheckBox("Mostrar “Cortar com Shear” ao clicar com o botão direito em um vídeo");
+    m_ctx->setChecked(contextMenuInstalled());
+    m_ctx->setToolTip("Adiciona a opção ao menu do Windows (não precisa de administrador). No Windows 11 ela fica em “Mostrar mais opções”.");
+    form->addRow("Menu do Windows:", m_ctx);
 
     auto *bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     bb->button(QDialogButtonBox::Ok)->setText("Salvar");
@@ -79,17 +69,18 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     auto *root = new QVBoxLayout(this);
     root->addLayout(form);
     root->addSpacing(8);
-    root->addWidget(new QLabel("Integração com o Windows (sem precisar de administrador):"));
-    root->addLayout(ctx);
-    root->addWidget(m_ctxState);
     root->addWidget(bb);
-    refreshContextState();
 }
 
-void SettingsDialog::refreshContextState()
+void SettingsDialog::accept()
 {
-    m_ctxState->setText(contextMenuInstalled() ? "Menu de contexto: instalado"
-                                                : "Menu de contexto: não instalado");
+    if (m_ctx->isChecked() != contextMenuInstalled()) {
+        if (m_ctx->isChecked())
+            installContextMenu(QCoreApplication::applicationFilePath());
+        else
+            removeContextMenu();
+    }
+    QDialog::accept();
 }
 
 Config SettingsDialog::config() const

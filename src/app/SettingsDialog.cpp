@@ -42,7 +42,7 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     m_preset->addItems({"Corte rápido", "Mixar mic + desktop"});
     m_preset->setCurrentIndex(int(c.preset));
     m_tracks = new QComboBox;
-    m_tracks->addItems({"Só o áudio do desktop", "Todas as faixas"});
+    m_tracks->addItems({"Só a faixa 1 (desktop)", "Todas as faixas"});
     m_tracks->setCurrentIndex(int(c.tracks));
     m_threshold = new QDoubleSpinBox;
     m_threshold->setRange(0.0, 10.0);
@@ -58,7 +58,7 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     form->addRow("Modo de corte do início:", m_mode);
     form->addRow("Limite do modo Automático:", m_threshold);
     form->addRow("Preset padrão:", m_preset);
-    form->addRow("Faixas de áudio (Corte rápido):", m_tracks);
+    form->addRow("Faixas exportadas por padrão:", m_tracks);
     form->addRow("Pasta dos clipes mantidos:", folderRow(m_out, this));
     form->addRow("Pasta do ShadowPlay:", folderRow(m_sp, this));
 

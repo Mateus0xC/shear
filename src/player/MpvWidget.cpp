@@ -39,6 +39,11 @@ void MpvWidget::initializeGL()
     mpv_set_option_string(m_mpv, "hwdec", "auto");
     mpv_set_option_string(m_mpv, "vo", "libmpv");
     mpv_set_option_string(m_mpv, "terminal", "no");
+    if (const QByteArray lg = qgetenv("SHEAR_MPV_LOG"); !lg.isEmpty()) { // diagnóstico opcional
+        mpv_set_option_string(m_mpv, "log-file", lg.constData());
+        mpv_set_option_string(m_mpv, "msg-level", "all=v");
+    }
+    mpv_set_option_string(m_mpv, "volume", QByteArray::number(m_volume).constData());
     if (mpv_initialize(m_mpv) < 0)
         return;
 
@@ -118,6 +123,24 @@ void MpvWidget::setPaused(bool p)
     }
 }
 
+void MpvWidget::setAudioGraph(const QString &graph)
+{
+    command({"set", "lavfi-complex", graph}); // "" desliga o grafo
+    command({"set", "aid", graph.isEmpty() ? "no" : "auto"});
+}
+
+void MpvWidget::resetAudio()
+{
+    command({"set", "lavfi-complex", ""});
+    command({"set", "aid", "auto"});
+}
+
+void MpvWidget::setVolume(int percent)
+{
+    m_volume = percent;
+    command({"set", "volume", QString::number(percent)});
+}
+
 void MpvWidget::togglePause() { setPaused(!m_paused); }
 
 void MpvWidget::stepFrame(bool forward) { command({forward ? "frame-step" : "frame-back-step"}); }
@@ -151,6 +174,8 @@ void MpvWidget::handleEvents()
                 m_paused = *static_cast<int *>(p->data) != 0;
                 emit pausedChanged(m_paused);
             }
+        } else if (e->event_id == MPV_EVENT_FILE_LOADED) {
+            emit fileLoaded();
         } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_awaitFirst) {
             m_awaitFirst = false;
             m_awaitPaint = true;

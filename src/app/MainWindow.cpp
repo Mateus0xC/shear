@@ -10,7 +10,12 @@
 #include "timeline/TimelineWidget.h"
 #include "util/Metrics.h"
 
+#include <QCheckBox>
 #include <QComboBox>
+#include <QGroupBox>
+#include <QSettings>
+#include <QSlider>
+#include <QToolButton>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QClipboard>
@@ -43,7 +48,7 @@ static const char *kVideoGlobs[] = {"*.mp4", "*.mkv", "*.mov", "*.webm", "*.avi"
 MainWindow::MainWindow()
 {
     setWindowTitle("Shear");
-    resize(1100, 720);
+    resize(1100, 820);
     setAcceptDrops(true);
     m_cfg = Config::load();
 
@@ -133,15 +138,51 @@ QWidget *MainWindow::buildEditor()
     timesRow->addWidget(m_early);
     l->addLayout(timesRow);
 
+    // --- Áudio: exportar / ouvir / volume por faixa + volume do preview ---
+    m_audioBox = new QGroupBox("Áudio");
+    auto *av = new QVBoxLayout(m_audioBox);
+    av->setContentsMargins(8, 4, 8, 6);
+    av->setSpacing(2);
+    auto *vr = new QHBoxLayout;
+    m_volSlider = new QSlider(Qt::Horizontal);
+    m_volSlider->setRange(0, 100);
+    m_volSlider->setFocusPolicy(Qt::NoFocus);
+    m_volLabel = new QLabel;
+    m_volLabel->setMinimumWidth(52);
+    const int savedVol = QSettings().value("player/volume", 100).toInt();
+    m_volSlider->setValue(savedVol);
+    m_volLabel->setText(QString("%1%").arg(savedVol));
+    m_mpv->setVolume(savedVol);
+    auto *volTitle = new QLabel("Volume do preview");
+    volTitle->setToolTip("Só para você ouvir aqui; não muda o arquivo exportado.");
+    volTitle->setMinimumWidth(150);
+    vr->addWidget(volTitle);
+    vr->addWidget(m_volSlider, 1);
+    vr->addWidget(m_volLabel);
+    av->addLayout(vr);
+    m_audioRowsHost = new QWidget;
+    m_audioRows = new QVBoxLayout(m_audioRowsHost);
+    m_audioRows->setContentsMargins(0, 0, 0, 0);
+    m_audioRows->setSpacing(2);
+    av->addWidget(m_audioRowsHost);
+    m_audioBox->hide();
+    l->addWidget(m_audioBox);
+    m_audioTimer = new QTimer(this);
+    m_audioTimer->setSingleShot(true);
+    m_audioTimer->setInterval(150);
+    connect(m_audioTimer, &QTimer::timeout, this, &MainWindow::applyPreviewAudio);
+    connect(m_volSlider, &QSlider::valueChanged, this, [this](int v) {
+        m_volLabel->setText(QString("%1%").arg(v));
+        m_mpv->setVolume(v);
+        QSettings().setValue("player/volume", v);
+    });
+
     auto *opts = new QHBoxLayout;
     m_presetBox = new QComboBox;
     m_presetBox->addItems({"Corte rápido (copia)", "Mixar mic + desktop"});
     m_modeBox = new QComboBox;
     m_modeBox->addItems({"Início: Rápido", "Início: Exato", "Início: Automático"});
-    m_tracksBox = new QComboBox;
-    m_tracksBox->addItems({"Só áudio do desktop", "Todas as faixas de áudio"});
-    m_tracksBox->setToolTip("O Discord e a maioria dos players tocam só a primeira faixa de áudio.");
-    for (auto *c : {m_presetBox, m_modeBox, m_tracksBox}) {
+    for (auto *c : {m_presetBox, m_modeBox}) {
         c->setFocusPolicy(Qt::TabFocus);
         opts->addWidget(c);
     }
@@ -186,7 +227,6 @@ QWidget *MainWindow::buildEditor()
     // preencher com os padrões
     m_presetBox->setCurrentIndex(int(m_cfg.preset));
     m_modeBox->setCurrentIndex(int(m_cfg.mode));
-    m_tracksBox->setCurrentIndex(int(m_cfg.tracks));
 
     connect(m_exportBtn, &QPushButton::clicked, this, &MainWindow::startExport);
     connect(m_cancelBtn, &QPushButton::clicked, this, &MainWindow::cancelExport);
@@ -194,8 +234,13 @@ QWidget *MainWindow::buildEditor()
     connect(m_openFolderBtn, &QPushButton::clicked, this, [this] { revealInExplorer(m_lastOutput); });
     connect(m_keepBtn, &QPushButton::clicked, this, &MainWindow::keepLastOutput);
     connect(m_deleteBtn, &QPushButton::clicked, this, &MainWindow::deleteLastOutput);
-    for (auto *c : {m_presetBox, m_modeBox, m_tracksBox})
-        connect(c, &QComboBox::currentIndexChanged, this, [this] { updateInfo(); });
+    connect(m_modeBox, &QComboBox::currentIndexChanged, this, [this] { updateInfo(); });
+    connect(m_presetBox, &QComboBox::currentIndexChanged, this, [this] {
+        applyExportDefaults();
+        updateInfo();
+        applyPreviewAudio();
+    });
+    connect(m_mpv, &MpvWidget::fileLoaded, this, &MainWindow::applyPreviewAudio);
 
     connect(m_mpv, &MpvWidget::positionChanged, m_timeline, &TimelineWidget::setPosition);
     connect(m_mpv, &MpvWidget::durationChanged, this, [this](double d) {
@@ -301,7 +346,7 @@ void MainWindow::openSettings()
     if (m_editor) {
         m_presetBox->setCurrentIndex(int(m_cfg.preset));
         m_modeBox->setCurrentIndex(int(m_cfg.mode));
-        m_tracksBox->setCurrentIndex(int(m_cfg.tracks));
+        applyExportDefaults();
     }
     refreshRecent();
     updateInfo();
@@ -330,6 +375,8 @@ void MainWindow::openFile(const QString &path)
     m_status->clear();
     hideResultButtons();
     m_stack->setCurrentIndex(1);
+    rebuildAudioRows(0);
+    m_mpv->resetAudio();
     m_mpv->loadFile(path); // o vídeo vem primeiro; o resto depois
 
     if (m_scanner) { // descarta o scanner anterior
@@ -341,6 +388,9 @@ void MainWindow::openFile(const QString &path)
     connect(m_scanner, &KeyframeScanner::probed, this, [this](double d, int a) {
         m_audioTracks = a;
         m_timeline->setDuration(d);
+        rebuildAudioRows(a);
+        applyExportDefaults();
+        applyPreviewAudio();
         updateInfo();
     });
     connect(m_scanner, &KeyframeScanner::keyframes, this, [this](QVector<double> b) {
@@ -396,10 +446,9 @@ ExportRequest MainWindow::currentRequest() const
     r.endSec = m_timeline->end();
     r.mode = static_cast<CutMode>(m_modeBox->currentIndex());
     r.preset = static_cast<Preset>(m_presetBox->currentIndex());
-    r.tracks = static_cast<AudioTracks>(m_tracksBox->currentIndex());
     r.autoThresholdSec = m_cfg.autoThresholdSec;
     r.hasNvenc = m_hasNvenc;
-    r.hasMicTrack = m_audioTracks >= 2;
+    r.audio = currentAudio();
     if (auto k = m_timeline->keyframeAtOrBefore(r.startSec))
         r.keyframeBeforeStart = *k;
     else if (m_timeline->scanDone())
@@ -414,7 +463,6 @@ void MainWindow::updateInfo()
     if (m_file.isEmpty()) return;
     const auto r = currentRequest();
     const auto plan = planCut(r);
-    m_tracksBox->setVisible(r.preset == Preset::QuickCut);
     m_times->setText(QString("Início %1    Fim %2    Duração %3%4")
                          .arg(fmt(r.startSec), fmt(r.endSec), fmt(r.endSec - r.startSec),
                               m_timeline->scanDone() ? "" : "    (lendo keyframes…)"));
@@ -428,12 +476,19 @@ void MainWindow::updateInfo()
     if (!plan.copyVideo) {
         msg << QString("Início exato: o vídeo será recodificado (%1).").arg(m_hasNvenc ? "NVENC" : "libx264");
     }
-    if (r.preset == Preset::QuickCut)
-        msg << (r.tracks == AudioTracks::All
-                    ? "Todas as faixas serão mantidas — Discord e a maioria dos players tocam só a primeira."
-                    : "Só a faixa do desktop (a primeira) — é a que o Discord toca.");
-    if (r.preset != Preset::QuickCut && !r.hasMicTrack)
-        msg << "Este vídeo não tem faixa de microfone; só o áudio do desktop será usado.";
+    const int nExp = exportedTrackCount(r.audio);
+    if (r.audio.empty())
+        msg << "Este vídeo não tem áudio.";
+    else if (nExp == 0)
+        msg << "⚠ Nenhuma faixa marcada para exportar: o clipe ficará sem áudio.";
+    else if (r.preset == Preset::QuickCut) {
+        msg << (quickCutAudioIsCopy(r.audio) ? "Áudio copiado sem recodificar."
+                                             : "Áudio recodificado (AAC) porque o volume foi alterado.");
+        if (nExp > 1)
+            msg << "O Discord e a maioria dos players tocam só a primeira faixa de áudio.";
+    } else {
+        msg << QString("%1 faixa(s) mixada(s) em uma só (AAC 320 kbps).").arg(nExp);
+    }
     m_warning->setText(msg.join("<br>"));
 }
 
@@ -576,6 +631,92 @@ void MainWindow::closeEvent(QCloseEvent *e)
         m_scanner->wait(2000);
     }
     QMainWindow::closeEvent(e);
+}
+
+} // namespace shear
+
+namespace shear {
+
+static QString trackName(int i, int n)
+{
+    if (n >= 2 && i == 0) return "Faixa 1 · Desktop/jogo";
+    if (n >= 2 && i == 1) return "Faixa 2 · Microfone";
+    return QString("Faixa %1").arg(i + 1);
+}
+
+std::vector<AudioTrack> MainWindow::currentAudio() const
+{
+    std::vector<AudioTrack> v;
+    for (const auto &r : m_rows)
+        v.push_back({r.exp->isChecked(), r.listen->isChecked(), double(r.gain->value())});
+    return v;
+}
+
+void MainWindow::rebuildAudioRows(int n)
+{
+    m_rows.clear();
+    while (auto *it = m_audioRows->takeAt(0)) {
+        delete it->widget();
+        delete it;
+    }
+    for (int i = 0; i < n; ++i) {
+        auto *row = new QWidget;
+        auto *h = new QHBoxLayout(row);
+        h->setContentsMargins(0, 0, 0, 0);
+        auto *name = new QLabel(trackName(i, n));
+        name->setMinimumWidth(150);
+        auto *exp = new QCheckBox("Exportar");
+        auto *listen = new QToolButton;
+        listen->setText("Ouvir");
+        listen->setCheckable(true);
+        listen->setChecked(true);
+        listen->setToolTip("Ouvir esta faixa no preview (não afeta a exportação)");
+        auto *gain = new QSlider(Qt::Horizontal);
+        gain->setRange(-30, 30);
+        gain->setToolTip(i < 2 && n >= 2 ? "Ajuste em dB. No preset de mixagem soma-se ao ganho do seu filtro."
+                                         : "Ajuste de volume em dB");
+        auto *val = new QLabel("0 dB");
+        val->setMinimumWidth(52);
+        auto *reset = new QToolButton;
+        reset->setText("↺");
+        reset->setToolTip("Zerar o volume desta faixa");
+        for (QWidget *w : std::initializer_list<QWidget *>{exp, listen, gain, reset})
+            w->setFocusPolicy(Qt::NoFocus);
+        h->addWidget(name);
+        h->addWidget(exp);
+        h->addWidget(listen);
+        h->addWidget(gain, 1);
+        h->addWidget(val);
+        h->addWidget(reset);
+        m_audioRows->addWidget(row);
+        m_rows.push_back({exp, listen, gain, val});
+
+        connect(exp, &QCheckBox::toggled, this, [this] { updateInfo(); });
+        connect(listen, &QToolButton::toggled, this, [this] { m_audioTimer->start(); });
+        connect(gain, &QSlider::valueChanged, this, [this, val](int v) {
+            val->setText(QString("%1%2 dB").arg(v > 0 ? "+" : "").arg(v));
+            updateInfo();
+            m_audioTimer->start(); // evita reconfigurar o filtro a cada pixel arrastado
+        });
+        connect(reset, &QToolButton::clicked, gain, [gain] { gain->setValue(0); });
+    }
+    m_audioBox->setVisible(n > 0);
+}
+
+void MainWindow::applyExportDefaults()
+{
+    const bool mix = static_cast<Preset>(m_presetBox->currentIndex()) == Preset::MixMic;
+    for (size_t i = 0; i < m_rows.size(); ++i) {
+        QSignalBlocker b(m_rows[i].exp);
+        m_rows[i].exp->setChecked(mix || m_cfg.tracks == AudioTracks::All || i == 0);
+    }
+}
+
+void MainWindow::applyPreviewAudio()
+{
+    if (m_rows.empty() || !m_mpv) return;
+    const auto preset = static_cast<Preset>(m_presetBox->currentIndex());
+    m_mpv->setAudioGraph(buildAudioMixGraph(currentAudio(), preset, true, true, "ao"));
 }
 
 } // namespace shear

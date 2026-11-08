@@ -32,6 +32,16 @@ marcar início e fim, exportar e colar no Discord.
 - **Corte rápido**: copia vídeo e áudio. O Discord e a maioria dos players tocam só a primeira faixa de áudio, por isso o padrão é manter só a faixa do desktop; há a opção de manter todas.
 - **Mixar mic + desktop**: vídeo copiado, áudio recodificado com o filtro de mixagem (mic = faixa 2).
 
+### Painel de áudio
+Cada faixa do vídeo tem três controles:
+- **Exportar**: se a faixa vai no arquivo final.
+- **Ouvir**: se você escuta a faixa no preview (não afeta a exportação).
+- **Volume** (−30 a +30 dB, ↺ zera): vale no preview *e* na exportação. No preset de mixagem soma-se ao ganho do seu filtro
+  (desktop +10 dB, mic +20 dB com filtros), então 0 = exatamente o seu filtro original.
+
+O **Volume do preview** é só para você ouvir aqui e não muda o arquivo. No Corte rápido, as faixas exportadas ficam separadas;
+se algum volume foi alterado, o áudio é recodificado (AAC) e o vídeo continua copiado. Na mixagem, as faixas viram uma só.
+
 O ffmpeg roda com prioridade abaixo do normal para não derrubar o FPS do jogo.
 
 ## Compilar

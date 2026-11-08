@@ -3,8 +3,15 @@
 #include "util/Settings.h"
 #include <QElapsedTimer>
 #include <QMainWindow>
+#include <vector>
 
+class QCheckBox;
 class QComboBox;
+class QGroupBox;
+class QSlider;
+class QTimer;
+class QToolButton;
+class QVBoxLayout;
 class QLabel;
 class QListWidget;
 class QProgressBar;
@@ -50,6 +57,10 @@ private:
     void cleanupTemp(bool wholeDir);
     static QString tempDir();
     void hideResultButtons();
+    void rebuildAudioRows(int n);
+    void applyExportDefaults();
+    void applyPreviewAudio();
+    std::vector<AudioTrack> currentAudio() const;
     void startExport();
     void cancelExport();
     void onExportFinished(bool ok, const QString &path, const QString &err, double sec);
@@ -62,7 +73,15 @@ private:
     MpvWidget *m_mpv;
     TimelineWidget *m_timeline;
     QLabel *m_title, *m_times, *m_early, *m_warning, *m_status;
-    QComboBox *m_presetBox, *m_modeBox, *m_tracksBox;
+    QComboBox *m_presetBox, *m_modeBox;
+    struct TrackRow { QCheckBox *exp; QToolButton *listen; QSlider *gain; QLabel *val; };
+    QGroupBox *m_audioBox = nullptr;
+    QWidget *m_audioRowsHost = nullptr;
+    QVBoxLayout *m_audioRows = nullptr;
+    QSlider *m_volSlider = nullptr;
+    QLabel *m_volLabel = nullptr;
+    QTimer *m_audioTimer = nullptr;
+    std::vector<TrackRow> m_rows;
     QPushButton *m_exportBtn, *m_cancelBtn, *m_openFolderBtn, *m_copyBtn, *m_keepBtn, *m_deleteBtn;
     QProgressBar *m_bar;
 

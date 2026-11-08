@@ -20,17 +20,20 @@ int main(int argc, char **argv)
     base.startSec = QString(argv[3]).toDouble();
     base.endSec = QString(argv[4]).toDouble();
     base.keyframeBeforeStart = QString(argv[5]).toDouble();
+    base.audio = {AudioTrack{}, AudioTrack{}}; // desktop + mic
 
-    struct Case { const char *name; Preset p; CutMode m; };
+    struct Case { const char *name; Preset p; CutMode m; double micGain = 0; };
     const Case cases[] = {
         {"Corte rápido (cópia, modo Rápido)", Preset::QuickCut, CutMode::Fast},
         {"Corte rápido (modo Exato = recodifica)", Preset::QuickCut, CutMode::Exact},
         {"Mixar mic+desktop (vídeo copiado)", Preset::MixMic, CutMode::Fast},
+        {"Corte rápido + mic com +6 dB (áudio recodificado)", Preset::QuickCut, CutMode::Fast, 6},
     };
     for (const auto &c : cases) {
         ExportRequest r = base;
         r.preset = c.p;
         r.mode = c.m;
+        r.audio[1].gainDb = c.micGain;
         r.outputPath = QString("bench_%1.mp4").arg(int(c.p) * 10 + int(c.m));
         QFile::remove(r.outputPath);
         const auto args = buildFfmpegArgs(r, planCut(r));

@@ -17,6 +17,10 @@ public:
     void setPaused(bool p);
     void togglePause();
     void stepFrame(bool forward);
+    // Áudio do preview: grafo lavfi-complex terminando em [ao]; vazio = sem áudio.
+    void setAudioGraph(const QString &graph);
+    void resetAudio(); // volta ao padrão do mpv (faixa 1), sem grafo
+    void setVolume(int percent); // só o preview, não afeta a exportação
     bool paused() const { return m_paused; }
     double position() const { return m_pos; }
     double duration() const { return m_dur; }
@@ -25,6 +29,7 @@ signals:
     void positionChanged(double sec);
     void durationChanged(double sec);
     void pausedChanged(bool paused);
+    void fileLoaded();
     void firstFrame();
 
 protected:
@@ -45,6 +50,7 @@ private:
     QString m_pending;
     double m_pos = 0, m_dur = 0;
     bool m_paused = false;
+    int m_volume = 100;
     bool m_awaitFirst = false, m_awaitPaint = false;
 };
 

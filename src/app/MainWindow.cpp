@@ -77,6 +77,15 @@ static QString trackName(int i, int n)
     return QString("Faixa %1").arg(i + 1);
 }
 
+// Clipe mais recente salvo há até 10 s: o app abre direto nele. Se foi há até 5 min: fica destacado no topo da lista.
+static constexpr qint64 kFreshOpenSec = 10, kFreshHighlightSec = 300;
+
+static QString formatAgo(qint64 s)
+{
+    s = std::max<qint64>(s, 0);
+    return s < 60 ? QString("%1 s").arg(s) : QString("%1 min").arg(s / 60);
+}
+
 static const char *kVideoGlobs[] = {"*.mp4", "*.mkv", "*.mov", "*.webm", "*.avi"};
 
 MainWindow::MainWindow()
@@ -111,7 +120,7 @@ MainWindow::MainWindow()
     sc(Qt::Key_K, [=, this] { if (inEditor()) snapStartToKeyframe(); });
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Enter, [=, this] { if (inEditor()) startExport(); });
-    sc(Qt::Key_Escape, [=, this] { if (inEditor() && !m_job) m_stack->setCurrentIndex(0); });
+    sc(Qt::Key_Escape, [=, this] { if (inEditor() && !m_job) showHome(); });
 }
 
 QWidget *MainWindow::buildHome()
@@ -154,7 +163,7 @@ QWidget *MainWindow::buildEditor()
     auto *top = new QHBoxLayout;
     auto *back = new QPushButton("← Clipes");
     back->setFocusPolicy(Qt::NoFocus);
-    connect(back, &QPushButton::clicked, this, [this] { if (!m_job) m_stack->setCurrentIndex(0); });
+    connect(back, &QPushButton::clicked, this, [this] { if (!m_job) showHome(); });
     m_title = new QLabel;
     top->addWidget(back);
     top->addWidget(m_title, 1);
@@ -379,7 +388,7 @@ void MainWindow::showEvent(QShowEvent *e)
 void MainWindow::deferredInit()
 {
     cleanupTemp(true); // sobras de uma sessão anterior que travou
-    refreshRecent();
+    refreshRecent(m_autoOpenFresh);
     detectNvenc();
 }
 
@@ -404,34 +413,56 @@ QString MainWindow::ffmpegPath() const
     return QFileInfo::exists(local) ? local : QStringLiteral("ffmpeg");
 }
 
-struct RecentItem { QString path; QDateTime mtime; qint64 size; };
+// `created`: quando o arquivo foi CRIADO (é o que vale para "clipado há N min"); a data de modificação é só reserva.
+struct RecentItem { QString path; QDateTime created; qint64 size; };
 
-void MainWindow::refreshRecent()
+void MainWindow::showHome()
+{
+    m_stack->setCurrentIndex(0);
+    refreshRecent(false); // um clipe novo pode ter sido salvo enquanto você editava
+}
+
+void MainWindow::refreshRecent(bool autoOpen)
 {
     const QString dir = m_cfg.effectiveShadowPlayDir();
-    auto *t = QThread::create([this, dir] {
+    auto *t = QThread::create([this, dir, autoOpen] {
         std::vector<RecentItem> v;
         QDirIterator it(dir, {std::begin(kVideoGlobs), std::end(kVideoGlobs)}, QDir::Files,
                         QDirIterator::Subdirectories);
         while (it.hasNext()) {
             it.next();
-            v.push_back({it.filePath(), it.fileInfo().lastModified(), it.fileInfo().size()});
+            const QFileInfo fi = it.fileInfo();
+            v.push_back({it.filePath(), fi.birthTime().isValid() ? fi.birthTime() : fi.lastModified(), fi.size()});
         }
-        std::sort(v.begin(), v.end(), [](auto &a, auto &b) { return a.mtime > b.mtime; });
+        std::sort(v.begin(), v.end(), [](auto &a, auto &b) { return a.created > b.created; });
         if (v.size() > 40) v.resize(40);
-        QMetaObject::invokeMethod(this, [this, v] {
+        QMetaObject::invokeMethod(this, [this, v, autoOpen] {
+            const QDateTime now = QDateTime::currentDateTime();
+            const QColor accent = palette().color(QPalette::Highlight);
             m_recent->clear();
             for (const auto &r : v) {
-                auto *i = new QListWidgetItem(QString("%1    %2    %3 MB")
-                                                  .arg(QFileInfo(r.path).fileName(),
-                                                       r.mtime.toString("dd/MM/yyyy HH:mm"))
-                                                  .arg(r.size / 1048576));
+                const qint64 age = r.created.secsTo(now);
+                const bool fresh = &r == &v.front() && age <= kFreshHighlightSec; // só o ÚLTIMO clipe, se tiver até 5 min
+                const QString base = QString("%1    %2    %3 MB")
+                                         .arg(QFileInfo(r.path).fileName(), r.created.toString("dd/MM/yyyy HH:mm"))
+                                         .arg(r.size / 1048576);
+                auto *i = new QListWidgetItem(fresh ? QString("●  NOVO · há %1    %2").arg(formatAgo(age), base) : base);
+                if (fresh) { // o clipe mais recente (salvo há até 5 min): destaque; a lista já vem do mais novo para o mais antigo
+                    QColor bg = accent;
+                    bg.setAlpha(70);
+                    i->setBackground(bg);
+                    QFont f = i->font();
+                    f.setBold(true);
+                    i->setFont(f);
+                }
                 i->setData(Qt::UserRole, r.path);
                 i->setToolTip(r.path);
                 m_recent->addItem(i);
             }
             if (v.empty())
                 m_recent->addItem("Nenhum clipe encontrado em " + m_cfg.effectiveShadowPlayDir());
+            else if (autoOpen && !m_job && v.front().created.secsTo(now) <= kFreshOpenSec && v.front().path != m_file)
+                openFile(v.front().path); // clipado há segundos: já abre nele
         }, Qt::QueuedConnection);
     });
     connect(t, &QThread::finished, t, &QObject::deleteLater);
@@ -460,7 +491,13 @@ void MainWindow::openSettings()
 
 void MainWindow::openFile(const QString &path)
 {
-    if (path.isEmpty() || !QFileInfo::exists(path)) {
+    if (path.isEmpty()) { // app já aberto e chamado de novo (atalho/menu): traz à frente e abre o clipe salvo há segundos
+        raise();
+        activateWindow();
+        if (!m_job) refreshRecent(true);
+        return;
+    }
+    if (!QFileInfo::exists(path)) {
         raise();
         activateWindow();
         return;

@@ -54,6 +54,7 @@ private slots:
 
 private:
     void command(const QStringList &args);
+    void endBurstVideo();
     void finishRestore(quint64 gen);
     static void wakeup(void *ctx);
     static void renderUpdate(void *ctx);
@@ -61,6 +62,10 @@ private:
     mpv_handle *m_mpv = nullptr;
     mpv_render_context *m_ctx = nullptr;
     QImage m_frame;
+    QImage m_scratch;                  // destino do mpv enquanto a imagem está congelada
+    bool m_freeze = false;             // mostra m_frame parado (o vídeo anda por baixo, só o áudio importa)
+    bool m_freezePending = false;      // congela logo depois de pintar o quadro do ponto pedido
+    bool m_unfreezeOnRestart = false;  // descongela quando o seek de volta ao marcador terminar
     double m_pos = 0, m_dur = 0;
     bool m_paused = false;
     int m_volume = 100;

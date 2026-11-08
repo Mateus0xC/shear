@@ -24,6 +24,12 @@ marcar início e fim, exportar e colar no Discord.
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
 
+### Clipes recém-salvos
+- Se você salvou um clipe há **até 10 s** (conta desde a **criação do arquivo**, não a duração do vídeo, na pasta do ShadowPlay) e abre o Shear sem
+  indicar um arquivo, ele **já abre direto nesse clipe**. Se o Shear já estiver aberto e for chamado de novo, também.
+- O **clipe mais recente**, se o arquivo foi criado há **até 5 minutos**, fica no topo da lista de recentes, destacado (cor de fundo, negrito e
+  "NOVO · há N min"). Só ele é destacado, não todos os dos últimos 5 minutos.
+
 ### Modo de corte (botões Rápido | Exato)
 - **Rápido**: copia o vídeo sem recodificar (instantâneo). O corte só pode começar num keyframe, então o marcador de
   **início encaixa nos keyframes** (as marcas na timeline) ao arrastar, ao apertar `I` e ao trocar para este modo.
@@ -59,7 +65,8 @@ Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para bai
   marcador anda de frame em frame (usando a taxa de quadros do vídeo).
 - Voltar com o mouse para dentro da timeline sai do zoom. Uma etiqueta abaixo da timeline lembra do gesto durante o arrasto.
 - **Enquanto o botão do mouse está pressionado na timeline, o vídeo fica pausado**; ao soltar, volta a tocar se estava tocando.
-- **Áudio ao arrastar:** a cada posição nova toca um trecho curto de áudio (~0,1 s), como o scrub de um editor de vídeo.
+- **Áudio ao arrastar:** a cada posição nova toca um trecho curto de áudio (~0,1 s), como o scrub de um editor de vídeo. A imagem
+  fica parada no quadro do marcador; só o som toca.
   O botão **♪ ao arrastar**, no cartão de áudio, liga e desliga isso (a escolha fica salva).
 
 ### Overlay da NVIDIA

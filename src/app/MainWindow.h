@@ -33,6 +33,8 @@ class MainWindow : public QMainWindow {
 public:
     MainWindow();
     void openFile(const QString &path);
+    // Ao abrir o app sem arquivo: se um clipe foi salvo há poucos segundos, já abre nele.
+    void setAutoOpenFresh(bool v) { m_autoOpenFresh = v; }
     void deferredInit(); // trabalho pesado, depois da janela aparecer
 
 protected:
@@ -46,7 +48,8 @@ private:
     QWidget *buildEditor();
     void promptOpen();
     void openSettings();
-    void refreshRecent();
+    void refreshRecent(bool autoOpen = false);
+    void showHome();
     void detectNvenc();
     QString ffmpegPath() const;
 
@@ -107,6 +110,7 @@ private:
     int m_audioTracks = 2;
     bool m_hasNvenc = true;
     bool m_shownOnce = false;
+    bool m_autoOpenFresh = false;
     KeyframeScanner *m_scanner = nullptr;
     ExportJob *m_job = nullptr;
     QElapsedTimer m_openClock;

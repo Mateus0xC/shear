@@ -35,6 +35,7 @@ int main(int argc, char **argv)
         w.raise();
         w.activateWindow();
     });
+    w.setAutoOpenFresh(path.isEmpty()); // sem arquivo na linha de comando: abre direto no clipe salvo há poucos segundos
     w.show();
     if (!path.isEmpty())
         QTimer::singleShot(0, &w, [&w, path] { w.openFile(path); });

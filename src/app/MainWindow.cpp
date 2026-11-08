@@ -617,8 +617,6 @@ void MainWindow::updateInfo()
     msg << (r.mode == CutMode::Fast
                 ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
                 : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
-    if (!r.audio.empty() && enabledTrackCount(r.audio) == 0)
-        msg << "⚠ Nenhuma faixa de áudio ligada: o clipe ficará sem som.";
     m_warning->setText(msg.join("   ·   "));
 
     // previsão do tempo de exportação

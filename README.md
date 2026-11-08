@@ -31,6 +31,7 @@ marcar início e fim, exportar e colar no Discord.
 | `Ctrl` + `Y` (ou `Ctrl` + `Shift` + `Z`) | refaz o que foi desfeito |
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
+| roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 5 s, Ctrl 15 s, Ctrl+Shift 1 min, Alt 1 quadro); para cima avança |
 
 ### Menu de contexto do Explorer
 Em **Configurações → Menu do Windows** (caixa de seleção) o item “Cortar com Shear” passa a aparecer ao clicar com o botão direito em

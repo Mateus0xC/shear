@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QWheelEvent>
 #include <algorithm>
 #include <cmath>
 
@@ -349,6 +350,19 @@ void TimelineWidget::paintEvent(QPaintEvent *)
         const double bw = std::max(14.0, b - a); // largura mínima visível, mesmo nos níveis de zoom mais finos
         p.drawRoundedRect(QRectF((a + b) / 2 - bw / 2, top - 3, bw, bottom - top + 6), 3, 3);
     }
+}
+
+void TimelineWidget::wheelEvent(QWheelEvent *e)
+{
+    // Shift pode virar rolagem horizontal (angleDelta.x): vale o eixo que veio.
+    const QPoint d = e->angleDelta();
+    m_wheelAcc += d.y() != 0 ? d.y() : d.x();
+    const int notches = m_wheelAcc / 120;
+    if (notches != 0) {
+        m_wheelAcc -= notches * 120;
+        emit scrolled(notches, e->modifiers());
+    }
+    e->accept();
 }
 
 void TimelineWidget::mousePressEvent(QMouseEvent *e)

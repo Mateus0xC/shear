@@ -405,6 +405,17 @@ QWidget *MainWindow::buildEditor()
     connect(m_timeline, &TimelineWidget::endChanged, this, [this] { updateInfo(); });
     // Enquanto o mouse está pressionado na timeline o vídeo fica pausado (a timeline pede o seek a cada movimento,
     // então você vê o quadro sob o mouse). Ao soltar, volta a tocar se estava tocando.
+    // Roda do mouse na timeline = setas: 1 s por clique (Shift 5 s, Ctrl 15 s, Ctrl+Shift 1 min, Alt 1 quadro).
+    // Para cima avança, para baixo volta (como W/S e as setas ↑/↓ aumentam).
+    connect(m_timeline, &TimelineWidget::scrolled, this, [this](int notches, Qt::KeyboardModifiers m) {
+        if (m & Qt::AltModifier) {
+            for (int i = 0; i < std::abs(notches); ++i)
+                stepOneFrame(notches > 0 ? +1 : -1);
+            return;
+        }
+        const bool ctrl = m & Qt::ControlModifier, shift = m & Qt::ShiftModifier;
+        jumpBy(notches * (ctrl && shift ? 60.0 : ctrl ? 15.0 : shift ? 5.0 : 1.0));
+    });
     connect(m_timeline, &TimelineWidget::dragStarted, this, [this] {
         m_dragSnapshot = currentState();
         m_resumeAfterDrag = !m_mpv->paused();

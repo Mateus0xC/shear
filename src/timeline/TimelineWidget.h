@@ -42,15 +42,18 @@ signals:
     void endChanged(double sec);
     void dragStarted();  // botão do mouse pressionado na timeline (o vídeo deve pausar)
     void dragFinished(); // soltou o botão
+    void scrolled(int notches, Qt::KeyboardModifiers mods); // roda do mouse: >0 = para cima
 
 protected:
     void paintEvent(QPaintEvent *) override;
     void mousePressEvent(QMouseEvent *) override;
+    void wheelEvent(QWheelEvent *) override;
     void mouseMoveEvent(QMouseEvent *) override;
     void mouseReleaseEvent(QMouseEvent *) override;
     QSize sizeHint() const override { return {600, 60}; }
 
 private:
+    int m_wheelAcc = 0;
     enum class Drag { None, Seek, Start, End };
     void applyDrag(double t);
     long long frameKey(double t) const;          // índice do quadro de t (sem fps conhecido, usa 60)

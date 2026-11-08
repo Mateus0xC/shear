@@ -348,8 +348,18 @@ QWidget *MainWindow::buildEditor()
     m_bar->hide();
     m_cancelBtn = new QPushButton("Cancelar");
     m_cancelBtn->hide();
-    m_copyBtn = new QPushButton("Copiar");
-    m_copyBtn->setToolTip("Copiar o arquivo de novo para a área de transferência (Ctrl+V no Discord)");
+    // Copiar: só um ícone pequeno (glifo "Copiar" da fonte de ícones do Windows; sem ela, o emoji 📋).
+    m_copyBtn = new QPushButton;
+    if (const QString family = iconFontFamily(); !family.isEmpty()) {
+        QFont f(family);
+        f.setPixelSize(15);
+        m_copyBtn->setFont(f);
+        m_copyBtn->setText(QString(QChar(0xE8C8)));
+    } else {
+        m_copyBtn->setText(QString::fromUcs4(U"📋"));
+    }
+    m_copyBtn->setToolTip("Copiar o clipe para a área de transferência (Ctrl+V no Discord)");
+    m_copyBtn->setFocusPolicy(Qt::NoFocus);
     m_keepBtn = new QPushButton("Manter");
     m_keepBtn->setToolTip("Move o clipe para a pasta de clipes mantidos e impede que seja apagado ao fechar.\n"
                           "Segure Shift para manter o clipe e já apagar o vídeo original.");
@@ -365,7 +375,10 @@ QWidget *MainWindow::buildEditor()
     });
     shiftPoll->start();
     // À vista: Copiar, Manter e (enquanto o clipe é temporário) apagar tudo. Abrir a pasta = clicar no nome do arquivo.
-    m_deleteBothBtn = new QPushButton("Apagar original");
+    m_deleteBothBtn = new QPushButton("Apagar original e clipe");
+    m_deleteOrigBtn = new QPushButton("Apagar original"); // aparece depois de Manter
+    m_deleteOrigBtn->setToolTip("Manda o vídeo original para a Lixeira (o clipe mantido fica).");
+    connect(m_deleteOrigBtn, &QPushButton::clicked, this, &MainWindow::deleteOriginalOnly);
     m_deleteBothBtn->setToolTip("Manda o vídeo original para a Lixeira e apaga o clipe cortado.");
     m_fileLink = new QPushButton;
     m_fileLink->setFlat(true);
@@ -384,6 +397,7 @@ QWidget *MainWindow::buildEditor()
     ex->addWidget(m_copyBtn);
     ex->addWidget(m_keepBtn);
     ex->addWidget(m_deleteBothBtn);
+    ex->addWidget(m_deleteOrigBtn);
     bl->addWidget(rowC);
     l->addLayout(bottom);
 
@@ -401,9 +415,11 @@ QWidget *MainWindow::buildEditor()
     });
     // Botões do resultado todos do mesmo tamanho (o do maior texto).
     {
-        const int w = m_keepBtn->fontMetrics().horizontalAdvance("Manter e apagar original") + 28;
-        for (QPushButton *b : {m_cancelBtn, m_copyBtn, m_keepBtn, m_deleteBothBtn})
+        const QFontMetrics fm = m_keepBtn->fontMetrics();
+        const int w = std::max(fm.horizontalAdvance("Manter e apagar original"), fm.horizontalAdvance("Apagar original e clipe")) + 28;
+        for (QPushButton *b : {m_cancelBtn, m_keepBtn, m_deleteBothBtn, m_deleteOrigBtn})
             b->setFixedSize(w, 28);
+        m_copyBtn->setFixedSize(34, 28);
     }
     connect(m_modeGroup, &QButtonGroup::buttonToggled, this, [this](QAbstractButton *, bool on) { if (on) onModeChanged(); });
     onModeChanged();
@@ -866,7 +882,7 @@ void MainWindow::setResultLink(const QString &path)
 
 void MainWindow::hideResultButtons()
 {
-    for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_deleteBothBtn), static_cast<QWidget *>(m_fileLink)})
+    for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_deleteBothBtn), static_cast<QWidget *>(m_deleteOrigBtn), static_cast<QWidget *>(m_fileLink)})
         b->hide();
 }
 
@@ -934,6 +950,19 @@ void MainWindow::deleteBoth()
     showHome();
 }
 
+// Botão "Apagar original", que aparece depois de Manter: o clipe mantido fica, só o original vai para a Lixeira.
+void MainWindow::deleteOriginalOnly()
+{
+    if (m_file.isEmpty() || m_job) return;
+    if (!confirmDestructive(this, "Apagar o original",
+                            "Mandar para a Lixeira o vídeo original?\n\n" + QDir::toNativeSeparators(m_file) +
+                                "\n\nO clipe mantido não é apagado.",
+                            "Apagar original", "Cancelar"))
+        return;
+    if (trashOriginal())
+        showHome();
+}
+
 void MainWindow::keepLastOutput(bool deleteOriginalToo)
 {
     if (m_lastOutput.isEmpty() || !m_tempFiles.contains(m_lastOutput)) return;
@@ -967,12 +996,7 @@ void MainWindow::keepLastOutput(bool deleteOriginalToo)
             showHome();
         return;
     }
-    if (confirmDestructive(this, "Apagar o original?",
-                           "Clipe mantido. Mandar o vídeo original para a Lixeira também?\n\n" + QDir::toNativeSeparators(m_file),
-                           "Apagar original", "Manter original")) {
-        if (trashOriginal())
-            showHome();
-    }
+    m_deleteOrigBtn->show(); // sem perguntar: quem quiser apagar o original usa o botão
 }
 
 void MainWindow::cancelExport()

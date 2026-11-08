@@ -72,6 +72,7 @@ private:
     bool trashOriginal();
     void setResultLink(const QString &path);
     void deleteBoth();
+    void deleteOriginalOnly();
     void cleanupTemp(bool wholeDir);
     static QString tempDir();
     void hideResultButtons();
@@ -106,7 +107,7 @@ private:
     QTimer *m_audioTimer = nullptr;
     std::vector<TrackRow> m_rows;
     QPushButton *m_exportBtn, *m_cancelBtn, *m_copyBtn, *m_keepBtn;
-    QPushButton *m_deleteBothBtn, *m_fileLink; // resultado do corte
+    QPushButton *m_deleteBothBtn, *m_deleteOrigBtn, *m_fileLink; // resultado do corte
 
     QProgressBar *m_bar;
     QLabel *m_eta = nullptr; // previsão do tempo de exportação

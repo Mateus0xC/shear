@@ -11,7 +11,7 @@ marcar início e fim, exportar e colar no Discord.
    (Ctrl+V no Discord).
 3. **Os clipes exportados são temporários**: ficam em `%TEMP%\Shear-exports` e são apagados ao fechar o Shear
    (e as sobras de uma sessão que travou são apagadas na próxima abertura). Para guardar um clipe, clique em
-   **Manter**: ele é movido para a pasta configurada (ou a do vídeo original) e aparece o botão **Apagar original** (manda só o vídeo de origem para a Lixeira, com confirmação). **Apagar original e clipe** apaga os dois (confirma antes). Segurando **Shift**, o Manter vira "Manter e apagar original" (mantém o clipe e manda o original para a Lixeira, com confirmação). O ícone de cópia ao lado copia o clipe de novo para a área de transferência; clicar no nome do arquivo abre a pasta. Ao voltar para a lista de clipes ou fechar, o clipe não mantido é apagado.
+   **Manter clipe**: ele é movido para a pasta configurada (ou a do vídeo original) e aparece o botão **Apagar original** (manda só o vídeo de origem para a Lixeira, com confirmação). **Apagar original e clipe** apaga os dois (confirma antes). Segurando **Shift**, o Manter vira "Manter e apagar original" (mantém o clipe e manda o original para a Lixeira, com confirmação). O ícone de cópia ao lado copia o clipe de novo para a área de transferência; clicar no nome do arquivo abre a pasta. Ao voltar para a lista de clipes ou fechar, o clipe não mantido é apagado.
 
 | Tecla | Ação |
 |---|---|

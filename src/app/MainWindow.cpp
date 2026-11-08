@@ -358,9 +358,9 @@ QWidget *MainWindow::buildEditor()
     } else {
         m_copyBtn->setText(QString::fromUcs4(U"📋"));
     }
-    m_copyBtn->setToolTip("Copiar o clipe para a área de transferência (Ctrl+V no Discord)");
+    m_copyBtn->setToolTip("Copiar o clipe para a área de transferência (Ctrl+V)");
     m_copyBtn->setFocusPolicy(Qt::NoFocus);
-    m_keepBtn = new QPushButton("Manter");
+    m_keepBtn = new QPushButton("Manter clipe");
     m_keepBtn->setToolTip("Move o clipe para a pasta de clipes mantidos e impede que seja apagado ao fechar.\n"
                           "Segure Shift para manter o clipe e já apagar o vídeo original.");
     // Com Shift segurado o botão vira "Manter e apagar original". Largura fixa: nada pula quando o texto troca.
@@ -370,7 +370,7 @@ QWidget *MainWindow::buildEditor()
     connect(shiftPoll, &QTimer::timeout, this, [this] {
         if (!m_keepBtn->isVisible()) return;
         const bool shift = QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier);
-        const QString want = shift ? "Manter e apagar original" : "Manter";
+        const QString want = shift ? "Manter e apagar original" : "Manter clipe";
         if (m_keepBtn->text() != want) m_keepBtn->setText(want);
     });
     shiftPoll->start();
@@ -410,7 +410,7 @@ QWidget *MainWindow::buildEditor()
     // Vale o que o botão mostra (ou o Shift no instante do clique): o que você vê é o que acontece.
     connect(m_keepBtn, &QPushButton::clicked, this, [this] {
         const bool shift = QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier) ||
-                           m_keepBtn->text() != "Manter";
+                           m_keepBtn->text() != "Manter clipe";
         keepLastOutput(shift);
     });
     // Botões do resultado todos do mesmo tamanho (o do maior texto).

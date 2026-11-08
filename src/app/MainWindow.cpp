@@ -37,7 +37,6 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListWidget>
-#include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProcess>
@@ -353,31 +352,26 @@ QWidget *MainWindow::buildEditor()
     m_copyBtn->setToolTip("Copiar o arquivo de novo para a área de transferência (Ctrl+V no Discord)");
     m_keepBtn = new QPushButton("Manter");
     m_keepBtn->setToolTip("Move o clipe para a pasta de clipes mantidos e impede que seja apagado ao fechar.");
-    // Só o essencial fica à vista (Copiar, Manter); o resto vai no menu "⋯".
-    m_moreBtn = new QToolButton;
-    m_moreBtn->setText(QString::fromUcs4(U"⋯"));
-    m_moreBtn->setToolTip("Mais opções");
-    m_moreBtn->setPopupMode(QToolButton::InstantPopup);
-    m_moreBtn->setStyleSheet("QToolButton::menu-indicator { image: none; }");
-    m_moreBtn->setFixedSize(34, 26);
-    auto *moreMenu = new QMenu(m_moreBtn);
-    auto *actFolder = moreMenu->addAction("Abrir pasta do clipe");
-    moreMenu->addSeparator();
-    m_actDelClip = moreMenu->addAction("Apagar clipe cortado");
-    auto *actDelOrig = moreMenu->addAction("Apagar vídeo original (Lixeira)");
-    m_actDelBoth = moreMenu->addAction("Apagar original e clipe cortado");
-    m_moreBtn->setMenu(moreMenu);
-    connect(actFolder, &QAction::triggered, this, [this] { revealInExplorer(m_lastOutput); });
-    connect(m_actDelClip, &QAction::triggered, this, &MainWindow::deleteLastOutput);
-    connect(actDelOrig, &QAction::triggered, this, [this] { deleteOriginal(false); });
-    connect(m_actDelBoth, &QAction::triggered, this, [this] { deleteOriginal(true); });
+    // À vista: Copiar, Manter e (enquanto o clipe é temporário) apagar tudo. Abrir a pasta = clicar no nome do arquivo.
+    m_deleteBothBtn = new QPushButton("Apagar original e clipe");
+    m_deleteBothBtn->setToolTip("Manda o vídeo original para a Lixeira e apaga o clipe cortado.");
+    m_fileLink = new QPushButton;
+    m_fileLink->setFlat(true);
+    m_fileLink->setCursor(Qt::PointingHandCursor);
+    m_fileLink->setFocusPolicy(Qt::NoFocus);
+    m_fileLink->setToolTip("Abrir a pasta do clipe");
+    m_fileLink->setStyleSheet("QPushButton { border: none; padding: 0 2px; text-decoration: underline; }");
+    m_fileLink->hide();
+    connect(m_fileLink, &QPushButton::clicked, this, [this] { revealInExplorer(m_lastOutput); });
+    connect(m_deleteBothBtn, &QPushButton::clicked, this, &MainWindow::deleteBoth);
     hideResultButtons();
+    ex->addWidget(m_fileLink);
     ex->addWidget(m_status, 1);
     ex->addWidget(m_bar, 1);
     ex->addWidget(m_cancelBtn);
     ex->addWidget(m_copyBtn);
     ex->addWidget(m_keepBtn);
-    ex->addWidget(m_moreBtn);
+    ex->addWidget(m_deleteBothBtn);
     bl->addWidget(rowC);
     l->addLayout(bottom);
 
@@ -499,6 +493,10 @@ void MainWindow::showHome()
         m_scrub->stop();
     if (m_mpv)
         m_mpv->setPaused(true);
+    cleanupTemp(false); // clipes cortados que não foram mantidos somem ao sair do vídeo
+    if (m_editor)
+        hideResultButtons();
+    m_lastOutput.clear();
     m_file.clear(); // nenhum vídeo aberto (assim o clipe recém-salvo pode ser aberto de novo)
     setWindowTitle("Shear");
     m_stack->setCurrentIndex(0);
@@ -835,9 +833,17 @@ QString MainWindow::tempDir()
     return QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/Shear-exports";
 }
 
+void MainWindow::setResultLink(const QString &path)
+{
+    const QString name = QFileInfo(path).fileName();
+    m_fileLink->setText(m_fileLink->fontMetrics().elidedText(name, Qt::ElideMiddle, 360));
+    m_fileLink->setToolTip("Abrir a pasta do clipe: " + name);
+    m_fileLink->adjustSize();
+}
+
 void MainWindow::hideResultButtons()
 {
-    for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_moreBtn)})
+    for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_deleteBothBtn), static_cast<QWidget *>(m_fileLink)})
         b->hide();
 }
 
@@ -861,56 +867,48 @@ void MainWindow::cleanupTemp(bool wholeDir)
         QDir(tempDir()).removeRecursively();
 }
 
-void MainWindow::deleteLastOutput()
+// Solta o vídeo (player e preview de áudio seguram o arquivo) e manda o original para a Lixeira.
+bool MainWindow::trashOriginal()
 {
-    if (m_lastOutput.isEmpty()) return;
-    clearClipboardIfOurs({m_lastOutput});
-    QFile::remove(m_lastOutput);
-    m_tempFiles.removeAll(m_lastOutput);
-    m_status->setText("Clipe apagado.");
-    m_lastOutput.clear();
-    hideResultButtons();
-}
-
-void MainWindow::deleteOriginal(bool alsoClip)
-{
-    if (m_file.isEmpty() || m_job) return;
     const QString orig = m_file;
-    const QString clip = m_lastOutput;
-    const bool clipIsTemp = m_tempFiles.contains(clip);
-    QString text = "Mandar para a Lixeira o vídeo original?\n\n" + QDir::toNativeSeparators(orig);
-    if (alsoClip)
-        text = "Apagar o vídeo original (Lixeira) e o clipe cortado?\n\n" + QDir::toNativeSeparators(orig) + "\n" +
-               QDir::toNativeSeparators(clip) + "\n\nVocê perde os dois.";
-    else if (clipIsTemp)
-        text += "\n\nO clipe cortado será mantido antes de apagar.";
-    QMessageBox box(QMessageBox::Warning, alsoClip ? "Apagar original e clipe" : "Apagar o vídeo original", text,
-                    QMessageBox::NoButton, this);
-    auto *yes = box.addButton(alsoClip ? "Apagar os dois" : "Apagar original", QMessageBox::DestructiveRole);
-    box.addButton("Cancelar", QMessageBox::RejectRole);
-    box.setDefaultButton(qobject_cast<QPushButton *>(box.buttons().last()));
-    box.exec();
-    if (box.clickedButton() != yes) return;
-    if (!alsoClip && clipIsTemp) {
-        keepLastOutput();
-        if (m_tempFiles.contains(m_lastOutput)) return; // não conseguiu manter o clipe: não apaga o original
-    }
-    m_mpv->unload(); // solta o arquivo antes de apagar
+    m_mpv->unload();
     m_scrub->unload();
     QThread::msleep(150);
     if (!QFile::moveToTrash(orig)) {
         m_mpv->loadFile(orig);
         m_status->setText("Não foi possível apagar o original.");
+        return false;
+    }
+    metrics::log("original enviado para a Lixeira: " + orig);
+    return true;
+}
+
+// Pergunta com botões nomeados (o padrão é sempre o seguro, "Não").
+static bool confirmDestructive(QWidget *parent, const QString &title, const QString &text, const QString &yesText,
+                               const QString &noText)
+{
+    QMessageBox box(QMessageBox::Warning, title, text, QMessageBox::NoButton, parent);
+    auto *yes = box.addButton(yesText, QMessageBox::DestructiveRole);
+    auto *no = box.addButton(noText, QMessageBox::RejectRole);
+    box.setDefaultButton(no);
+    box.exec();
+    return box.clickedButton() == yes;
+}
+
+// Botão "Apagar original e clipe": só existe enquanto o clipe cortado é temporário.
+void MainWindow::deleteBoth()
+{
+    if (m_file.isEmpty() || m_job || !m_tempFiles.contains(m_lastOutput)) return;
+    if (!confirmDestructive(this, "Apagar original e clipe",
+                            "Apagar o vídeo original (vai para a Lixeira) e o clipe cortado?\n\n" +
+                                QDir::toNativeSeparators(m_file) + "\n" + QDir::toNativeSeparators(m_lastOutput) +
+                                "\n\nVocê perde os dois.",
+                            "Apagar os dois", "Cancelar"))
         return;
-    }
-    if (alsoClip && !clip.isEmpty()) {
-        clearClipboardIfOurs({clip});
-        if (clipIsTemp) { QFile::remove(clip); m_tempFiles.removeAll(clip); }
-        else QFile::moveToTrash(clip);
-        m_lastOutput.clear();
-    }
+    if (!trashOriginal()) return;
+    cleanupTemp(false); // o clipe temporário
+    m_lastOutput.clear();
     showHome();
-    metrics::log("original enviado para a Lixeira: " + orig + (alsoClip ? " (e o clipe: " + clip + ")" : QString()));
 }
 
 void MainWindow::keepLastOutput()
@@ -930,9 +928,16 @@ void MainWindow::keepLastOutput()
     m_lastOutput = dest;
     copyFileToClipboard(dest); // o Ctrl+V passa a apontar para o arquivo mantido
     m_keepBtn->hide();
-    m_actDelClip->setVisible(false); // já é um arquivo mantido: nada de apagar por engano
-    m_actDelBoth->setVisible(false);
-    m_status->setText("Mantido em " + QDir::toNativeSeparators(dest));
+    m_deleteBothBtn->hide(); // já é um arquivo mantido: nada de apagar por engano
+    setResultLink(dest);
+    m_status->setText("· Mantido");
+    if (m_file.isEmpty() || !QFileInfo::exists(m_file)) return;
+    if (confirmDestructive(this, "Apagar o original?",
+                           "Clipe mantido. Mandar o vídeo original para a Lixeira também?\n\n" + QDir::toNativeSeparators(m_file),
+                           "Apagar original", "Manter original")) {
+        if (trashOriginal())
+            showHome();
+    }
 }
 
 void MainWindow::cancelExport()
@@ -961,13 +966,10 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
     m_lastOutput = path;
     m_tempFiles << path;
     copyFileToClipboard(path);
-    for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_moreBtn)})
+    for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_deleteBothBtn), static_cast<QWidget *>(m_fileLink)})
         b->show();
-    m_actDelClip->setVisible(true);
-    m_actDelBoth->setVisible(true);
-    m_status->setText(QString("Pronto em %1 s (previsto %2) · copiado, é só dar Ctrl+V · temporário até clicar em Manter · %3")
-                          .arg(QString::number(sec, 'f', 1).replace('.', ','), formatDuration(m_exportEstimate),
-                               QFileInfo(path).fileName()));
+    setResultLink(path);
+    m_status->setText(QString("· Pronto em %1 s").arg(QString::number(sec, 'f', 1).replace('.', ',')));
     updateInfo(); // a próxima previsão já usa a taxa recalibrada
     metrics::log(QString("exportação concluída em %1 s: %2").arg(sec, 0, 'f', 2).arg(path));
 }

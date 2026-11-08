@@ -69,8 +69,9 @@ private:
     void updateInfo();
     ExportRequest currentRequest() const;
     void keepLastOutput();
-    void deleteLastOutput();
-    void deleteOriginal(bool alsoClip);
+    bool trashOriginal();
+    void setResultLink(const QString &path);
+    void deleteBoth();
     void cleanupTemp(bool wholeDir);
     static QString tempDir();
     void hideResultButtons();
@@ -105,8 +106,7 @@ private:
     QTimer *m_audioTimer = nullptr;
     std::vector<TrackRow> m_rows;
     QPushButton *m_exportBtn, *m_cancelBtn, *m_copyBtn, *m_keepBtn;
-    QToolButton *m_moreBtn;                      // menu "⋯" do resultado
-    QAction *m_actDelClip, *m_actDelBoth;        // só valem enquanto o clipe cortado existe e é temporário
+    QPushButton *m_deleteBothBtn, *m_fileLink; // resultado do corte
 
     QProgressBar *m_bar;
     QLabel *m_eta = nullptr; // previsão do tempo de exportação

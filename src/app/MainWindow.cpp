@@ -6,6 +6,7 @@
 #include "export/ExportJob.h"
 #include "platform/Windows.h"
 #include "VerticalFader.h"
+#include "player/AudioScrubber.h"
 #include "player/MpvWidget.h"
 #include "timeline/KeyframeScanner.h"
 #include "timeline/TimelineWidget.h"
@@ -170,6 +171,7 @@ QWidget *MainWindow::buildEditor()
     l->addLayout(top);
 
     m_mpv = new MpvWidget(m_cfg.gpuDecode);
+    m_scrub = new AudioScrubber(this);
     m_mpv->setMinimumHeight(240);
     l->addWidget(m_mpv, 1);
 
@@ -244,6 +246,7 @@ QWidget *MainWindow::buildEditor()
     }
     m_volume = QSettings().value("player/volume", 100).toInt();
     m_mpv->setVolume(m_volume);
+    m_scrub->setVolume(m_volume);
     connect(m_mpv, &MpvWidget::volumeWheel, this, [this](int d) { changeVolume(d); });
     m_audioTimer = new QTimer(this);
     m_audioTimer->setSingleShot(true);
@@ -346,11 +349,9 @@ QWidget *MainWindow::buildEditor()
     });
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
         m_mpv->seek(t);
-        // Arrastando (vídeo pausado): toca um trechinho de áudio nessa posição, no máximo ~14 vezes por segundo.
-        if (m_scrubbing && m_scrubBtn->isChecked() && m_burstClock.elapsed() > 70) {
-            m_burstClock.restart();
-            m_mpv->scrubBurst(110);
-        }
+        // Arrastando (vídeo parado): o som sai de um player só de áudio, que segue o mouse em qualquer velocidade.
+        if (m_scrubbing && m_scrubBtn->isChecked())
+            m_scrub->scrub(t);
     });
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
     connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
@@ -362,12 +363,12 @@ QWidget *MainWindow::buildEditor()
         if (m_resumeAfterDrag)
             m_mpv->setPaused(true);
         m_scrubbing = true;
-        m_burstClock.start();
     });
     connect(m_timeline, &TimelineWidget::dragFinished, this, [this] {
         m_scrubbing = false;
-        m_mpv->cancelScrub();
-        m_mpv->setPaused(!m_resumeAfterDrag); // um trecho de áudio pode ter deixado tocando: volta ao estado certo
+        m_scrub->stop();
+        if (m_resumeAfterDrag)
+            m_mpv->setPaused(false);
         m_resumeAfterDrag = false;
     });
     return w;
@@ -521,6 +522,8 @@ void MainWindow::openFile(const QString &path)
     m_stack->setCurrentIndex(1);
     rebuildAudioRows(0);
     m_mpv->resetAudio();
+    m_scrub->resetAudio();
+    m_scrub->loadFile(path);
     m_mpv->loadFile(path); // o vídeo vem primeiro; o resto depois
 
     if (m_scanner) { // descarta o scanner anterior
@@ -891,7 +894,9 @@ void MainWindow::rebuildAudioRows(int n)
 void MainWindow::applyPreviewAudio()
 {
     if (m_rows.empty() || !m_mpv) return;
-    m_mpv->setAudioGraph(buildAudioMixGraph(currentAudio(), true, "ao")); // o que você ouve = o que vai no arquivo
+    const QString graph = buildAudioMixGraph(currentAudio(), true, "ao"); // o que você ouve = o que vai no arquivo
+    m_mpv->setAudioGraph(graph);
+    m_scrub->setAudioGraph(graph);
 }
 
 void MainWindow::setCutMode(CutMode m)
@@ -922,6 +927,7 @@ void MainWindow::changeVolume(int delta)
 {
     m_volume = std::clamp(m_volume + delta, 0, 100);
     m_mpv->setVolume(m_volume);
+    m_scrub->setVolume(m_volume);
     m_mpv->showText(QString("Volume %1%").arg(m_volume));
     QSettings().setValue("player/volume", m_volume);
 }

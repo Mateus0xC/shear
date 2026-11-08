@@ -62,14 +62,6 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
     mpv_observe_property(m_mpv, 0, "container-fps", MPV_FORMAT_DOUBLE);
     mpv_set_wakeup_callback(m_mpv, &MpvWidget::wakeup, this);
 
-    m_burstTimer = new QTimer(this);
-    m_burstTimer->setSingleShot(true);
-    connect(m_burstTimer, &QTimer::timeout, this, [this] {
-        m_burstPending = false;
-        setPaused(true); // acabou o trecho de áudio
-        endBurstVideo();
-    });
-
     mpv_render_param params[] = {
         {MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_SW)},
         {MPV_RENDER_PARAM_INVALID, nullptr}};
@@ -97,24 +89,16 @@ void MpvWidget::paintEvent(QPaintEvent *)
         m_frame = QImage(px, QImage::Format_RGB32);
         m_frame.fill(Qt::black);
     }
-    if (m_scratch.size() != px)
-        m_scratch = QImage(px, QImage::Format_RGB32);
-    // Congelado: o mpv continua renderizando (senão o vídeo trava), mas num buffer que não aparece.
-    QImage &target = m_freeze ? m_scratch : m_frame;
     if (m_ctx) {
         int size[2] = {px.width(), px.height()};
-        size_t stride = size_t(target.bytesPerLine());
+        size_t stride = size_t(m_frame.bytesPerLine());
         mpv_render_param params[] = {
             {MPV_RENDER_PARAM_SW_SIZE, size},
             {MPV_RENDER_PARAM_SW_FORMAT, const_cast<char *>("bgr0")}, // = QImage::Format_RGB32 (little-endian)
             {MPV_RENDER_PARAM_SW_STRIDE, &stride},
-            {MPV_RENDER_PARAM_SW_POINTER, target.bits()},
+            {MPV_RENDER_PARAM_SW_POINTER, m_frame.bits()},
             {MPV_RENDER_PARAM_INVALID, nullptr}};
         mpv_render_context_render(m_ctx, params);
-    }
-    if (m_freezePending && !m_freeze) { // este quadro (o do ponto pedido) fica na tela durante o trecho de áudio
-        m_freezePending = false;
-        m_freeze = true;
     }
     m_frame.setDevicePixelRatio(dpr);
     p.drawImage(0, 0, m_frame);
@@ -147,7 +131,6 @@ void MpvWidget::loadFile(const QString &path)
 
 void MpvWidget::seek(double sec)
 {
-    m_lastSeek = sec;
     command({"seek", QString::number(sec, 'f', 3), "absolute+exact"});
 }
 
@@ -215,46 +198,6 @@ void MpvWidget::setVolume(int percent)
     command({"set", "volume", QString::number(percent)});
 }
 
-void MpvWidget::scrubBurst(int ms)
-{
-    if (!m_mpv || !m_burstTimer)
-        return;
-    m_burstMs = ms;
-    m_burstPending = true;
-    m_burstActive = true;
-    setPaused(false); // o áudio começa quando o seek termina
-    m_burstTimer->start(ms + 500); // rede de segurança: se o reinício do seek não vier, pausa de qualquer forma
-}
-
-void MpvWidget::cancelScrub()
-{
-    m_burstPending = false;
-    if (m_burstTimer)
-        m_burstTimer->stop();
-    endBurstVideo();
-}
-
-void MpvWidget::endBurstVideo()
-{
-    if (m_burstActive) { // o vídeo andou por baixo da imagem congelada: volta ao quadro exato do marcador
-        m_burstActive = false;
-        m_unfreezeOnRestart = true; // e só então mostra o vídeo de novo (sem piscar um quadro adiantado)
-        seek(m_lastSeek);
-    } else {
-        m_freeze = false;
-        m_freezePending = false;
-    }
-    // rede de segurança: a imagem nunca fica congelada se o reinício do seek não vier
-    QTimer::singleShot(800, this, [this] {
-        if (!m_burstPending && !m_burstActive) {
-            m_freeze = false;
-            m_freezePending = false;
-            m_unfreezeOnRestart = false;
-            update();
-        }
-    });
-}
-
 void MpvWidget::showText(const QString &text, int ms)
 {
     command({"show-text", text, QString::number(ms)});
@@ -313,19 +256,6 @@ void MpvWidget::handleEvents()
             }
         } else if (e->event_id == MPV_EVENT_FILE_LOADED) {
             emit fileLoaded();
-        } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_burstPending) {
-            m_burstPending = false;
-            m_burstTimer->start(m_burstMs); // o seek terminou: o trecho de áudio dura a partir de agora
-            // mostra o quadro do ponto pedido e congela logo depois: durante o trecho só o áudio se move
-            m_unfreezeOnRestart = false;
-            m_freeze = false;
-            m_freezePending = true;
-            update();
-        } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_unfreezeOnRestart) {
-            m_unfreezeOnRestart = false;
-            m_freeze = false;
-            m_freezePending = false;
-            update();
         } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_restore.active) {
             // o filtro novo está no ar: volta exatamente ao ponto de antes e retoma
             double now = m_pos; // m_pos pode estar defasado: lê a posição atual direto do mpv

@@ -59,15 +59,16 @@ horizontal. Soltar o botão fecha a régua.
 ### Controle preciso (puxar o mouse para baixo)
 Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para baixo**:
 - Abre uma régua ampliada logo abaixo da timeline, e uma moldura mostra na timeline qual trecho está ampliado.
-- O zoom é **contínuo**: quanto mais para baixo, menor a janela (de 20 s até 0,4 s, em escala logarítmica). Um medidor na régua
-  mostra a janela atual. Subir e descer só muda a sensibilidade; o valor nunca pula.
-- O ponto sob o mouse fica sempre na mesma coluna da régua, e a linha branca mostra o tempo exato. Com janelas de até 2 s o
-  marcador anda de frame em frame (usando a taxa de quadros do vídeo).
+- O zoom tem **4 níveis fixos** (janelas de 20 s, 5 s, 1,5 s e 0,4 s); quanto mais para baixo, mais zoom. O nível atual fica
+  destacado na régua e há uma pequena folga para ele não ficar trocando na borda.
+- O ponto sob o mouse fica na mesma coluna da régua, e a linha branca mostra o tempo exato. Entrar no zoom ou trocar de nível
+  não faz o marcador pular. Nos dois níveis mais finos o marcador anda de frame em frame (taxa de quadros do vídeo).
 - Voltar com o mouse para dentro da timeline sai do zoom. Uma etiqueta abaixo da timeline lembra do gesto durante o arrasto.
-- **Enquanto o botão do mouse está pressionado na timeline, o vídeo fica pausado**; ao soltar, volta a tocar se estava tocando.
-- **Áudio ao arrastar:** a cada posição nova toca um trecho curto de áudio (~0,1 s), como o scrub de um editor de vídeo. A imagem
-  fica parada no quadro do marcador; só o som toca.
-  O botão **♪ ao arrastar**, no cartão de áudio, liga e desliga isso (a escolha fica salva).
+- **Enquanto o botão do mouse está pressionado na timeline, o vídeo fica pausado e parado**; ao soltar, volta a tocar se estava
+  tocando.
+- **Áudio ao arrastar:** o som sai de um segundo player só de áudio (sem decodificar vídeo), então acompanha o mouse em qualquer
+  velocidade: toca a cada movimento e some um instante depois que o mouse para. O botão **♪ ao arrastar**, no cartão de áudio,
+  liga e desliga isso (a escolha fica salva).
 
 ### Overlay da NVIDIA
 O Shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não

@@ -24,6 +24,7 @@ namespace shear {
 
 class ExportJob;
 class KeyframeScanner;
+class AudioScrubber;
 class MpvWidget;
 class TimelineWidget;
 class VerticalFader;
@@ -102,7 +103,7 @@ private:
     qint64 m_fileSize = 0;
     QToolButton *m_scrubBtn = nullptr; // liga/desliga o áudio ao arrastar
     bool m_scrubbing = false;          // mouse pressionado na timeline
-    QElapsedTimer m_burstClock;
+    AudioScrubber *m_scrub = nullptr; // player só de áudio para o "áudio ao arrastar"
     bool m_resumeAfterDrag = false; // o vídeo estava tocando quando o mouse foi pressionado na timeline
 
     QString m_file, m_lastOutput;

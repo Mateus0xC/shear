@@ -9,10 +9,12 @@
 
 namespace shear {
 
-// Zoom fino CONTÍNUO: quanto mais o mouse desce, menor a janela, numa escala logarítmica suave (sem degraus).
-static constexpr double kMaxSpan = 20.0, kMinSpan = 0.4; // janela ampliada (s)
-static constexpr double kEnterBeyond = 8;                // px abaixo da timeline para abrir o zoom
-static constexpr double kZoomRange = 220;                // px de descida entre o menor e o maior zoom
+// Janelas do zoom fino. Quanto mais o mouse desce, menor a janela (mais zoom).
+static const double kSpans[] = {20.0, 5.0, 1.5, 0.4};
+static constexpr int kLevels = 4;
+static constexpr double kEnterBeyond = 8;   // px abaixo da timeline para abrir o zoom
+static constexpr double kLevelHeight = 55;  // px de descida por nível de zoom
+static constexpr double kHysteresis = 10;   // px de folga para o nível não ficar piscando
 
 static QString fmtSpan(double s) { return QString::number(s, 'g', 3).replace('.', ',') + " s"; }
 
@@ -28,7 +30,7 @@ static QString fmtTime(double t, int dec)
 
 struct LensState {
     double win0 = 0, span = 1, dur = 0, start = 0, end = 0, cur = 0, fps = 0;
-    double zoom = 0; // 0..1: posição no medidor de zoom
+    int level = 0;
     const std::vector<double> *kf = nullptr;
 };
 
@@ -67,38 +69,34 @@ protected:
         auto X = [&](double t) { return m + (t - t0) / s.span * w; };
         const double top = 48, base = height() - 10;
 
-        // linha de dicas (esquerda) e medidor de zoom contínuo (direita)
+        // linha de dicas (esquerda) e níveis de zoom (direita, o atual destacado)
         QFont f = font();
         f.setPixelSize(11);
         p.setFont(f);
         p.setPen(dim);
-        p.drawText(QRectF(m, 5, w * 0.45, 18), Qt::AlignLeft | Qt::AlignVCenter, "↓ mais zoom    ↑ menos zoom");
-        {
-            f.setBold(true);
+        p.drawText(QRectF(m, 5, w * 0.5, 18), Qt::AlignLeft | Qt::AlignVCenter, "↓ mais zoom    ↑ menos zoom");
+        double rx = width() - m;
+        for (int i = kLevels - 1; i >= 0; --i) {
+            const bool active = i == s.level;
+            f.setBold(active);
             p.setFont(f);
-            const QString win = QString("janela de %1").arg(fmtSpan(s.span));
-            const int tw = QFontMetrics(f).horizontalAdvance(win);
-            const QRectF pill(width() - m - tw - 16, 5, tw + 16, 18);
-            p.setPen(Qt::NoPen);
-            p.setBrush(accent);
-            p.drawRoundedRect(pill, 9, 9);
-            p.setPen(pal.color(QPalette::HighlightedText));
-            p.drawText(pill, Qt::AlignCenter, win);
-            f.setBold(false);
-            p.setFont(f);
-            // medidor: trilho com o preenchimento proporcional ao zoom (extremos = janela máxima e mínima)
-            const double gw = 90, gx = pill.left() - 12 - gw - 40, gy = 14;
-            p.setPen(dim);
-            p.drawText(QRectF(gx - 40, 5, 36, 18), Qt::AlignRight | Qt::AlignVCenter, fmtSpan(kMaxSpan));
-            p.drawText(QRectF(gx + gw + 4, 5, 40, 18), Qt::AlignLeft | Qt::AlignVCenter, fmtSpan(kMinSpan));
-            p.setPen(Qt::NoPen);
-            p.setBrush(mid);
-            p.drawRoundedRect(QRectF(gx, gy - 2, gw, 4), 2, 2);
-            p.setBrush(accent);
-            p.drawRoundedRect(QRectF(gx, gy - 2, std::max(4.0, gw * s.zoom), 4), 2, 2);
-            p.setBrush(Qt::white);
-            p.drawEllipse(QPointF(gx + gw * s.zoom, gy), 5, 5);
+            const QString lab = fmtSpan(kSpans[i]);
+            const int tw = QFontMetrics(f).horizontalAdvance(lab);
+            const QRectF box(rx - tw - 14, 5, tw + 14, 18);
+            if (active) {
+                QColor bg = accent;
+                bg.setAlpha(255);
+                p.setPen(Qt::NoPen);
+                p.setBrush(bg);
+                p.drawRoundedRect(box, 9, 9);
+                p.setPen(pal.color(QPalette::HighlightedText));
+            } else {
+                p.setPen(dim);
+            }
+            p.drawText(box, Qt::AlignCenter, lab);
+            rx -= tw + 18;
         }
+        f.setBold(false);
 
         // fora do clipe (antes de 0 ou depois do fim): escurecido
         p.setPen(Qt::NoPen);
@@ -196,10 +194,9 @@ protected:
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
         const QPalette pal = qApp->palette();
-        const QColor accent = pal.color(QPalette::Highlight);
-        p.setBrush(pal.color(QPalette::Base));
-        p.setPen(QPen(accent, 1.5));
-        p.drawRoundedRect(QRectF(rect()).adjusted(0.75, 0.75, -0.75, -0.75), 13, 13);
+        p.setBrush(pal.color(QPalette::Base)); // sem contorno azul: só um contorno discreto, neutro
+        p.setPen(QPen(pal.color(QPalette::Mid), 1));
+        p.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 13, 13);
         p.setPen(pal.color(QPalette::WindowText));
         p.drawText(rect(), Qt::AlignCenter, text());
     }
@@ -361,7 +358,7 @@ void TimelineWidget::mousePressEvent(QMouseEvent *e)
         emit seekRequested(m_dragT);
     }
     m_zoom = false;
-    m_tCont = m_dragT;
+    m_level = -1;
     update();
     emit dragStarted();
 }
@@ -384,7 +381,7 @@ void TimelineWidget::showLens()
     m_lens->move(mapToGlobal(QPoint(0, height() + 6)));
     LensState s;
     s.win0 = m_win0; s.span = m_span; s.dur = m_dur; s.start = m_start; s.end = m_end;
-    s.cur = m_dragT; s.fps = m_fps; s.zoom = m_zoomAmount; s.kf = &m_kf;
+    s.cur = m_dragT; s.fps = m_fps; s.level = m_level; s.kf = &m_kf;
     m_lens->setState(s);
     if (!m_lens->isVisible()) m_lens->show();
 }
@@ -404,6 +401,7 @@ void TimelineWidget::hideHint()
 void TimelineWidget::leaveZoom()
 {
     m_zoom = false;
+    m_level = -1;
     if (m_lens) m_lens->hide();
     update();
 }
@@ -414,40 +412,36 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
     const QPointF pos = e->position();
     const double beyond = pos.y() - height(); // quanto o mouse foi puxado para baixo da timeline
     const double w = width() - 2.0 * kMargin;
-    const double frac = std::clamp((pos.x() - kMargin) / w, 0.0, 1.0); // coluna do mouse dentro da timeline/régua
+    const double frac = std::clamp((pos.x() - kMargin) / w, 0.0, 1.0); // posição horizontal dentro da timeline/régua
 
     // Entra no zoom ao passar de kEnterBeyond e só sai ao voltar para dentro da timeline (histerese).
     const bool wantZoom = m_zoom ? beyond > 0 : beyond > kEnterBeyond;
     if (!wantZoom) {
         if (m_zoom) leaveZoom();
-        m_tCont = xToSec(pos.x());
-        applyDrag(m_tCont);
+        applyDrag(xToSec(pos.x()));
         showHint();
         return;
     }
+
     hideHint();
 
-    // Zoom CONTÍNUO: a janela encolhe suavemente (escala logarítmica) conforme o mouse desce.
-    const double spanMax = std::min(kMaxSpan, std::max(kMinSpan, m_dur));
-    const double spanMin = std::min(kMinSpan, spanMax);
-    m_zoomAmount = std::clamp((beyond - kEnterBeyond) / kZoomRange, 0.0, 1.0);
-    const double span = spanMax * std::pow(spanMin / spanMax, m_zoomAmount);
+    // Nível de zoom por faixas de altura, com folga para não ficar trocando na borda.
+    auto bandStart = [](int L) { return kEnterBeyond + kLevelHeight * L; };
+    int level = m_level;
+    if (level < 0 || beyond < bandStart(level) - kHysteresis || (level < kLevels - 1 && beyond >= bandStart(level + 1) + kHysteresis))
+        level = std::clamp(int((beyond - kEnterBeyond) / kLevelHeight), 0, kLevels - 1);
+    const double span = std::min(kSpans[level], std::max(0.4, m_dur));
 
-    // O movimento horizontal vale na escala ATUAL (relativo ao ponto anterior), então descer ou subir só muda a
-    // sensibilidade e nunca faz o valor pular. A janela mostrada fica ancorada de modo que a coluna do mouse
-    // corresponda exatamente ao valor.
-    if (!m_zoom) {
+    // (Re)ancora a janela de modo que a posição atual fique exatamente embaixo do mouse: sem saltos ao entrar
+    // ou ao trocar de nível. Dentro de um nível o mapeamento é absoluto: mouse na coluna X = tempo daquela coluna.
+    if (!m_zoom || level != m_level) {
         m_zoom = true;
-        m_tCont = m_dragT;
-        m_prevFrac = frac;
+        m_level = level;
+        m_span = span;
+        m_win0 = m_dragT - frac * span;
     }
-    m_tCont = std::clamp(m_tCont + (frac - m_prevFrac) * span, 0.0, m_dur);
-    m_prevFrac = frac;
-    m_span = span;
-    m_win0 = m_tCont - frac * span;
-
-    double t = m_tCont;
-    if (m_fps > 0 && span <= 2.0)
+    double t = std::clamp(m_win0 + frac * m_span, 0.0, m_dur);
+    if (m_fps > 0 && m_span <= 2.0)
         t = std::clamp(std::round(t * m_fps) / m_fps, 0.0, m_dur); // zoom fino: anda de frame em frame
     applyDrag(t);
     showLens();

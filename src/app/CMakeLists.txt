@@ -8,7 +8,8 @@ add_executable(shear WIN32
   ${S}/timeline/TimelineWidget.cpp ${S}/timeline/KeyframeScanner.cpp
   ${S}/export/ExportJob.cpp
   ${S}/platform/Windows.cpp
-  ${S}/util/Settings.cpp ${S}/util/Metrics.cpp)
+  ${S}/util/Settings.cpp ${S}/util/Metrics.cpp
+  ${CMAKE_SOURCE_DIR}/resources/shear.rc) # ícone do exe (logo)
 
 target_include_directories(shear PRIVATE ${S} ${MPV_DIR}/include ${FF_DIR}/include)
 target_link_directories(shear PRIVATE ${FF_DIR}/lib)

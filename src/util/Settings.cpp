@@ -10,6 +10,7 @@ Config Config::load()
     Config c;
     c.mode = s.value("cut/mode", 0).toInt() == 1 ? CutMode::Exact : CutMode::Fast; // o antigo Automático (2) vira Rápido
     c.gpuDecode = s.value("player/gpuDecode", true).toBool();
+    c.scrubAudio = s.value("player/scrubAudio", true).toBool();
     c.outputDir = s.value("paths/output").toString();
     c.shadowPlayDir = s.value("paths/shadowplay").toString();
     return c;
@@ -20,6 +21,7 @@ void Config::save() const
     QSettings s;
     s.setValue("cut/mode", int(mode));
     s.setValue("player/gpuDecode", gpuDecode);
+    s.setValue("player/scrubAudio", scrubAudio);
     s.setValue("paths/output", outputDir);
     s.setValue("paths/shadowplay", shadowPlayDir);
 }

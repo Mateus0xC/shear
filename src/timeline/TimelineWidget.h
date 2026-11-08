@@ -30,6 +30,7 @@ public:
     double start() const { return m_start; }
     double end() const { return m_end; }
     bool scanDone() const { return m_scanDone; }
+    int zoomLevel() const { return m_zoom ? m_level : -1; } // -1 = sem zoom; 0..3 = janelas de 20 s a 0,4 s
     // Keyframe <= t (ou vazio se ainda desconhecido)
     std::optional<double> keyframeAtOrBefore(double t) const;
     std::optional<double> nearestKeyframe(double t) const;

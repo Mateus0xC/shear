@@ -19,7 +19,7 @@ public:
 private:
     void refreshContextState();
     QComboBox *m_mode;
-    QCheckBox *m_gpu;
+    QCheckBox *m_gpu, *m_scrub;
     QLineEdit *m_out, *m_sp;
     QLabel *m_ctxState;
 };

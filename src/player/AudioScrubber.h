@@ -24,7 +24,8 @@ public:
 
     // Toca a partir desta posição. O som segue o mouse: cada movimento reposiciona, e o áudio some sozinho
     // um instante depois do último movimento.
-    void scrub(double sec);
+    // soundMs: quanto o som dura depois do último movimento (mais curto quando há mais zoom).
+    void scrub(double sec, int soundMs = 140);
     void stop();
 
 private slots:

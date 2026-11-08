@@ -50,6 +50,10 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     m_gpu->setChecked(c.gpuDecode);
     m_gpu->setToolTip("Deixa o preview mais leve para o processador. Vale ao reabrir o Shear.");
     form->addRow("Preview:", m_gpu);
+    m_scrub = new QCheckBox("Ouvir o som enquanto arrasto na timeline");
+    m_scrub->setChecked(c.scrubAudio);
+    m_scrub->setToolTip("Toca um trecho do áudio a cada posição, com o vídeo parado. Quanto maior o zoom, mais curto o trecho.");
+    form->addRow("Som ao arrastar:", m_scrub);
 
     m_ctxState = new QLabel;
     auto *add = new QPushButton("Adicionar “Cortar com Shear” ao menu de contexto");
@@ -93,6 +97,7 @@ Config SettingsDialog::config() const
     Config c;
     c.mode = m_mode->currentIndex() == 1 ? CutMode::Exact : CutMode::Fast;
     c.gpuDecode = m_gpu->isChecked();
+    c.scrubAudio = m_scrub->isChecked();
     c.outputDir = m_out->text().trimmed();
     c.shadowPlayDir = m_sp->text().trimmed();
     return c;

@@ -101,12 +101,14 @@ void AudioScrubber::setVolume(int percent)
     command({"set", "volume", QString::number(percent)});
 }
 
-void AudioScrubber::scrub(double sec)
+void AudioScrubber::scrub(double sec, int soundMs)
 {
     if (!m_mpv)
         return;
-    m_idle.start(); // enquanto houver movimento, o som continua
-    if (m_last.isValid() && m_last.elapsed() < kMinSeekGapMs)
+    m_idle.start(soundMs); // enquanto houver movimento, o som continua; depois some em soundMs
+    // trechos curtos (zoom alto) pedem reposicionamentos mais frequentes
+    const int minGap = qBound(12, soundMs / 3, kMinSeekGapMs);
+    if (m_last.isValid() && m_last.elapsed() < minGap)
         return;
     m_last.restart();
     command({"seek", QString::number(sec, 'f', 3), "absolute+exact"});

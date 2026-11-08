@@ -5,7 +5,6 @@
 #include "core/OutputNaming.h"
 #include "export/ExportJob.h"
 #include "platform/Windows.h"
-#include "SoundToggle.h"
 #include "VerticalFader.h"
 #include "player/AudioScrubber.h"
 #include "player/MpvWidget.h"
@@ -71,10 +70,6 @@ protected:
         if (toolTip() != tip) setToolTip(tip);
     }
 };
-
-static const char *kScrubTip = "Som ao arrastar: ouve o áudio enquanto você arrasta na timeline, com o vídeo parado. "
-                               "Clique para ligar ou desligar.";
-static const char *kScrubTipBlocked = "Sem som ao arrastar: nenhuma faixa de áudio está ligada.";
 
 static QString trackName(int i, int n)
 {
@@ -234,24 +229,6 @@ QWidget *MainWindow::buildEditor()
         m_audioRows = new QVBoxLayout;
         m_audioRows->setSpacing(6);
         pv->addLayout(m_audioRows, 1);
-        pv->addSpacing(8);
-        auto *groupLine = new QFrame; // linha fina: separa o volume do mic do "som ao arrastar"
-        groupLine->setFixedHeight(1);
-        groupLine->setStyleSheet(QString("background: %1; border: none;").arg(mid));
-        pv->addWidget(groupLine);
-        pv->addSpacing(9);
-        // legenda curta: junto do alto-falante diz "som ao arrastar" (mesmo estilo do "Vol. do mic")
-        m_scrubCap = new QLabel("Ao arrastar");
-        m_scrubCap->setProperty("role", "cap");
-        m_scrubCap->setAlignment(Qt::AlignHCenter);
-        m_scrubCap->setToolTip(kScrubTip);
-        pv->addWidget(m_scrubCap);
-        pv->addSpacing(4);
-        m_scrubBtn = new SoundToggle;
-        m_scrubBtn->setChecked(QSettings().value("player/scrubAudio", true).toBool());
-        m_scrubBtn->setToolTip(kScrubTip);
-        pv->addWidget(m_scrubBtn);
-        connect(m_scrubBtn, &QAbstractButton::toggled, this, [](bool on) { QSettings().setValue("player/scrubAudio", on); });
         m_audioBox->hide();
         root->addWidget(m_audioBox);
     }
@@ -361,8 +338,11 @@ QWidget *MainWindow::buildEditor()
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
         m_mpv->seek(t);
         // Arrastando (vídeo parado): o som sai de um player só de áudio, que segue o mouse em qualquer velocidade.
-        if (m_scrubbing && m_scrubBtn->isEnabled() && m_scrubBtn->isChecked())
-            m_scrub->scrub(t);
+        if (m_scrubbing && m_cfg.scrubAudio) {
+            // Quanto maior o zoom, mais curto o trecho de som: sem zoom, depois cada nível (20 s, 5 s, 1,5 s, 0,4 s).
+            static const int kSoundMs[] = {160, 130, 100, 75, 50};
+            m_scrub->scrub(t, kSoundMs[std::clamp(m_timeline->zoomLevel() + 1, 0, 4)]);
+        }
     });
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
     connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
@@ -629,11 +609,6 @@ void MainWindow::updateInfo()
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w + " — K encaixa no keyframe");
-    // Sem nenhuma faixa de áudio ligada não há som para ouvir: o botão de som ao arrastar fica bloqueado.
-    const bool anyAudio = enabledTrackCount(r.audio) > 0;
-    m_scrubBtn->setEnabled(anyAudio);
-    m_scrubBtn->setToolTip(anyAudio ? kScrubTip : kScrubTipBlocked);
-    m_scrubCap->setToolTip(anyAudio ? kScrubTip : kScrubTipBlocked);
     msg << (r.mode == CutMode::Fast
                 ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
                 : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
@@ -886,7 +861,7 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addStretch(1);
     }
     m_audioBox->setFixedWidth(96);
-    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 90);
+    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32);
     // 2+ faixas: o cartão preenche a altura toda; com 1 faixa só, um cartão mínimo no topo
     m_editorRoot->setAlignment(m_audioBox, n >= 2 ? Qt::Alignment() : Qt::AlignTop);
     m_audioBox->setVisible(n > 0);

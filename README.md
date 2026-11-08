@@ -66,10 +66,9 @@ Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para bai
 - Voltar com o mouse para dentro da timeline sai do zoom. Uma etiqueta abaixo da timeline lembra do gesto durante o arrasto.
 - **Enquanto o botão do mouse está pressionado na timeline, o vídeo fica pausado e parado**; ao soltar, volta a tocar se estava
   tocando.
-- **Áudio ao arrastar:** o som sai de um segundo player só de áudio (sem decodificar vídeo), então acompanha o mouse em qualquer
-  velocidade: toca quando o **frame muda** e some um instante depois que ele para de mudar. Mexer o mouse dentro do mesmo
-  frame, ou subir e descer para trocar o nível de zoom, não dispara som. O botão **♪ ao arrastar**, no cartão de áudio,
-  liga e desliga isso (a escolha fica salva).
+- **Som ao arrastar:** a cada posição nova toca um trecho curto de áudio (o vídeo fica parado). Quanto maior o zoom, mais curto o
+  trecho (de ~0,16 s sem zoom até ~0,05 s no zoom mais fino). Toca quando o **frame muda**: mexer o mouse dentro do mesmo frame,
+  ou subir e descer para trocar o nível de zoom, não dispara som. Dá para desligar em **Configurações → Som ao arrastar**.
 
 ### Overlay da NVIDIA
 O Shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não

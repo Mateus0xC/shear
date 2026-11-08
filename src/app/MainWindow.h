@@ -27,7 +27,6 @@ class KeyframeScanner;
 class AudioScrubber;
 class MpvWidget;
 class TimelineWidget;
-class SoundToggle;
 class VerticalFader;
 
 class MainWindow : public QMainWindow {
@@ -102,8 +101,6 @@ private:
     ExportKind m_exportKind = ExportKind::Copy;
     double m_exportClipSec = 0, m_exportClipBytes = 0, m_exportEstimate = 0;
     qint64 m_fileSize = 0;
-    QLabel *m_scrubCap = nullptr;      // legenda "Ao arrastar" acima do botão de som
-    SoundToggle *m_scrubBtn = nullptr; // liga/desliga o som ao arrastar a timeline
     bool m_scrubbing = false;          // mouse pressionado na timeline
     AudioScrubber *m_scrub = nullptr; // player só de áudio para o "áudio ao arrastar"
     bool m_resumeAfterDrag = false; // o vídeo estava tocando quando o mouse foi pressionado na timeline

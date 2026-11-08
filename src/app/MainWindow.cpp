@@ -140,6 +140,8 @@ MainWindow::MainWindow()
     });
     sc(Qt::Key_Up, [=, this] { if (inEditor()) changeVolume(+5); });
     sc(Qt::Key_Down, [=, this] { if (inEditor()) changeVolume(-5); });
+    sc(Qt::Key_W, [=, this] { if (inEditor()) changeVolume(+5); }); // W/S = ↑/↓
+    sc(Qt::Key_S, [=, this] { if (inEditor()) changeVolume(-5); });
     sc(Qt::Key_J, [=, this] { if (inEditor()) m_mpv->seek(std::max(0.0, m_mpv->position() - 5)); });
     sc(Qt::Key_L, [=, this] { if (inEditor()) m_mpv->seek(m_mpv->position() + 5); });
     // Como no YouTube: 0 a 9 pulam para 0% a 90% do vídeo (continua tocando ou pausado, como estava).

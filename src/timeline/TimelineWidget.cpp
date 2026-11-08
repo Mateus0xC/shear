@@ -352,10 +352,12 @@ void TimelineWidget::mousePressEvent(QMouseEvent *e)
     if (std::min(ds, de) <= 9) {
         m_drag = ds <= de ? Drag::Start : Drag::End;
         m_dragT = m_drag == Drag::Start ? m_start : m_end;
+        m_lastFrameKey = frameKey(m_dragT);
     } else {
         m_drag = Drag::Seek;
         m_dragT = xToSec(x);
         emit seekRequested(m_dragT);
+        m_lastFrameKey = frameKey(m_dragT);
     }
     m_zoom = false;
     m_level = -1;
@@ -363,13 +365,29 @@ void TimelineWidget::mousePressEvent(QMouseEvent *e)
     emit dragStarted();
 }
 
+long long TimelineWidget::frameKey(double t) const
+{
+    return std::llround(t * (m_fps > 0 ? m_fps : 60.0));
+}
+
+void TimelineWidget::emitSeekIfFrameChanged(double t)
+{
+    // Mexer o mouse dentro do mesmo quadro (ou subir/descer, que só troca o nível de zoom) não muda nada na tela:
+    // não há motivo para novo seek nem para tocar o áudio de novo.
+    const long long k = frameKey(t);
+    if (k == m_lastFrameKey)
+        return;
+    m_lastFrameKey = k;
+    emit seekRequested(t);
+}
+
 void TimelineWidget::applyDrag(double t)
 {
     switch (m_drag) {
-    case Drag::Seek:  m_dragT = t; emit seekRequested(t); break;
+    case Drag::Seek:  m_dragT = t; emitSeekIfFrameChanged(t); break;
     // Os marcadores também levam o vídeo junto enquanto são arrastados (scrubbing em tempo real).
-    case Drag::Start: setStart(m_snapStart ? snapToKeyframe(t) : t); m_dragT = m_start; emit startChanged(m_start); emit seekRequested(m_start); break;
-    case Drag::End:   setEnd(t); m_dragT = m_end; emit endChanged(m_end); emit seekRequested(m_end); break;
+    case Drag::Start: setStart(m_snapStart ? snapToKeyframe(t) : t); m_dragT = m_start; emit startChanged(m_start); emitSeekIfFrameChanged(m_start); break;
+    case Drag::End:   setEnd(t); m_dragT = m_end; emit endChanged(m_end); emitSeekIfFrameChanged(m_end); break;
     default: break;
     }
 }

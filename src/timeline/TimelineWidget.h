@@ -51,6 +51,8 @@ protected:
 private:
     enum class Drag { None, Seek, Start, End };
     void applyDrag(double t);
+    long long frameKey(double t) const;          // índice do quadro de t (sem fps conhecido, usa 60)
+    void emitSeekIfFrameChanged(double t);       // só pede seek (e portanto som) quando o QUADRO muda
     void showLens();
     void showHint();
     void hideHint();
@@ -66,6 +68,7 @@ private:
     double m_fps = 0;
     Drag m_drag = Drag::None;
     double m_dragT = 0; // valor que está sendo arrastado
+    long long m_lastFrameKey = -1; // quadro do último seek pedido durante o arrasto
 
     // Zoom fino (arrastar puxando o mouse para baixo): régua ampliada com mapeamento ABSOLUTO sob o mouse.
     TimelineLens *m_lens = nullptr;

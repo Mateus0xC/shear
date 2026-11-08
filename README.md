@@ -67,7 +67,8 @@ Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para bai
 - **Enquanto o botão do mouse está pressionado na timeline, o vídeo fica pausado e parado**; ao soltar, volta a tocar se estava
   tocando.
 - **Áudio ao arrastar:** o som sai de um segundo player só de áudio (sem decodificar vídeo), então acompanha o mouse em qualquer
-  velocidade: toca a cada movimento e some um instante depois que o mouse para. O botão **♪ ao arrastar**, no cartão de áudio,
+  velocidade: toca quando o **frame muda** e some um instante depois que ele para de mudar. Mexer o mouse dentro do mesmo
+  frame, ou subir e descer para trocar o nível de zoom, não dispara som. O botão **♪ ao arrastar**, no cartão de áudio,
   liga e desliga isso (a escolha fica salva).
 
 ### Overlay da NVIDIA

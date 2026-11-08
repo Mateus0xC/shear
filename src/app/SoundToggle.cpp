@@ -1,4 +1,5 @@
 #include "SoundToggle.h"
+#include <QEvent>
 #include <QFontDatabase>
 #include <QPainter>
 #include <QPalette>
@@ -28,13 +29,23 @@ SoundToggle::SoundToggle(QWidget *parent) : QAbstractButton(parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 }
 
+void SoundToggle::changeEvent(QEvent *e)
+{
+    QAbstractButton::changeEvent(e);
+    if (e->type() == QEvent::EnabledChange) {
+        setCursor(isEnabled() ? Qt::PointingHandCursor : Qt::ArrowCursor);
+        update();
+    }
+}
+
 void SoundToggle::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     const QPalette pal = palette();
-    const bool on = isChecked();
-    const bool hover = underMouse();
+    const bool enabled = isEnabled();
+    const bool on = isChecked() && enabled; // bloqueado: sempre com a aparência apagada
+    const bool hover = enabled && underMouse();
     const QColor accent = pal.color(QPalette::Highlight);
     const QColor mid = pal.color(QPalette::Mid);
 
@@ -43,6 +54,7 @@ void SoundToggle::paintEvent(QPaintEvent *)
     const double r = box.height() / 2;
     QColor fill = on ? accent : QColor(0, 0, 0, 0);
     QColor border = on ? accent : mid;
+    if (!enabled) border.setAlpha(110);
     if (hover) {
         if (on) fill = fill.lighter(112);
         else    fill = QColor(255, 255, 255, 14), border = border.lighter(130);
@@ -52,7 +64,7 @@ void SoundToggle::paintEvent(QPaintEvent *)
     p.drawRoundedRect(box, r, r);
 
     QColor ink = on ? pal.color(QPalette::HighlightedText) : pal.color(QPalette::WindowText);
-    if (!on) ink.setAlpha(hover ? 230 : 160);
+    if (!on) ink.setAlpha(!enabled ? 85 : (hover ? 230 : 160));
 
     if (const QString family = iconFontFamily(); !family.isEmpty()) {
         QFont f(family);
@@ -64,7 +76,7 @@ void SoundToggle::paintEvent(QPaintEvent *)
         QFont f = font();
         f.setPixelSize(14);
         p.setFont(f);
-        p.setOpacity(on || hover ? 1.0 : 0.65);
+        p.setOpacity(!enabled ? 0.35 : (on || hover ? 1.0 : 0.65));
         p.drawText(box, Qt::AlignCenter, QString::fromUcs4(on ? U"\U0001F50A" : U"\U0001F507")); // 🔊 / 🔇
     }
 }

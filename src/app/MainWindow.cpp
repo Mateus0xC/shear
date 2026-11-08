@@ -72,6 +72,10 @@ protected:
     }
 };
 
+static const char *kScrubTip = "Som ao arrastar: ouve o áudio enquanto você arrasta na timeline, com o vídeo parado. "
+                               "Clique para ligar ou desligar.";
+static const char *kScrubTipBlocked = "Sem som ao arrastar: nenhuma faixa de áudio está ligada.";
+
 static QString trackName(int i, int n)
 {
     if (n >= 2 && i == 0) return "Desktop";
@@ -233,8 +237,7 @@ QWidget *MainWindow::buildEditor()
         pv->addSpacing(10);
         m_scrubBtn = new SoundToggle;
         m_scrubBtn->setChecked(QSettings().value("player/scrubAudio", true).toBool());
-        m_scrubBtn->setToolTip("Som ao arrastar: ouve o áudio enquanto você arrasta na timeline, com o vídeo parado. "
-                               "Clique para ligar ou desligar.");
+        m_scrubBtn->setToolTip(kScrubTip);
         pv->addWidget(m_scrubBtn);
         connect(m_scrubBtn, &QAbstractButton::toggled, this, [](bool on) { QSettings().setValue("player/scrubAudio", on); });
         m_audioBox->hide();
@@ -346,7 +349,7 @@ QWidget *MainWindow::buildEditor()
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
         m_mpv->seek(t);
         // Arrastando (vídeo parado): o som sai de um player só de áudio, que segue o mouse em qualquer velocidade.
-        if (m_scrubbing && m_scrubBtn->isChecked())
+        if (m_scrubbing && m_scrubBtn->isEnabled() && m_scrubBtn->isChecked())
             m_scrub->scrub(t);
     });
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
@@ -614,6 +617,10 @@ void MainWindow::updateInfo()
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w + " — K encaixa no keyframe");
+    // Sem nenhuma faixa de áudio ligada não há som para ouvir: o botão de som ao arrastar fica bloqueado.
+    const bool anyAudio = enabledTrackCount(r.audio) > 0;
+    m_scrubBtn->setEnabled(anyAudio);
+    m_scrubBtn->setToolTip(anyAudio ? kScrubTip : kScrubTipBlocked);
     msg << (r.mode == CutMode::Fast
                 ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
                 : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");

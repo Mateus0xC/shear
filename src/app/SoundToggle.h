@@ -16,6 +16,7 @@ protected:
     void paintEvent(QPaintEvent *) override;
     void enterEvent(QEnterEvent *) override { update(); }
     void leaveEvent(QEvent *) override { update(); }
+    void changeEvent(QEvent *e) override;
 };
 
 } // namespace shear

@@ -1,0 +1,55 @@
+#pragma once
+#include <QWidget>
+#include <optional>
+#include <vector>
+
+namespace shear {
+
+class TimelineWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit TimelineWidget(QWidget *parent = nullptr);
+
+    void reset(double duration = 0);
+    void setDuration(double d);
+    void setPosition(double p);
+    void setStart(double s);
+    void setEnd(double e);
+    void addKeyframes(const QVector<double> &batch);
+    void setScanDone(bool done) { m_scanDone = done; }
+    void setGhostStart(std::optional<double> g);
+
+    double duration() const { return m_dur; }
+    double start() const { return m_start; }
+    double end() const { return m_end; }
+    bool scanDone() const { return m_scanDone; }
+    // Keyframe <= t (ou vazio se ainda desconhecido)
+    std::optional<double> keyframeAtOrBefore(double t) const;
+    std::optional<double> nearestKeyframe(double t) const;
+
+signals:
+    void seekRequested(double sec);
+    void startChanged(double sec);
+    void endChanged(double sec);
+
+protected:
+    void paintEvent(QPaintEvent *) override;
+    void mousePressEvent(QMouseEvent *) override;
+    void mouseMoveEvent(QMouseEvent *) override;
+    void mouseReleaseEvent(QMouseEvent *) override;
+    QSize sizeHint() const override { return {600, 72}; }
+
+private:
+    enum class Drag { None, Seek, Start, End };
+    double xToSec(double x) const;
+    double secToX(double s) const;
+
+    double m_dur = 0, m_pos = 0, m_start = 0, m_end = 0;
+    std::vector<double> m_kf;
+    std::optional<double> m_ghost;
+    bool m_scanDone = false;
+    Drag m_drag = Drag::None;
+    static constexpr int kMargin = 14;
+};
+
+} // namespace shear

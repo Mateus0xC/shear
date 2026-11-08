@@ -1,0 +1,9 @@
+build/
+out/
+third_party/
+.vs/
+CMakeUserPresets.json
+*.user
+testdata/
+aqtinstall.log
+CLAUD*.md

@@ -138,6 +138,12 @@ MainWindow::MainWindow()
     sc(Qt::Key_Down, [=, this] { if (inEditor()) changeVolume(-5); });
     sc(Qt::Key_J, [=, this] { if (inEditor()) m_mpv->seek(std::max(0.0, m_mpv->position() - 5)); });
     sc(Qt::Key_L, [=, this] { if (inEditor()) m_mpv->seek(m_mpv->position() + 5); });
+    // Como no YouTube: 0 a 9 pulam para 0% a 90% do vídeo (continua tocando ou pausado, como estava).
+    for (int n = 0; n <= 9; ++n)
+        sc(QKeySequence(Qt::Key(int(Qt::Key_0) + n)), [=, this] {
+            if (inEditor() && m_timeline->duration() > 0)
+                m_mpv->seek(m_timeline->duration() * n / 10.0);
+        });
     sc(Qt::Key_Q, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->start()); }); // vai para o ponto I
     sc(Qt::Key_E, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->end()); });   // vai para o ponto O
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });

@@ -1,5 +1,6 @@
 #include <QtTest>
 #include "core/CutPlanner.h"
+#include "core/ExportEstimate.h"
 #include "core/FfmpegCommandBuilder.h"
 #include "core/OutputNaming.h"
 
@@ -131,6 +132,46 @@ private slots:
         r.hasNvenc = false;
         a = buildFfmpegArgs(r, planCut(r));
         QVERIFY(a.contains("libx264"));
+    }
+    void export_kind_detection()
+    {
+        auto r = base();
+        r.mode = CutMode::Fast;
+        r.audio = desktopOnly();
+        QCOMPARE(int(exportKind(r, planCut(r))), int(ExportKind::Copy));
+        r.audio[0].gainDb = 3;
+        QCOMPARE(int(exportKind(r, planCut(r))), int(ExportKind::AudioReencode));
+        r.audio = both();
+        QCOMPARE(int(exportKind(r, planCut(r))), int(ExportKind::AudioReencode));
+        r.mode = CutMode::Exact;
+        QCOMPARE(int(exportKind(r, planCut(r))), int(ExportKind::VideoReencode));
+    }
+    void estimate_orders_kinds_and_scales_with_length()
+    {
+        const ExportRates rt;
+        const double mb90 = 90e6;
+        const double copy = estimateSeconds(ExportKind::Copy, true, 60, mb90, rt);
+        const double aud = estimateSeconds(ExportKind::AudioReencode, true, 60, mb90, rt);
+        const double vid = estimateSeconds(ExportKind::VideoReencode, true, 60, mb90, rt);
+        QVERIFY(copy < aud && aud < vid);
+        QVERIFY(qAbs(vid - (0.6 + 60.0 / 6.0)) < 1e-9);
+        QVERIFY(estimateSeconds(ExportKind::VideoReencode, true, 120, 0, rt) > vid);
+        QVERIFY(estimateSeconds(ExportKind::VideoReencode, false, 60, mb90, rt) > vid); // x264 mais lento
+    }
+    void calibrate_moves_rates_toward_observation()
+    {
+        ExportRates rt;
+        rt = calibrate(rt, ExportKind::VideoReencode, true, 60, 90e6, 3.0); // bem mais rápido que o previsto
+        QVERIFY(qAbs(rt.nvencRealtime - (0.5 * 6 + 0.5 * (60.0 / 2.4))) < 1e-9);
+        QCOMPARE(rt.x264Realtime, 2.5); // não mexe nas outras taxas
+        const double before = estimateSeconds(ExportKind::VideoReencode, true, 60, 90e6, ExportRates{});
+        QVERIFY(estimateSeconds(ExportKind::VideoReencode, true, 60, 90e6, rt) < before);
+    }
+    void format_duration_text()
+    {
+        QCOMPARE(formatDuration(0.4), QString("menos de 1 s"));
+        QCOMPARE(formatDuration(3.2), QString("~3 s"));
+        QCOMPARE(formatDuration(80), QString("~1 min 20 s"));
     }
     void naming_never_overwrites()
     {

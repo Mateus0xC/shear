@@ -1,10 +1,31 @@
 #include "MpvWidget.h"
+#include <QElapsedTimer>
+#include <QFile>
 #include <QPainter>
+#include <QTimer>
+#include <cmath>
 #include <QWheelEvent>
 #include <mpv/client.h>
 #include <mpv/render.h>
 
 namespace shear {
+
+// Diagnóstico opcional: SHEAR_TRACE=arquivo grava "ms_de_relógio posição" a cada atualização de time-pos.
+static void trace(const QString &line)
+{
+    static QFile *f = [] {
+        const QByteArray p = qgetenv("SHEAR_TRACE");
+        if (p.isEmpty()) return static_cast<QFile *>(nullptr);
+        auto *file = new QFile(QString::fromLocal8Bit(p));
+        file->open(QIODevice::Append | QIODevice::Text);
+        return file;
+    }();
+    static QElapsedTimer clock = [] { QElapsedTimer t; t.start(); return t; }();
+    if (f) {
+        f->write((QString::number(clock.elapsed()) + ' ' + line + '\n').toUtf8());
+        f->flush();
+    }
+}
 
 MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
 {
@@ -119,12 +140,50 @@ void MpvWidget::setPaused(bool p)
 
 void MpvWidget::setAudioGraph(const QString &graph)
 {
-    command({"set", "lavfi-complex", graph}); // "" desliga o grafo
-    command({"set", "aid", graph.isEmpty() ? "no" : "auto"});
+    trace("MARK setAudioGraph");
+    if (graph == m_graph)
+        return; // nada mudou: não reconfigura (e não reposiciona) à toa
+    m_graph = graph;
+
+    // Trocar o filtro faz o mpv reposicionar a reprodução e o vídeo "pula". Então: guarda a posição, pausa, troca,
+    // e depois volta exatamente para onde estava e retoma.
+    if (m_mpv && m_dur > 0 && !m_awaitFirst) {
+        double pos = m_pos;
+        mpv_get_property(m_mpv, "time-pos", MPV_FORMAT_DOUBLE, &pos);
+        m_restore = {true, !m_paused, 0, pos};
+        if (!m_paused)
+            command({"set", "pause", "yes"});
+        const quint64 gen = ++m_restoreGen;
+        QTimer::singleShot(900, this, [this, gen] { finishRestore(gen); }); // rede de segurança: nunca fica pausado
+    }
+    if (graph.isEmpty()) {
+        command({"set", "lavfi-complex", ""}); // "" desliga o grafo
+        command({"set", "aid", "no"});
+        m_muted = true;
+    } else {
+        if (m_muted) {
+            command({"set", "aid", "auto"});
+            m_muted = false;
+        }
+        command({"set", "lavfi-complex", graph});
+    }
+}
+
+void MpvWidget::finishRestore(quint64 gen)
+{
+    if (!m_restore.active || gen != m_restoreGen)
+        return;
+    m_restore.active = false;
+    if (m_restore.resume)
+        command({"set", "pause", "no"});
 }
 
 void MpvWidget::resetAudio()
 {
+    m_restore.active = false;
+    ++m_restoreGen;
+    m_graph.clear();
+    m_muted = false;
     command({"set", "lavfi-complex", ""});
     command({"set", "aid", "auto"});
 }
@@ -180,6 +239,7 @@ void MpvWidget::handleEvents()
             const QByteArray n = p->name;
             if (p->format == MPV_FORMAT_DOUBLE && n == "time-pos") {
                 m_pos = *static_cast<double *>(p->data);
+                trace(QString::number(m_pos, 'f', 3));
                 emit positionChanged(m_pos);
             } else if (p->format == MPV_FORMAT_DOUBLE && n == "duration") {
                 m_dur = *static_cast<double *>(p->data);
@@ -190,6 +250,17 @@ void MpvWidget::handleEvents()
             }
         } else if (e->event_id == MPV_EVENT_FILE_LOADED) {
             emit fileLoaded();
+        } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_restore.active) {
+            // o filtro novo está no ar: volta exatamente ao ponto de antes e retoma
+            double now = m_pos; // m_pos pode estar defasado: lê a posição atual direto do mpv
+            mpv_get_property(m_mpv, "time-pos", MPV_FORMAT_DOUBLE, &now);
+            trace(QString("MARK restart now=%1 saved=%2").arg(now, 0, 'f', 3).arg(m_restore.pos, 0, 'f', 3));
+            if (m_restore.stage == 0 && std::abs(now - m_restore.pos) > 0.02) {
+                m_restore.stage = 1;
+                command({"seek", QString::number(m_restore.pos, 'f', 3), "absolute+exact"});
+            } else {
+                finishRestore(m_restoreGen);
+            }
         } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_awaitFirst) {
             m_awaitFirst = false;
             m_awaitPaint = true;

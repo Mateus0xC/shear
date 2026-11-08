@@ -26,6 +26,26 @@ void Config::save() const
     s.setValue("paths/shadowplay", shadowPlayDir);
 }
 
+ExportRates loadRates()
+{
+    QSettings s;
+    ExportRates r;
+    r.copyMBps = s.value("est/copyMBps", r.copyMBps).toDouble();
+    r.audioRealtime = s.value("est/audioRealtime", r.audioRealtime).toDouble();
+    r.nvencRealtime = s.value("est/nvencRealtime", r.nvencRealtime).toDouble();
+    r.x264Realtime = s.value("est/x264Realtime", r.x264Realtime).toDouble();
+    return r;
+}
+
+void saveRates(const ExportRates &r)
+{
+    QSettings s;
+    s.setValue("est/copyMBps", r.copyMBps);
+    s.setValue("est/audioRealtime", r.audioRealtime);
+    s.setValue("est/nvencRealtime", r.nvencRealtime);
+    s.setValue("est/x264Realtime", r.x264Realtime);
+}
+
 QString Config::effectiveShadowPlayDir() const
 {
     return shadowPlayDir.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::MoviesLocation)

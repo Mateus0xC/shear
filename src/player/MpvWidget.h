@@ -49,6 +49,7 @@ private slots:
 
 private:
     void command(const QStringList &args);
+    void finishRestore(quint64 gen);
     static void wakeup(void *ctx);
     static void renderUpdate(void *ctx);
 
@@ -59,6 +60,11 @@ private:
     bool m_paused = false;
     int m_volume = 100;
     bool m_awaitFirst = false, m_awaitPaint = false;
+    QString m_graph;      // grafo de áudio atual (para não reconfigurar sem necessidade)
+    bool m_muted = false; // aid=no
+    // Trocar o filtro de áudio faz o mpv reposicionar a reprodução: guardamos a posição, pausamos e voltamos a ela.
+    struct Restore { bool active = false; bool resume = false; int stage = 0; double pos = 0; } m_restore;
+    quint64 m_restoreGen = 0;
 };
 
 } // namespace shear

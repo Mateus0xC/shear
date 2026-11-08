@@ -39,7 +39,7 @@ protected:
     void mousePressEvent(QMouseEvent *) override;
     void mouseMoveEvent(QMouseEvent *) override;
     void mouseReleaseEvent(QMouseEvent *) override;
-    QSize sizeHint() const override { return {600, 72}; }
+    QSize sizeHint() const override { return {600, 60}; }
 
 private:
     enum class Drag { None, Seek, Start, End };

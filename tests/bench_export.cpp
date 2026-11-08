@@ -1,6 +1,8 @@
 // Mede o tempo de exportação de cada preset usando o mesmo core/ do app.
 // Uso: bench_export <ffmpeg.exe> <entrada.mp4> <início> <fim> <keyframe_anterior>
 #include "core/CutPlanner.h"
+#include "core/ExportEstimate.h"
+#include <QFileInfo>
 #include "core/FfmpegCommandBuilder.h"
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -36,14 +38,19 @@ int main(int argc, char **argv)
         r.audio[1].enabled = c.mic;
         r.outputPath = QString("bench_%1.mp4").arg(int(&c - cases));
         QFile::remove(r.outputPath);
-        const auto args = buildFfmpegArgs(r, planCut(r));
+        const auto plan = planCut(r);
+        const double total = argc > 6 ? QString(argv[6]).toDouble() : r.endSec;
+        const double clipSec = r.endSec - plan.actualStartSec;
+        const double clipBytes = double(QFileInfo(r.inputPath).size()) * clipSec / total;
+        const double predicted = estimateSeconds(exportKind(r, plan), true, clipSec, clipBytes, ExportRates{});
+        const auto args = buildFfmpegArgs(r, plan);
         QElapsedTimer t;
         t.start();
         QProcess p;
         p.start(ff, args);
         p.waitForFinished(-1);
         const double sec = t.elapsed() / 1000.0;
-        printf("%-42s %6.2f s  exit=%d  %lld MB\n", c.name, sec, p.exitCode(),
+        printf("%-46s real %6.2f s   previsto %6.2f s  exit=%d  %lld MB\n", c.name, sec, predicted, p.exitCode(),
                QFile(r.outputPath).size() / 1048576);
         if (p.exitCode() != 0) printf("%s\n", p.readAllStandardError().right(400).constData());
         fflush(stdout);

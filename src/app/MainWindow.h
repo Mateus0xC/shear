@@ -1,5 +1,6 @@
 #pragma once
 #include "core/CutTypes.h"
+#include "core/ExportEstimate.h"
 #include "util/Settings.h"
 #include <QElapsedTimer>
 #include <QMainWindow>
@@ -86,6 +87,11 @@ private:
     std::vector<TrackRow> m_rows;
     QPushButton *m_exportBtn, *m_cancelBtn, *m_openFolderBtn, *m_copyBtn, *m_keepBtn, *m_deleteBtn;
     QProgressBar *m_bar;
+    QLabel *m_eta = nullptr; // previsão do tempo de exportação
+    ExportRates m_rates;
+    ExportKind m_exportKind = ExportKind::Copy;
+    double m_exportClipSec = 0, m_exportClipBytes = 0, m_exportEstimate = 0;
+    qint64 m_fileSize = 0;
 
     QString m_file, m_lastOutput;
     QStringList m_tempFiles; // exports ainda temporários (apagados ao fechar)

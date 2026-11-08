@@ -13,6 +13,7 @@
 
 #include <QComboBox>
 #include <QFrame>
+#include <QPainter>
 #include <QPalette>
 #include <QScrollArea>
 #include <QSettings>
@@ -45,6 +46,29 @@
 
 namespace shear {
 
+// Rótulo de uma linha só: o texto que não cabe vira "…" (o texto completo aparece na dica). Não força a largura da janela.
+class ElideLabel : public QLabel {
+public:
+    explicit ElideLabel(QWidget *parent = nullptr) : QLabel(parent)
+    {
+        setTextFormat(Qt::PlainText);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        setMinimumWidth(0);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        const QString full = text();
+        const QString el = fontMetrics().elidedText(full, Qt::ElideRight, width());
+        p.setPen(palette().color(QPalette::WindowText));
+        p.drawText(rect(), Qt::AlignLeft | Qt::AlignVCenter, el);
+        const QString tip = el != full ? full : QString();
+        if (toolTip() != tip) setToolTip(tip);
+    }
+};
+
 static QString trackName(int i, int n)
 {
     if (n >= 2 && i == 0) return "Desktop";
@@ -60,6 +84,7 @@ MainWindow::MainWindow()
     resize(1100, 740);
     setAcceptDrops(true);
     m_cfg = Config::load();
+    m_rates = loadRates();
 
     m_stack = new QStackedWidget;
     m_stack->addWidget(buildHome());
@@ -203,50 +228,49 @@ QWidget *MainWindow::buildEditor()
     m_audioTimer->setInterval(150);
     connect(m_audioTimer, &QTimer::timeout, this, &MainWindow::applyPreviewAudio);
 
+    // Uma linha de opções + uma de resultado (altura fixa), para o player ficar o maior possível.
     auto *opts = new QHBoxLayout;
+    opts->setSpacing(10);
     m_modeBox = new QComboBox;
     m_modeBox->addItems({"Início: Rápido", "Início: Exato", "Início: Automático"});
-    for (auto *c : {m_modeBox}) {
-        c->setFocusPolicy(Qt::TabFocus);
-        opts->addWidget(c);
-    }
-    opts->addStretch();
+    m_modeBox->setFocusPolicy(Qt::TabFocus);
+    m_warning = new ElideLabel; // resumo do que vai acontecer (uma linha; a dica mostra o texto inteiro)
+    m_eta = new QLabel;
+    m_eta->setToolTip("Previsão do tempo de exportação, calibrada com as suas exportações anteriores.");
+    m_exportBtn = new QPushButton("Exportar (Enter)");
+    m_exportBtn->setFixedSize(150, 30);
+    m_exportBtn->setFocusPolicy(Qt::NoFocus);
+    opts->addWidget(m_modeBox);
+    opts->addWidget(m_warning, 1);
+    opts->addWidget(m_eta);
+    opts->addWidget(m_exportBtn);
     bl->addLayout(opts);
 
-    m_warning = new QLabel;
-    m_warning->setWordWrap(true);
-    m_warning->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    m_warning->setMinimumHeight(m_warning->fontMetrics().lineSpacing() * 2 + 4); // reserva 2 linhas
-    bl->addWidget(m_warning);
-
-    auto *ex = new QHBoxLayout;
-    m_exportBtn = new QPushButton("Exportar (Enter)");
-    m_exportBtn->setMinimumHeight(34);
-    m_exportBtn->setFocusPolicy(Qt::NoFocus);
-    m_cancelBtn = new QPushButton("Cancelar");
-    m_cancelBtn->hide();
+    auto *rowC = new QWidget; // resultado/progresso: altura reservada, nada pula quando aparece ou some
+    rowC->setFixedHeight(30);
+    auto *ex = new QHBoxLayout(rowC);
+    ex->setContentsMargins(0, 0, 0, 0);
+    m_status = new ElideLabel;
     m_bar = new QProgressBar;
     m_bar->setRange(0, 1000);
     m_bar->hide();
-    m_copyBtn = new QPushButton("Copiar de novo");
+    m_cancelBtn = new QPushButton("Cancelar");
+    m_cancelBtn->hide();
+    m_copyBtn = new QPushButton("Copiar");
+    m_copyBtn->setToolTip("Copiar o arquivo de novo para a área de transferência (Ctrl+V no Discord)");
     m_openFolderBtn = new QPushButton("Abrir pasta");
     m_keepBtn = new QPushButton("Manter");
     m_keepBtn->setToolTip("Move o clipe para a pasta de clipes mantidos e impede que seja apagado ao fechar.");
     m_deleteBtn = new QPushButton("Apagar");
     hideResultButtons();
-    ex->addWidget(m_exportBtn);
+    ex->addWidget(m_status, 1);
     ex->addWidget(m_bar, 1);
     ex->addWidget(m_cancelBtn);
     ex->addWidget(m_copyBtn);
     ex->addWidget(m_keepBtn);
     ex->addWidget(m_deleteBtn);
     ex->addWidget(m_openFolderBtn);
-    bl->addLayout(ex);
-    m_status = new QLabel;
-    m_status->setWordWrap(true);
-    m_status->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    m_status->setMinimumHeight(m_status->fontMetrics().lineSpacing() * 2 + 4); // reserva 2 linhas
-    bl->addWidget(m_status);
+    bl->addWidget(rowC);
     l->addLayout(bottom);
 
     // preencher com os padrões
@@ -381,6 +405,7 @@ void MainWindow::openFile(const QString &path)
         return;
     }
     m_openClock.start();
+    m_fileSize = QFileInfo(path).size();
     if (!m_editor) {
         m_editor = buildEditor();
         m_stack->addWidget(m_editor);
@@ -506,7 +531,14 @@ void MainWindow::updateInfo()
     } else {
         msg << QString("Áudio: %1 faixas ligadas serão juntadas em uma só (AAC 320k).").arg(nOn);
     }
-    m_warning->setText(msg.join("<br>"));
+    m_warning->setText(msg.join("   ·   "));
+
+    // previsão do tempo de exportação
+    const ExportKind kind = exportKind(r, plan);
+    const double clipSec = std::max(0.0, r.endSec - plan.actualStartSec);
+    const double total = m_timeline->duration();
+    const double clipBytes = total > 0 ? double(m_fileSize) * clipSec / total : 0.0;
+    m_eta->setText("Exportar: " + formatDuration(estimateSeconds(kind, r.hasNvenc, clipSec, clipBytes, m_rates)));
 }
 
 void MainWindow::startExport()
@@ -525,15 +557,30 @@ void MainWindow::startExport()
     const auto args = buildFfmpegArgs(r, plan);
     metrics::log("ffmpeg " + args.join(' '));
 
-    m_job = new ExportJob(ffmpegPath(), args, r.endSec - plan.actualStartSec, r.outputPath, this);
-    connect(m_job, &ExportJob::progress, this, [this](double p) { m_bar->setValue(int(p * 1000)); });
+    m_exportKind = exportKind(r, plan);
+    m_exportClipSec = r.endSec - plan.actualStartSec;
+    const double total = m_timeline->duration();
+    m_exportClipBytes = total > 0 ? double(m_fileSize) * m_exportClipSec / total : 0.0;
+    m_exportEstimate = estimateSeconds(m_exportKind, r.hasNvenc, m_exportClipSec, m_exportClipBytes, m_rates);
+
+    m_job = new ExportJob(ffmpegPath(), args, m_exportClipSec, r.outputPath, this);
+    auto *clock = new QElapsedTimer;
+    clock->start();
+    connect(m_job, &ExportJob::progress, this, [this, clock](double p) {
+        m_bar->setValue(int(p * 1000));
+        const double elapsed = clock->elapsed() / 1000.0;
+        const QString eta = (p > 0.04 && p < 0.995) ? " · faltam " + formatDuration(elapsed * (1 - p) / p) : QString();
+        m_bar->setFormat("Exportando… %p%" + eta);
+    });
+    connect(m_job, &QObject::destroyed, this, [clock] { delete clock; });
     connect(m_job, &ExportJob::finished, this, &MainWindow::onExportFinished);
     m_bar->setValue(0);
+    m_bar->setFormat("Exportando… %p%");
+    m_status->hide();
     m_bar->show();
     m_cancelBtn->show();
     m_exportBtn->setEnabled(false);
     hideResultButtons();
-    m_status->setText("Exportando…");
     m_job->start();
 }
 
@@ -610,20 +657,29 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
     m_job->deleteLater();
     m_job = nullptr;
     m_bar->hide();
+    m_status->show();
     m_cancelBtn->hide();
     m_exportBtn->setEnabled(true);
     if (!ok) {
-        m_status->setText("Falhou: " + err);
+        m_status->setText("Falhou: " + err.simplified());
+        metrics::log("exportação falhou: " + err);
         return;
     }
+    // calibra a previsão com o tempo real desta exportação
+    const double outBytes = double(QFileInfo(path).size());
+    m_rates = calibrate(m_rates, m_exportKind, m_hasNvenc, m_exportClipSec,
+                        m_exportKind == ExportKind::VideoReencode ? m_exportClipBytes : outBytes, sec);
+    saveRates(m_rates);
     m_lastOutput = path;
     m_tempFiles << path;
     copyFileToClipboard(path);
     for (auto *b : {m_copyBtn, m_keepBtn, m_deleteBtn, m_openFolderBtn})
         b->show();
-    m_status->setText(QString("Pronto em %1 s — copiado (Ctrl+V no Discord). TEMPORÁRIO: será apagado ao fechar o Shear, "
-                              "a menos que você clique em Manter. %2")
-                          .arg(QString::number(sec, 'f', 1).replace('.', ','), QFileInfo(path).fileName()));
+    m_status->setText(QString("Pronto em %1 s (previsto %2) · copiado: Ctrl+V no Discord · temporário: apagado ao fechar, "
+                              "a menos que clique em Manter · %3")
+                          .arg(QString::number(sec, 'f', 1).replace('.', ','), formatDuration(m_exportEstimate),
+                               QFileInfo(path).fileName()));
+    updateInfo(); // a próxima previsão já usa a taxa recalibrada
     metrics::log(QString("exportação concluída em %1 s: %2").arg(sec, 0, 'f', 2).arg(path));
 }
 

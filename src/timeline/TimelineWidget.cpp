@@ -120,7 +120,7 @@ private:
 
 TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent)
 {
-    setMinimumHeight(72);
+    setMinimumHeight(60);
     setFocusPolicy(Qt::NoFocus);
 }
 

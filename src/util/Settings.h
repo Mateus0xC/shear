@@ -1,5 +1,6 @@
 #pragma once
 #include "core/CutTypes.h"
+#include "core/ExportEstimate.h"
 #include <QString>
 
 namespace shear {
@@ -15,5 +16,9 @@ struct Config {
     void save() const;
     QString effectiveShadowPlayDir() const;
 };
+
+// Velocidades de exportação medidas (calibram a previsão de tempo).
+ExportRates loadRates();
+void saveRates(const ExportRates &r);
 
 } // namespace shear

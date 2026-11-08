@@ -5,6 +5,7 @@
 #include "core/OutputNaming.h"
 #include "export/ExportJob.h"
 #include "platform/Windows.h"
+#include "VerticalFader.h"
 #include "player/MpvWidget.h"
 #include "timeline/KeyframeScanner.h"
 #include "timeline/TimelineWidget.h"
@@ -137,6 +138,7 @@ QWidget *MainWindow::buildEditor()
     l->addWidget(m_mpv, 1);
 
     m_timeline = new TimelineWidget;
+    m_timeline->setToolTip("Arraste para posicionar. Puxe o mouse para baixo durante o arrasto para ampliar (mais fundo = mais preciso).");
     l->addWidget(m_timeline);
 
     // Rodapé: controles à esquerda e o mixer de áudio, compacto, à direita (o player ocupa a largura toda)
@@ -156,7 +158,7 @@ QWidget *MainWindow::buildEditor()
     timesRow->addWidget(m_early);
     bl->addLayout(timesRow);
 
-    // --- Painel de áudio (lateral e fino): um botão + um fader vertical por faixa ---
+    // --- Painel de áudio: um botão por faixa + um fader de volume só para o Mic (o desktop não precisa de ajuste) ---
     {
         const QPalette pal = palette();
         const QString accent = pal.color(QPalette::Highlight).name();
@@ -171,31 +173,27 @@ QWidget *MainWindow::buildEditor()
         m_audioBox = new QFrame;
         m_audioBox->setObjectName("audioPanel");
         m_audioBox->setStyleSheet(QString(R"(
-            #audioPanel { background: %1; border: 1px solid %2; border-radius: 8px; }
+            #audioPanel { background: %1; border: 1px solid %2; border-radius: 10px; }
             #audioPanel QLabel { background: transparent; }
-            #audioPanel QLabel[role="title"] { font-weight: 700; }
-            #audioPanel QSlider::groove:vertical { width: 5px; border-radius: 2px; background: %2; }
-            #audioPanel QSlider::handle:vertical { height: 14px; width: 20px; margin: 0 -8px;
-                                                  border-radius: 5px; background: %4; border: 1px solid %2; }
-            #audioPanel QSlider::handle:vertical:hover { background: %5; }
-            #audioPanel QSlider::handle:vertical:disabled { background: %2; }
-            #audioPanel QToolButton[role="pill"] { border: 1px solid %2; border-radius: 10px; padding: 3px 2px; font-size: 10px;
+            #audioPanel QLabel[role="cap"] { color: %3; font-size: 11px; }
+            #audioPanel QToolButton[role="pill"] { border: 1px solid %2; border-radius: 12px; padding: 5px 8px;
                                                   background: transparent; color: %3; }
             #audioPanel QToolButton[role="pill"]:checked { background: %5; border-color: %5; color: %6; font-weight: 600; }
-            #audioPanel QToolButton[role="val"] { border: none; border-radius: 4px; padding: 1px 0px; font-size: 10px;
+            #audioPanel QToolButton[role="val"] { border: none; border-radius: 4px; padding: 2px 6px;
                                                  background: transparent; color: %4; font-weight: 600; }
             #audioPanel QToolButton[role="val"]:hover { background: %2; }
             #audioPanel QToolButton[role="val"]:disabled { color: %3; }
         )").arg(base, mid, dim, text, accent, onAccent));
 
         auto *pv = new QVBoxLayout(m_audioBox);
-        pv->setContentsMargins(5, 8, 5, 8);
+        pv->setContentsMargins(8, 8, 8, 8);
         pv->setSpacing(0);
-        m_audioRows = new QHBoxLayout;
-        m_audioRows->setSpacing(2);
+        m_audioRows = new QVBoxLayout;
+        m_audioRows->setSpacing(6);
         pv->addLayout(m_audioRows, 1);
         m_audioBox->hide();
-        root->addWidget(m_audioBox); // barra lateral de altura total, mas estreita
+        root->addWidget(m_audioBox);
+        root->setAlignment(m_audioBox, Qt::AlignTop); // alinhado ao topo do player
     }
     m_volume = QSettings().value("player/volume", 100).toInt();
     m_mpv->setVolume(m_volume);
@@ -659,26 +657,24 @@ namespace shear {
 std::vector<AudioTrack> MainWindow::currentAudio() const
 {
     std::vector<AudioTrack> v;
-    for (const auto &r : m_rows)
-        v.push_back({r.on->isChecked(), double(r.gain->value())});
+    for (size_t i = 0; i < m_rows.size(); ++i) {
+        const double gain = (i == 1 && m_micFader) ? double(m_micFader->value()) : 0.0;
+        v.push_back({m_rows[i].on->isChecked(), gain});
+    }
     return v;
 }
 
 void MainWindow::rebuildAudioRows(int n)
 {
     m_rows.clear();
+    m_micFader = nullptr;
+    m_micVal = nullptr;
     while (auto *it = m_audioRows->takeAt(0)) {
         delete it->widget();
         delete it;
     }
     for (int i = 0; i < n; ++i) {
-        auto *col = new QWidget;
-        col->setFixedWidth(44);
-        auto *v = new QVBoxLayout(col);
-        v->setContentsMargins(0, 0, 0, 0);
-        v->setSpacing(6);
-
-        // um botão só: aceso = você ouve e vai no vídeo; apagado = fora
+        // um botão só por faixa: aceso = você ouve e vai no vídeo; apagado = fora
         auto *on = new QToolButton;
         on->setText(trackName(i, n));
         on->setCheckable(true);
@@ -689,39 +685,48 @@ void MainWindow::rebuildAudioRows(int n)
         on->setToolTip(i == 1 && n >= 2
             ? "Ligue para ouvir o microfone e juntá-lo ao desktop numa faixa só no vídeo exportado."
             : "Ligada: você ouve esta faixa e ela vai no vídeo exportado.");
-
-        auto *gain = new QSlider(Qt::Vertical);
-        gain->setRange(-30, 30);
-        gain->setFocusPolicy(Qt::NoFocus);
-        gain->setEnabled(on->isChecked());
-        gain->setToolTip("Volume da faixa (dB)");
-        auto *val = new QToolButton;
-        val->setText("0 dB");
-        val->setProperty("role", "val");
-        val->setFocusPolicy(Qt::NoFocus);
-        val->setEnabled(on->isChecked());
-        val->setToolTip("Clique para zerar");
-
-        v->addWidget(on);
-        v->addWidget(gain, 1, Qt::AlignHCenter);
-        v->addWidget(val, 0, Qt::AlignHCenter);
-        m_audioRows->addWidget(col);
-        m_rows.push_back({on, gain, val});
-
-        connect(on, &QToolButton::toggled, this, [this, gain, val](bool isOn) {
-            gain->setEnabled(isOn);
-            val->setEnabled(isOn);
+        m_audioRows->addWidget(on);
+        m_rows.push_back({on});
+        connect(on, &QToolButton::toggled, this, [this, i](bool isOn) {
+            if (i == 1 && m_micFader) {
+                m_micFader->setEnabled(isOn);
+                m_micVal->setEnabled(isOn);
+            }
             updateInfo();
             applyPreviewAudio();
         });
-        connect(gain, &QSlider::valueChanged, this, [this, val](int g) {
-            val->setText(QString("%1%2 dB").arg(g > 0 ? "+" : "").arg(g));
+    }
+
+    if (n >= 2) { // só o mic tem ajuste de volume
+        auto *cap = new QLabel("Vol. do mic");
+        cap->setProperty("role", "cap");
+        cap->setAlignment(Qt::AlignHCenter);
+        m_micFader = new VerticalFader;
+        m_micVal = new QToolButton;
+        m_micVal->setText("0 dB");
+        m_micVal->setProperty("role", "val");
+        m_micVal->setFocusPolicy(Qt::NoFocus);
+        m_micVal->setToolTip("Clique para zerar");
+        const bool micOn = m_rows[1].on->isChecked();
+        m_micFader->setEnabled(micOn);
+        m_micVal->setEnabled(micOn);
+        m_audioRows->addSpacing(4);
+        m_audioRows->addWidget(cap);
+        m_micFader->setFixedHeight(170); // altura fixa: cartão compacto, sem coluna gigante e vazia
+        m_audioRows->addWidget(m_micFader, 0, Qt::AlignHCenter);
+        m_audioRows->addWidget(m_micVal, 0, Qt::AlignHCenter);
+        connect(m_micFader, &VerticalFader::valueChanged, this, [this](int g) {
+            m_micVal->setText(QString("%1%2 dB").arg(g > 0 ? "+" : "").arg(g));
             updateInfo();
             m_audioTimer->start(); // evita reconfigurar o filtro a cada pixel arrastado
         });
-        connect(val, &QToolButton::clicked, gain, [gain] { gain->setValue(0); });
+        connect(m_micVal, &QToolButton::clicked, m_micFader, [this] { m_micFader->setValue(0); });
+    } else {
+        m_audioRows->addStretch(1);
     }
-    m_audioBox->setFixedWidth(10 + n * 44 + std::max(0, n - 1) * 2 + 2);
+    m_audioBox->setFixedWidth(88);
+    m_audioBox->adjustSize();
+    m_audioBox->setMaximumHeight(n >= 2 ? 330 : 14 + n * 32); // cartão compacto ancorado no topo
     m_audioBox->setVisible(n > 0);
 }
 

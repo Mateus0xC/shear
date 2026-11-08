@@ -91,8 +91,9 @@ private slots:
         const auto a = buildFfmpegArgs(r, planCut(r));
         const QString g = a[a.indexOf("-filter_complex") + 1];
         QVERIFY(g.contains("[0:a:1]highpass=f=100,lowpass=f=8000,volume=20dB,agate=range=0:threshold=0.03:release=200[mic]"));
-        QVERIFY(g.contains("[0:a:0]volume=10dB[desktop]"));
-        QVERIFY(g.endsWith("[desktop][mic]amix=2:longest[aout]"));
+        QVERIFY(g.contains("[0:a:0]anull[desktop]")); // desktop no nível original: sem boost
+        QVERIFY(g.endsWith("[desktop][mic]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95:level=0[aout]"));
+        QVERIFY(!g.contains("volume=10dB"));
         QCOMPARE(a.count("-map"), 2); // vídeo + uma única faixa de áudio
         QVERIFY(a.contains("[aout]") && a.contains("320k"));
         QCOMPARE(a[a.indexOf("-c:v") + 1], QString("copy"));
@@ -104,7 +105,7 @@ private slots:
         t[0].gainDb = 2;
         const auto g = buildAudioMixGraph(t, false, "aout");
         QVERIFY(g.contains("volume=16.5dB,agate"));
-        QVERIFY(g.contains("[0:a:0]volume=12dB[desktop]"));
+        QVERIFY(g.contains("[0:a:0]volume=2dB[desktop]"));
     }
     void no_tracks_enabled_means_no_audio()
     {
@@ -119,8 +120,8 @@ private slots:
     {
         QCOMPARE(buildAudioMixGraph(desktopOnly(), true, "ao"), QString("[aid1]anull[ao]"));
         const auto g = buildAudioMixGraph(both(), true, "ao");
-        QVERIFY(g.contains("[aid1]volume=10dB[desktop]") && g.contains("[aid2]highpass"));
-        QVERIFY(g.endsWith("amix=2:longest[ao]"));
+        QVERIFY(g.contains("[aid1]anull[desktop]") && g.contains("[aid2]highpass"));
+        QVERIFY(g.endsWith("amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95:level=0[ao]"));
     }
     void exact_reencodes_with_nvenc_or_x264()
     {

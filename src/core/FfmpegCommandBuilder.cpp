@@ -36,7 +36,7 @@ QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, c
                            .arg(num(20 + g));
             in.label = "mic";
         } else if (recipe && i == 0) {
-            in.chain = QString("volume=%1dB").arg(num(10 + g));
+            in.chain = gainFilter(g); // desktop mantém o nível original (sem boost)
             in.label = "desktop";
         } else {
             in.chain = gainFilter(g);
@@ -55,7 +55,10 @@ QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, c
         parts << QString("%1%2[%3]").arg(in.pad, in.chain, in.label);
         mixIn += QString("[%1]").arg(in.label);
     }
-    parts << QString("%1amix=%2:longest[%3]").arg(mixIn).arg(ins.size()).arg(outLabel);
+    // normalize=0: o amix não divide cada entrada pelo nº de faixas, então o desktop NÃO muda de volume ao
+    // ligar o mic. O alimiter (sem auto-level) só impede clipping quando as duas faixas estão altas.
+    parts << QString("%1amix=inputs=%2:duration=longest:normalize=0,alimiter=limit=0.95:level=0[%3]")
+                 .arg(mixIn).arg(ins.size()).arg(outLabel);
     return parts.join(';');
 }
 

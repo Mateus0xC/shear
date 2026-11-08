@@ -5,6 +5,8 @@
 
 namespace shear {
 
+class TimelineLens;
+
 class TimelineWidget : public QWidget {
     Q_OBJECT
 public:
@@ -41,6 +43,8 @@ protected:
 
 private:
     enum class Drag { None, Seek, Start, End };
+    void applyDrag(double t);
+    void showLens(double span);
     double xToSec(double x) const;
     double secToX(double s) const;
 
@@ -49,6 +53,9 @@ private:
     std::optional<double> m_ghost;
     bool m_scanDone = false;
     Drag m_drag = Drag::None;
+    TimelineLens *m_lens = nullptr;
+    bool m_zoom = false;      // mouse puxado para baixo: régua ampliada
+    double m_lastX = 0, m_dragT = 0;
     static constexpr int kMargin = 14;
 };
 

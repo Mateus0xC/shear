@@ -30,18 +30,23 @@ marcar início e fim, exportar e colar no Discord.
 - **Automático** (padrão): usa Rápido se a distância ao keyframe anterior for menor que o limite (0,5 s por padrão); senão, Exato.
 
 ### Áudio
-No canto inferior direito há um mini-mixer com uma coluna por faixa do vídeo: um botão (aceso = ligada) e um fader vertical
-de volume (−30 a +30 dB; clicar no valor zera).
+Um cartão compacto no canto superior direito tem um botão por faixa (aceso = ligada) e um fader de volume só para o **Mic**
+(−30 a +30 dB, com escala; duplo clique ou o botão com o valor zera). O desktop não tem ajuste de volume.
 
 - **Ligada** = você ouve a faixa no preview **e** ela vai no arquivo exportado (o que você ouve é o que sai).
 - **Padrão:** só o **Desktop** (faixa 1) fica ligado; o **Mic** começa desligado.
-- **Ligando o Mic** (2+ faixas), elas são **juntadas em uma só** com a sua receita: desktop +10 dB, mic com
-  highpass/lowpass/gate +20 dB, `amix` (AAC 320k). O fader de cada faixa soma-se a esses ganhos, então 0 dB = o seu filtro original.
-- Com uma só faixa ligada e volume em 0 dB, o áudio é **copiado sem recodificar**; se o volume foi alterado, só o áudio é
-  recodificado (o vídeo continua em cópia).
+- **Ligando o Mic**, as faixas são **juntadas em uma só**: o desktop mantém o nível original e o mic passa por
+  highpass/lowpass/gate e ganha +20 dB (mais o que você ajustar no fader). A mixagem usa `amix` sem normalização (o desktop
+  não muda de volume ao ligar o mic) e um limitador contra clipping. Saída em AAC 320k.
+- Com uma só faixa ligada, o áudio é **copiado sem recodificar**.
 - Nenhuma faixa ligada: o clipe sai sem áudio.
 
 O volume do preview (roda do mouse / setas) é independente e só serve para você ouvir.
+
+### Precisão na timeline
+Ao arrastar o cursor ou os marcadores de início/fim, **puxe o mouse para baixo**: aparece uma régua ampliada abaixo da timeline,
+centrada na posição atual. Quanto mais para baixo, maior o zoom (janela de ~12 s até ~0,4 s) e mais fino fica o movimento
+horizontal. Soltar o botão fecha a régua.
 
 ### Overlay da NVIDIA
 O Shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não

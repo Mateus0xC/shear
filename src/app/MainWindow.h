@@ -7,7 +7,7 @@
 
 class QComboBox;
 class QFrame;
-class QHBoxLayout;
+class QVBoxLayout;
 class QSlider;
 class QTimer;
 class QToolButton;
@@ -23,6 +23,7 @@ class ExportJob;
 class KeyframeScanner;
 class MpvWidget;
 class TimelineWidget;
+class VerticalFader;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -73,9 +74,11 @@ private:
     TimelineWidget *m_timeline;
     QLabel *m_title, *m_times, *m_early, *m_warning, *m_status;
     QComboBox *m_modeBox;
-    struct TrackRow { QToolButton *on; QSlider *gain; QToolButton *val; };
+    struct TrackRow { QToolButton *on; };
     QFrame *m_audioBox = nullptr;      // painel lateral fino, só com as faixas
-    QHBoxLayout *m_audioRows = nullptr;
+    QVBoxLayout *m_audioRows = nullptr;
+    VerticalFader *m_micFader = nullptr; // volume só do mic (faixa 2); o desktop não precisa de ajuste
+    QToolButton *m_micVal = nullptr;
     int m_volume = 100;                // volume do preview (roda do mouse / setas ↑↓)
     QTimer *m_audioTimer = nullptr;
     std::vector<TrackRow> m_rows;

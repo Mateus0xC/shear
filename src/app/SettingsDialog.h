@@ -18,7 +18,7 @@ public:
 private:
     void refreshContextState();
     QComboBox *m_mode, *m_preset, *m_tracks;
-    QDoubleSpinBox *m_threshold, *m_discord;
+    QDoubleSpinBox *m_threshold;
     QLineEdit *m_out, *m_sp;
     QLabel *m_ctxState;
 };

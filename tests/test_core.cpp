@@ -1,5 +1,4 @@
 #include <QtTest>
-#include "core/BitrateCalc.h"
 #include "core/CutPlanner.h"
 #include "core/FfmpegCommandBuilder.h"
 #include "core/OutputNaming.h"
@@ -19,16 +18,6 @@ class CoreTest : public QObject {
         return r;
     }
 private slots:
-    void bitrate_basic()
-    {
-        // 10 MB em 60 s: 1365.33 kbps total - 128 = 1237.33 * 0.95 = 1175
-        QCOMPARE(videoBitrateKbps(10, 60), 1175);
-    }
-    void bitrate_infeasible()
-    {
-        QCOMPARE(videoBitrateKbps(10, 0), 0);
-        QCOMPARE(videoBitrateKbps(1, 3600), 0);
-    }
     void auto_mode_threshold()
     {
         auto r = base(); // gap 1.4 > 0.5 -> exato
@@ -87,19 +76,6 @@ private slots:
         r.hasNvenc = false;
         a = buildFfmpegArgs(r, planCut(r));
         QVERIFY(a.contains("libx264"));
-    }
-    void discord_pipeline()
-    {
-        auto r = base();
-        r.preset = Preset::DiscordLimit;
-        const auto a = buildFfmpegArgs(r, planCut(r));
-        QVERIFY(a.indexOf("-hwaccel") < a.indexOf("-i"));
-        QVERIFY(a.contains("h264_nvenc") && a.contains("-maxrate") && a.contains("-bufsize"));
-        QCOMPARE(a[a.indexOf("-b:v") + 1], QString("1175k"));
-        QCOMPARE(a[a.indexOf("-ss") + 1], QString("60.000"));
-        r.hasNvenc = false;
-        const auto b = buildFfmpegArgs(r, planCut(r));
-        QVERIFY(b.contains("libx264") && !b.contains("-hwaccel"));
     }
     void naming_never_overwrites()
     {

@@ -26,7 +26,6 @@ int main(int argc, char **argv)
         {"Corte rápido (cópia, modo Rápido)", Preset::QuickCut, CutMode::Fast},
         {"Corte rápido (modo Exato = recodifica)", Preset::QuickCut, CutMode::Exact},
         {"Mixar mic+desktop (vídeo copiado)", Preset::MixMic, CutMode::Fast},
-        {"Discord 10 MB (NVENC, GPU)", Preset::DiscordLimit, CutMode::Auto},
     };
     for (const auto &c : cases) {
         ExportRequest r = base;

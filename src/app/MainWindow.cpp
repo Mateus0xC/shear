@@ -1,6 +1,5 @@
 #include "MainWindow.h"
 #include "SettingsDialog.h"
-#include "core/BitrateCalc.h"
 #include "core/CutPlanner.h"
 #include "core/FfmpegCommandBuilder.h"
 #include "core/OutputNaming.h"
@@ -14,7 +13,12 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QClipboard>
+#include <QDir>
 #include <QDirIterator>
+#include <QFile>
+#include <QGuiApplication>
+#include <QStandardPaths>
 #include <QDragEnterEvent>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -121,7 +125,7 @@ QWidget *MainWindow::buildEditor()
 
     auto *opts = new QHBoxLayout;
     m_presetBox = new QComboBox;
-    m_presetBox->addItems({"Corte rápido (copia)", "Mixar mic + desktop", "Caber no limite do Discord"});
+    m_presetBox->addItems({"Corte rápido (copia)", "Mixar mic + desktop"});
     m_modeBox = new QComboBox;
     m_modeBox->addItems({"Início: Rápido", "Início: Exato", "Início: Automático"});
     m_tracksBox = new QComboBox;
@@ -149,12 +153,16 @@ QWidget *MainWindow::buildEditor()
     m_bar->hide();
     m_copyBtn = new QPushButton("Copiar de novo");
     m_openFolderBtn = new QPushButton("Abrir pasta");
-    m_copyBtn->hide();
-    m_openFolderBtn->hide();
+    m_keepBtn = new QPushButton("Manter");
+    m_keepBtn->setToolTip("Move o clipe para a pasta de clipes mantidos e impede que seja apagado ao fechar.");
+    m_deleteBtn = new QPushButton("Apagar");
+    hideResultButtons();
     ex->addWidget(m_exportBtn);
     ex->addWidget(m_bar, 1);
     ex->addWidget(m_cancelBtn);
     ex->addWidget(m_copyBtn);
+    ex->addWidget(m_keepBtn);
+    ex->addWidget(m_deleteBtn);
     ex->addWidget(m_openFolderBtn);
     l->addLayout(ex);
     m_status = new QLabel;
@@ -169,6 +177,8 @@ QWidget *MainWindow::buildEditor()
     connect(m_cancelBtn, &QPushButton::clicked, this, &MainWindow::cancelExport);
     connect(m_copyBtn, &QPushButton::clicked, this, [this] { copyFileToClipboard(m_lastOutput); });
     connect(m_openFolderBtn, &QPushButton::clicked, this, [this] { revealInExplorer(m_lastOutput); });
+    connect(m_keepBtn, &QPushButton::clicked, this, &MainWindow::keepLastOutput);
+    connect(m_deleteBtn, &QPushButton::clicked, this, &MainWindow::deleteLastOutput);
     for (auto *c : {m_presetBox, m_modeBox, m_tracksBox})
         connect(c, &QComboBox::currentIndexChanged, this, [this] { updateInfo(); });
 
@@ -200,6 +210,7 @@ void MainWindow::showEvent(QShowEvent *e)
 
 void MainWindow::deferredInit()
 {
+    cleanupTemp(true); // sobras de uma sessão anterior que travou
     refreshRecent();
     detectNvenc();
 }
@@ -302,8 +313,7 @@ void MainWindow::openFile(const QString &path)
     setWindowTitle("Shear — " + QFileInfo(path).fileName());
     m_timeline->reset(0);
     m_status->clear();
-    m_copyBtn->hide();
-    m_openFolderBtn->hide();
+    hideResultButtons();
     m_stack->setCurrentIndex(1);
     m_mpv->loadFile(path); // o vídeo vem primeiro; o resto depois
 
@@ -373,7 +383,6 @@ ExportRequest MainWindow::currentRequest() const
     r.preset = static_cast<Preset>(m_presetBox->currentIndex());
     r.tracks = static_cast<AudioTracks>(m_tracksBox->currentIndex());
     r.autoThresholdSec = m_cfg.autoThresholdSec;
-    r.targetMB = m_cfg.discordMB;
     r.hasNvenc = m_hasNvenc;
     r.hasMicTrack = m_audioTracks >= 2;
     if (auto k = m_timeline->keyframeAtOrBefore(r.startSec))
@@ -391,7 +400,6 @@ void MainWindow::updateInfo()
     const auto r = currentRequest();
     const auto plan = planCut(r);
     m_tracksBox->setVisible(r.preset == Preset::QuickCut);
-    m_modeBox->setVisible(r.preset != Preset::DiscordLimit);
     m_times->setText(QString("Início %1    Fim %2    Duração %3%4")
                          .arg(fmt(r.startSec), fmt(r.endSec), fmt(r.endSec - r.startSec),
                               m_timeline->scanDone() ? "" : "    (lendo keyframes…)"));
@@ -401,12 +409,7 @@ void MainWindow::updateInfo()
     QStringList msg;
     const QString w = earlyStartWarning(plan.earlyBySec);
     if (!w.isEmpty()) msg << "⚠ " + w + " (marcador laranja). Use K para encaixar no keyframe ou modo Exato.";
-    if (r.preset == Preset::DiscordLimit) {
-        const int kb = videoBitrateKbps(r.targetMB, std::max(0.1, r.endSec - r.startSec));
-        msg << (kb > 0 ? QString("Alvo %1 MB → vídeo a ~%2 kbps (%3)")
-                             .arg(r.targetMB).arg(kb).arg(m_hasNvenc ? "NVENC" : "libx264")
-                       : QString("⚠ %1 MB é pouco para este trecho; reduza a duração.").arg(r.targetMB));
-    } else if (!plan.copyVideo) {
+    if (!plan.copyVideo) {
         msg << QString("Início exato: o vídeo será recodificado (%1).").arg(m_hasNvenc ? "NVENC" : "libx264");
     }
     if (r.preset == Preset::QuickCut)
@@ -427,11 +430,7 @@ void MainWindow::startExport()
         return;
     }
     const auto plan = planCut(r);
-    if (r.preset == Preset::DiscordLimit && videoBitrateKbps(r.targetMB, r.endSec - plan.actualStartSec) == 0) {
-        m_status->setText("Tamanho-alvo pequeno demais para este trecho.");
-        return;
-    }
-    const QString dir = m_cfg.outputDir.isEmpty() ? QFileInfo(m_file).absolutePath() : m_cfg.outputDir;
+    const QString dir = tempDir(); // exports são temporários até o usuário clicar em Manter
     QDir().mkpath(dir);
     r.outputPath = uniqueOutputPath(dir, QFileInfo(m_file).completeBaseName(), QTime::currentTime(),
                                     [](const QString &p) { return QFileInfo::exists(p); });
@@ -445,10 +444,72 @@ void MainWindow::startExport()
     m_bar->show();
     m_cancelBtn->show();
     m_exportBtn->setEnabled(false);
-    m_copyBtn->hide();
-    m_openFolderBtn->hide();
+    hideResultButtons();
     m_status->setText("Exportando…");
     m_job->start();
+}
+
+QString MainWindow::tempDir()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/Shear-exports";
+}
+
+void MainWindow::hideResultButtons()
+{
+    for (auto *b : {m_copyBtn, m_keepBtn, m_deleteBtn, m_openFolderBtn})
+        b->hide();
+}
+
+static void clearClipboardIfOurs(const QStringList &paths)
+{
+    auto *cb = QGuiApplication::clipboard();
+    const auto *md = cb->mimeData();
+    if (!md || !md->hasUrls()) return;
+    for (const QUrl &u : md->urls())
+        if (paths.contains(u.toLocalFile(), Qt::CaseInsensitive)) { cb->clear(); return; }
+}
+
+// wholeDir=true: limpa a pasta inteira (sobras de sessões antigas); senão só o que esta sessão criou.
+void MainWindow::cleanupTemp(bool wholeDir)
+{
+    clearClipboardIfOurs(m_tempFiles);
+    for (const QString &f : std::as_const(m_tempFiles))
+        QFile::remove(f);
+    m_tempFiles.clear();
+    if (wholeDir)
+        QDir(tempDir()).removeRecursively();
+}
+
+void MainWindow::deleteLastOutput()
+{
+    if (m_lastOutput.isEmpty()) return;
+    clearClipboardIfOurs({m_lastOutput});
+    QFile::remove(m_lastOutput);
+    m_tempFiles.removeAll(m_lastOutput);
+    m_status->setText("Clipe apagado.");
+    m_lastOutput.clear();
+    hideResultButtons();
+}
+
+void MainWindow::keepLastOutput()
+{
+    if (m_lastOutput.isEmpty() || !m_tempFiles.contains(m_lastOutput)) return;
+    const QString dir = m_cfg.outputDir.isEmpty() ? QFileInfo(m_file).absolutePath() : m_cfg.outputDir;
+    QDir().mkpath(dir);
+    const QFileInfo src(m_lastOutput);
+    QString dest = dir + "/" + src.fileName();
+    for (int i = 2; QFileInfo::exists(dest); ++i) // nunca sobrescreve
+        dest = dir + "/" + src.completeBaseName() + QString("_%1.").arg(i) + src.suffix();
+    if (!QFile::rename(m_lastOutput, dest)) {
+        m_status->setText("Não foi possível mover o clipe para " + QDir::toNativeSeparators(dir));
+        return;
+    }
+    m_tempFiles.removeAll(m_lastOutput);
+    m_lastOutput = dest;
+    copyFileToClipboard(dest); // o Ctrl+V passa a apontar para o arquivo mantido
+    m_keepBtn->hide();
+    m_deleteBtn->hide();
+    m_status->setText("Mantido em " + QDir::toNativeSeparators(dest));
 }
 
 void MainWindow::cancelExport()
@@ -468,10 +529,12 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
         return;
     }
     m_lastOutput = path;
+    m_tempFiles << path;
     copyFileToClipboard(path);
-    m_copyBtn->show();
-    m_openFolderBtn->show();
-    m_status->setText(QString("Pronto em %1 s — copiado para a área de transferência (Ctrl+V no Discord): %2")
+    for (auto *b : {m_copyBtn, m_keepBtn, m_deleteBtn, m_openFolderBtn})
+        b->show();
+    m_status->setText(QString("Pronto em %1 s — copiado (Ctrl+V no Discord). TEMPORÁRIO: será apagado ao fechar o Shear, "
+                              "a menos que você clique em Manter. %2")
                           .arg(QString::number(sec, 'f', 1).replace('.', ','), QFileInfo(path).fileName()));
     metrics::log(QString("exportação concluída em %1 s: %2").arg(sec, 0, 'f', 2).arg(path));
 }
@@ -490,6 +553,7 @@ void MainWindow::dropEvent(QDropEvent *e)
 void MainWindow::closeEvent(QCloseEvent *e)
 {
     if (m_job) m_job->cancel();
+    cleanupTemp(false);
     if (m_scanner) {
         m_scanner->disconnect(this);
         m_scanner->requestInterruption();

@@ -8,7 +8,10 @@ marcar início e fim, exportar e colar no Discord.
 1. Abra um vídeo: argumento de linha de comando, arrastar e soltar na janela, botão **Abrir vídeo…**
    ou a lista de clipes recentes da pasta do ShadowPlay.
 2. Marque o trecho e exporte com `Enter`. O arquivo exportado já fica na área de transferência
-   (Ctrl+V no Discord) e há um botão **Abrir pasta**.
+   (Ctrl+V no Discord).
+3. **Os clipes exportados são temporários**: ficam em `%TEMP%\Shear-exports` e são apagados ao fechar o Shear
+   (e as sobras de uma sessão que travou são apagadas na próxima abertura). Para guardar um clipe, clique em
+   **Manter**: ele é movido para a pasta configurada (ou a do vídeo original). **Apagar** remove na hora.
 
 | Tecla | Ação |
 |---|---|
@@ -28,7 +31,6 @@ marcar início e fim, exportar e colar no Discord.
 ### Presets
 - **Corte rápido**: copia vídeo e áudio. O Discord e a maioria dos players tocam só a primeira faixa de áudio, por isso o padrão é manter só a faixa do desktop; há a opção de manter todas.
 - **Mixar mic + desktop**: vídeo copiado, áudio recodificado com o filtro de mixagem (mic = faixa 2).
-- **Caber no limite do Discord**: tamanho-alvo configurável (padrão 10 MB), pipeline NVENC na GPU, uma passada.
 
 O ffmpeg roda com prioridade abaixo do normal para não derrubar o FPS do jogo.
 

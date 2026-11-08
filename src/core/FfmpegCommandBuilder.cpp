@@ -1,5 +1,4 @@
 #include "FfmpegCommandBuilder.h"
-#include "BitrateCalc.h"
 #include <algorithm>
 
 namespace shear {
@@ -31,26 +30,6 @@ QStringList buildFfmpegArgs(const ExportRequest &r, const CutPlan &plan)
 
     const double start = plan.actualStartSec;
     const double dur = std::max(0.001, r.endSec - start);
-
-    if (r.preset == Preset::DiscordLimit) {
-        const int vk = videoBitrateKbps(r.targetMB, dur);
-        const int kbps = vk > 0 ? vk : 50;
-        if (r.hasNvenc)
-            a << "-hwaccel" << "cuda" << "-hwaccel_output_format" << "cuda";
-        a << "-ss" << fmtSeconds(start) << "-t" << fmtSeconds(dur) << "-i" << r.inputPath;
-        a << "-filter_complex" << (r.hasMicTrack ? kMixFilter : kDesktopFilter)
-          << "-map" << "0:V:0" << "-map" << "[aout]";
-        if (r.hasNvenc)
-            a << "-c:v" << "h264_nvenc" << "-preset" << "p2" << "-rc" << "vbr";
-        else
-            a << "-c:v" << "libx264" << "-preset" << "veryfast";
-        a << "-b:v" << QString("%1k").arg(kbps)
-          << "-maxrate" << QString("%1k").arg(kbps)
-          << "-bufsize" << QString("%1k").arg(kbps * 2)
-          << "-c:a" << "aac" << "-b:a" << QString("%1k").arg(kDiscordAudioKbps)
-          << "-movflags" << "+faststart" << r.outputPath;
-        return a;
-    }
 
     a << "-ss" << fmtSeconds(start) << "-t" << fmtSeconds(dur) << "-i" << r.inputPath;
 

@@ -15,12 +15,6 @@ CutPlan planCut(const ExportRequest &r)
     case CutMode::Auto:  fast = gap < r.autoThresholdSec; break;
     }
 
-    // O preset do Discord sempre recodifica o vídeo: já corta no frame exato.
-    if (r.preset == Preset::DiscordLimit) {
-        p.copyVideo = false;
-        p.actualStartSec = r.startSec;
-        return p;
-    }
     p.copyVideo = fast;
     p.actualStartSec = fast ? r.keyframeBeforeStart : r.startSec;
     p.earlyBySec = fast ? gap : 0.0;

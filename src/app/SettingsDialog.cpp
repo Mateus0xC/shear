@@ -39,7 +39,7 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     // índices na ordem do enum: Fast=0, Exact=1, Auto=2
     m_mode->setCurrentIndex(int(c.mode));
     m_preset = new QComboBox;
-    m_preset->addItems({"Corte rápido", "Mixar mic + desktop", "Caber no limite do Discord"});
+    m_preset->addItems({"Corte rápido", "Mixar mic + desktop"});
     m_preset->setCurrentIndex(int(c.preset));
     m_tracks = new QComboBox;
     m_tracks->addItems({"Só o áudio do desktop", "Todas as faixas"});
@@ -49,10 +49,6 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     m_threshold->setSingleStep(0.1);
     m_threshold->setSuffix(" s");
     m_threshold->setValue(c.autoThresholdSec);
-    m_discord = new QDoubleSpinBox;
-    m_discord->setRange(1, 500);
-    m_discord->setSuffix(" MB");
-    m_discord->setValue(c.discordMB);
     m_out = new QLineEdit(c.outputDir);
     m_out->setPlaceholderText("Mesma pasta do vídeo original");
     m_sp = new QLineEdit(c.shadowPlayDir);
@@ -63,8 +59,7 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     form->addRow("Limite do modo Automático:", m_threshold);
     form->addRow("Preset padrão:", m_preset);
     form->addRow("Faixas de áudio (Corte rápido):", m_tracks);
-    form->addRow("Tamanho-alvo do Discord:", m_discord);
-    form->addRow("Pasta de saída:", folderRow(m_out, this));
+    form->addRow("Pasta dos clipes mantidos:", folderRow(m_out, this));
     form->addRow("Pasta do ShadowPlay:", folderRow(m_sp, this));
 
     m_ctxState = new QLabel;
@@ -111,7 +106,6 @@ Config SettingsDialog::config() const
     c.preset = static_cast<Preset>(m_preset->currentIndex());
     c.tracks = static_cast<AudioTracks>(m_tracks->currentIndex());
     c.autoThresholdSec = m_threshold->value();
-    c.discordMB = m_discord->value();
     c.outputDir = m_out->text().trimmed();
     c.shadowPlayDir = m_sp->text().trimmed();
     return c;

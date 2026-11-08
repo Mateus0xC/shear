@@ -6,7 +6,7 @@
 namespace shear {
 
 enum class CutMode { Fast, Exact, Auto };
-enum class Preset { QuickCut, MixMic, DiscordLimit };
+enum class Preset { QuickCut, MixMic };
 enum class AudioTracks { DesktopOnly, All };
 
 struct ExportRequest {
@@ -19,7 +19,6 @@ struct ExportRequest {
     double autoThresholdSec = 0.5;
     Preset preset = Preset::QuickCut;
     AudioTracks tracks = AudioTracks::DesktopOnly;
-    double targetMB = 10.0;
     bool hasNvenc = true;
     bool hasMicTrack = true;
 };

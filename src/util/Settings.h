@@ -11,7 +11,6 @@ struct Config {
     double autoThresholdSec = 0.5;
     QString outputDir;      // vazio = pasta do original
     QString shadowPlayDir;  // vazio = Vídeos do usuário
-    double discordMB = 10.0;
 
     static Config load();
     void save() const;

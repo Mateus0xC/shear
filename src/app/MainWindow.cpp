@@ -31,6 +31,7 @@
 #include <QStandardPaths>
 #include <QDragEnterEvent>
 #include <QFileDialog>
+#include <QFontDatabase>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -70,6 +71,19 @@ protected:
         if (toolTip() != tip) setToolTip(tip);
     }
 };
+
+// Ícones do próprio Windows (Segoe Fluent Icons no Windows 11, Segoe MDL2 Assets no 10). Vazio se não houver.
+static QString iconFontFamily()
+{
+    static const QString family = [] {
+        const QStringList all = QFontDatabase::families();
+        for (const char *name : {"Segoe Fluent Icons", "Segoe MDL2 Assets"})
+            if (all.contains(QString::fromLatin1(name)))
+                return QString::fromLatin1(name);
+        return QString();
+    }();
+    return family;
+}
 
 static QString trackName(int i, int n)
 {
@@ -166,8 +180,23 @@ QWidget *MainWindow::buildEditor()
     back->setFocusPolicy(Qt::NoFocus);
     connect(back, &QPushButton::clicked, this, [this] { if (!m_job) showHome(); });
     m_title = new QLabel;
+    // Engrenagem (glifo E713 da fonte de ícones do Windows; sem ela, o emoji ⚙)
+    auto *settingsBtn = new QPushButton;
+    if (const QString family = iconFontFamily(); !family.isEmpty()) {
+        QFont f(family);
+        f.setPixelSize(16);
+        settingsBtn->setFont(f);
+        settingsBtn->setText(QString(QChar(0xE713)));
+    } else {
+        settingsBtn->setText(QString::fromUcs4(U"⚙"));
+    }
+    settingsBtn->setToolTip("Configurações");
+    settingsBtn->setFixedWidth(38);
+    settingsBtn->setFocusPolicy(Qt::NoFocus);
+    connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::openSettings);
     top->addWidget(back);
     top->addWidget(m_title, 1);
+    top->addWidget(settingsBtn);
     l->addLayout(top);
 
     m_mpv = new MpvWidget(m_cfg.gpuDecode);
@@ -380,6 +409,7 @@ void MainWindow::showEvent(QShowEvent *e)
 void MainWindow::deferredInit()
 {
     cleanupTemp(true); // sobras de uma sessão anterior que travou
+    migrateLegacyContextMenu(QCoreApplication::applicationFilePath()); // menu de contexto da versão antiga
     refreshRecent(m_autoOpenFresh);
     detectNvenc();
 }
@@ -410,6 +440,15 @@ struct RecentItem { QString path; QDateTime created; qint64 size; };
 
 void MainWindow::showHome()
 {
+    // Saiu do vídeo: para tudo, senão o áudio continuaria tocando em segundo plano.
+    m_scrubbing = false;
+    m_resumeAfterDrag = false;
+    if (m_scrub)
+        m_scrub->stop();
+    if (m_mpv)
+        m_mpv->setPaused(true);
+    m_file.clear(); // nenhum vídeo aberto (assim o clipe recém-salvo pode ser aberto de novo)
+    setWindowTitle("Shear");
     m_stack->setCurrentIndex(0);
     refreshRecent(false); // um clipe novo pode ter sido salvo enquanto você editava
 }
@@ -472,11 +511,11 @@ void MainWindow::openSettings()
 {
     SettingsDialog d(m_cfg, this);
     if (d.exec() != QDialog::Accepted) return;
+    const CutMode oldDefault = m_cfg.mode;
     m_cfg = d.config();
     m_cfg.save();
-    if (m_editor) {
+    if (m_editor && m_cfg.mode != oldDefault) // só muda o modo da edição se o padrão mudou
         setCutMode(m_cfg.mode);
-    }
     refreshRecent();
     updateInfo();
 }

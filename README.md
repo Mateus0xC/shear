@@ -24,6 +24,11 @@ marcar início e fim, exportar e colar no Discord.
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
 
+### Menu de contexto do Explorer
+Em **Configurações → Adicionar “Cortar com Shear” ao menu de contexto** o item passa a aparecer ao clicar com o botão direito em
+vídeos (mp4, mkv, mov, webm, avi). Não precisa de administrador. No Windows 11 o item fica em **Mostrar mais opções** (Shift+F10),
+a menos que você use o menu clássico do Windows. Quem instalou o menu numa versão antiga é migrado sozinho ao abrir o app.
+
 ### Clipes recém-salvos
 - Se você salvou um clipe há **até 10 s** (conta desde a **criação do arquivo**, não a duração do vídeo, na pasta do ShadowPlay) e abre o Shear sem
   indicar um arquivo, ele **já abre direto nesse clipe**. Se o Shear já estiver aberto e for chamado de novo, também.

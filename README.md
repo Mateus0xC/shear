@@ -17,7 +17,7 @@ marcar início e fim, exportar e colar no Discord.
 |---|---|
 | `Espaço` | play/pause |
 | `I` / `O` | marca início / fim |
-| `,` / `.` | frame anterior / seguinte |
+| `←` / `→` (ou `,` / `.`) | frame anterior / seguinte |
 | `J` / `L` | −5 s / +5 s |
 | `K` | encaixa o início no keyframe mais próximo |
 | `Enter` | exporta |

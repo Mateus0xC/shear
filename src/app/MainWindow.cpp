@@ -63,6 +63,8 @@ MainWindow::MainWindow()
     sc(Qt::Key_O, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
     sc(Qt::Key_Comma, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(false); } });
     sc(Qt::Key_Period, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(true); } });
+    sc(Qt::Key_Left, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(false); } });
+    sc(Qt::Key_Right, [=, this] { if (inEditor()) { m_mpv->setPaused(true); m_mpv->stepFrame(true); } });
     sc(Qt::Key_J, [=, this] { if (inEditor()) m_mpv->seek(std::max(0.0, m_mpv->position() - 5)); });
     sc(Qt::Key_L, [=, this] { if (inEditor()) m_mpv->seek(m_mpv->position() + 5); });
     sc(Qt::Key_K, [=, this] { if (inEditor()) snapStartToKeyframe(); });
@@ -120,8 +122,16 @@ QWidget *MainWindow::buildEditor()
     m_timeline = new TimelineWidget;
     l->addWidget(m_timeline);
 
+    // Linha de tempos + aviso do início antecipado (linha única, altura fixa: o player não se mexe)
     m_times = new QLabel;
-    l->addWidget(m_times);
+    m_early = new QLabel(" ");
+    m_early->setStyleSheet("color: #ffa028; font-weight: 600;");
+    m_early->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    auto *timesRow = new QHBoxLayout;
+    timesRow->addWidget(m_times);
+    timesRow->addStretch();
+    timesRow->addWidget(m_early);
+    l->addLayout(timesRow);
 
     auto *opts = new QHBoxLayout;
     m_presetBox = new QComboBox;
@@ -140,6 +150,8 @@ QWidget *MainWindow::buildEditor()
 
     m_warning = new QLabel;
     m_warning->setWordWrap(true);
+    m_warning->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    m_warning->setMinimumHeight(m_warning->fontMetrics().lineSpacing() * 3 + 4); // reserva 3 linhas
     l->addWidget(m_warning);
 
     auto *ex = new QHBoxLayout;
@@ -166,6 +178,9 @@ QWidget *MainWindow::buildEditor()
     ex->addWidget(m_openFolderBtn);
     l->addLayout(ex);
     m_status = new QLabel;
+    m_status->setWordWrap(true);
+    m_status->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    m_status->setMinimumHeight(m_status->fontMetrics().lineSpacing() * 2 + 4); // reserva 2 linhas
     l->addWidget(m_status);
 
     // preencher com os padrões
@@ -408,7 +423,8 @@ void MainWindow::updateInfo()
 
     QStringList msg;
     const QString w = earlyStartWarning(plan.earlyBySec);
-    if (!w.isEmpty()) msg << "⚠ " + w + " (marcador laranja). Use K para encaixar no keyframe ou modo Exato.";
+    m_early->setText(w.isEmpty() ? QStringLiteral(" ")
+                                 : "⚠ " + w + " — K encaixa no keyframe");
     if (!plan.copyVideo) {
         msg << QString("Início exato: o vídeo será recodificado (%1).").arg(m_hasNvenc ? "NVENC" : "libx264");
     }

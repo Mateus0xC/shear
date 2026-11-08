@@ -61,7 +61,7 @@ private:
     QListWidget *m_recent;
     MpvWidget *m_mpv;
     TimelineWidget *m_timeline;
-    QLabel *m_title, *m_times, *m_warning, *m_status;
+    QLabel *m_title, *m_times, *m_early, *m_warning, *m_status;
     QComboBox *m_presetBox, *m_modeBox, *m_tracksBox;
     QPushButton *m_exportBtn, *m_cancelBtn, *m_openFolderBtn, *m_copyBtn, *m_keepBtn, *m_deleteBtn;
     QProgressBar *m_bar;

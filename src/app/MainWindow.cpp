@@ -126,6 +126,9 @@ MainWindow::MainWindow()
     sc(Qt::Key_Space, [=, this] { if (inEditor()) m_mpv->togglePause(); });
     sc(Qt::Key_I, [=, this] { if (inEditor()) markStart(m_mpv->position()); });
     sc(Qt::Key_O, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
+    // Z e C = I e O (mão esquerda no teclado, junto de A/D e W/S)
+    sc(Qt::Key_Z, [=, this] { if (inEditor()) markStart(m_mpv->position()); });
+    sc(Qt::Key_C, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
     // Pular com o teclado (não pausa o vídeo): setas ou A/D = 1 s; Shift = 5 s; Ctrl = 15 s; Ctrl+Shift = 1 min.
     // Alt (ou , e .) = 1 quadro. O mapa de teclas fica em NavKeys.cpp (testado em tests/test_navkeys.cpp).
     registerNavShortcuts(this, [this](const NavAction &a) {

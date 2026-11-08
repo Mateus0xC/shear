@@ -71,7 +71,9 @@ private:
     TimelineLens *m_lens = nullptr;
     TimelineHint *m_hint = nullptr; // dica "puxe para baixo", logo abaixo da timeline
     bool m_zoom = false;
-    int m_level = -1;     // 0..3: janelas de 20 s, 5 s, 1,5 s, 0,4 s
+    double m_zoomAmount = 0; // 0..1: quão fundo está o zoom (contínuo, escala logarítmica)
+    double m_tCont = 0;      // valor arrastado SEM arredondar (frames/keyframes): acumula movimentos minúsculos
+    double m_prevFrac = 0;   // coluna anterior do mouse (0..1), para o movimento relativo na escala atual
     double m_win0 = 0;    // início da janela ampliada (s)
     double m_span = 1;    // largura da janela ampliada (s)
     static constexpr int kMargin = 14;

@@ -97,6 +97,9 @@ private:
     ExportKind m_exportKind = ExportKind::Copy;
     double m_exportClipSec = 0, m_exportClipBytes = 0, m_exportEstimate = 0;
     qint64 m_fileSize = 0;
+    QToolButton *m_scrubBtn = nullptr; // liga/desliga o áudio ao arrastar
+    bool m_scrubbing = false;          // mouse pressionado na timeline
+    QElapsedTimer m_burstClock;
     bool m_resumeAfterDrag = false; // o vídeo estava tocando quando o mouse foi pressionado na timeline
 
     QString m_file, m_lastOutput;

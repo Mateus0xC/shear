@@ -218,6 +218,18 @@ QWidget *MainWindow::buildEditor()
         m_audioRows = new QVBoxLayout;
         m_audioRows->setSpacing(6);
         pv->addLayout(m_audioRows, 1);
+        pv->addSpacing(8);
+        m_scrubBtn = new QToolButton;
+        m_scrubBtn->setText("♪ ao arrastar");
+        m_scrubBtn->setCheckable(true);
+        m_scrubBtn->setChecked(QSettings().value("player/scrubAudio", true).toBool());
+        m_scrubBtn->setProperty("role", "pill");
+        m_scrubBtn->setFocusPolicy(Qt::NoFocus);
+        m_scrubBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        m_scrubBtn->setToolTip("Ligado: toca um trecho de áudio a cada posição enquanto você arrasta na timeline (o vídeo "
+                               "fica pausado). Desligue para arrastar em silêncio.");
+        pv->addWidget(m_scrubBtn);
+        connect(m_scrubBtn, &QToolButton::toggled, this, [](bool on) { QSettings().setValue("player/scrubAudio", on); });
         m_audioBox->hide();
         root->addWidget(m_audioBox);
     }
@@ -323,7 +335,14 @@ QWidget *MainWindow::buildEditor()
     connect(m_mpv, &MpvWidget::firstFrame, this, [this] {
         metrics::log(QString("primeiro frame: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
     });
-    connect(m_timeline, &TimelineWidget::seekRequested, m_mpv, &MpvWidget::seek);
+    connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
+        m_mpv->seek(t);
+        // Arrastando (vídeo pausado): toca um trechinho de áudio nessa posição, no máximo ~14 vezes por segundo.
+        if (m_scrubbing && m_scrubBtn->isChecked() && m_burstClock.elapsed() > 70) {
+            m_burstClock.restart();
+            m_mpv->scrubBurst(110);
+        }
+    });
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
     connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
     connect(m_timeline, &TimelineWidget::endChanged, this, [this] { updateInfo(); });
@@ -333,10 +352,13 @@ QWidget *MainWindow::buildEditor()
         m_resumeAfterDrag = !m_mpv->paused();
         if (m_resumeAfterDrag)
             m_mpv->setPaused(true);
+        m_scrubbing = true;
+        m_burstClock.start();
     });
     connect(m_timeline, &TimelineWidget::dragFinished, this, [this] {
-        if (m_resumeAfterDrag)
-            m_mpv->setPaused(false);
+        m_scrubbing = false;
+        m_mpv->cancelScrub();
+        m_mpv->setPaused(!m_resumeAfterDrag); // um trecho de áudio pode ter deixado tocando: volta ao estado certo
         m_resumeAfterDrag = false;
     });
     return w;
@@ -823,7 +845,7 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addStretch(1);
     }
     m_audioBox->setFixedWidth(96);
-    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32);
+    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 44);
     // 2+ faixas: o cartão preenche a altura toda; com 1 faixa só, um cartão mínimo no topo
     m_editorRoot->setAlignment(m_audioBox, n >= 2 ? Qt::Alignment() : Qt::AlignTop);
     m_audioBox->setVisible(n > 0);

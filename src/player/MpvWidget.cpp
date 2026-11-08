@@ -62,6 +62,17 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
     mpv_observe_property(m_mpv, 0, "container-fps", MPV_FORMAT_DOUBLE);
     mpv_set_wakeup_callback(m_mpv, &MpvWidget::wakeup, this);
 
+    m_burstTimer = new QTimer(this);
+    m_burstTimer->setSingleShot(true);
+    connect(m_burstTimer, &QTimer::timeout, this, [this] {
+        m_burstPending = false;
+        setPaused(true); // acabou o trecho de áudio
+        if (m_burstActive) { // o vídeo andou durante o trecho: volta ao quadro exato do marcador
+            m_burstActive = false;
+            seek(m_lastSeek);
+        }
+    });
+
     mpv_render_param params[] = {
         {MPV_RENDER_PARAM_API_TYPE, const_cast<char *>(MPV_RENDER_API_TYPE_SW)},
         {MPV_RENDER_PARAM_INVALID, nullptr}};
@@ -129,7 +140,11 @@ void MpvWidget::loadFile(const QString &path)
     command({"loadfile", path});
 }
 
-void MpvWidget::seek(double sec) { command({"seek", QString::number(sec, 'f', 3), "absolute+exact"}); }
+void MpvWidget::seek(double sec)
+{
+    m_lastSeek = sec;
+    command({"seek", QString::number(sec, 'f', 3), "absolute+exact"});
+}
 
 void MpvWidget::setPaused(bool p)
 {
@@ -195,6 +210,28 @@ void MpvWidget::setVolume(int percent)
     command({"set", "volume", QString::number(percent)});
 }
 
+void MpvWidget::scrubBurst(int ms)
+{
+    if (!m_mpv || !m_burstTimer)
+        return;
+    m_burstMs = ms;
+    m_burstPending = true;
+    m_burstActive = true;
+    setPaused(false); // o áudio começa quando o seek termina
+    m_burstTimer->start(ms + 500); // rede de segurança: se o reinício do seek não vier, pausa de qualquer forma
+}
+
+void MpvWidget::cancelScrub()
+{
+    m_burstPending = false;
+    if (m_burstTimer)
+        m_burstTimer->stop();
+    if (m_burstActive) { // ao soltar no meio de um trecho: também volta ao quadro do marcador
+        m_burstActive = false;
+        seek(m_lastSeek);
+    }
+}
+
 void MpvWidget::showText(const QString &text, int ms)
 {
     command({"show-text", text, QString::number(ms)});
@@ -253,6 +290,9 @@ void MpvWidget::handleEvents()
             }
         } else if (e->event_id == MPV_EVENT_FILE_LOADED) {
             emit fileLoaded();
+        } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_burstPending) {
+            m_burstPending = false;
+            m_burstTimer->start(m_burstMs); // o seek terminou: o trecho de áudio dura a partir de agora
         } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_restore.active) {
             // o filtro novo está no ar: volta exatamente ao ponto de antes e retoma
             double now = m_pos; // m_pos pode estar defasado: lê a posição atual direto do mpv

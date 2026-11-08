@@ -1,16 +1,31 @@
 #include "SoundToggle.h"
+#include <QFontDatabase>
 #include <QPainter>
-#include <QPainterPath>
 #include <QPalette>
 
 namespace shear {
+
+// Ícones do próprio Windows (Segoe Fluent Icons no Windows 11, Segoe MDL2 Assets no 10): o alto-falante nativo.
+// Sem nenhuma das duas fontes, usa o emoji 🔊 / 🔇.
+static QString iconFontFamily()
+{
+    static const QString family = [] {
+        const QStringList all = QFontDatabase::families();
+        for (const char *name : {"Segoe Fluent Icons", "Segoe MDL2 Assets"})
+            if (all.contains(QString::fromLatin1(name)))
+                return QString::fromLatin1(name);
+        return QString();
+    }();
+    return family;
+}
 
 SoundToggle::SoundToggle(QWidget *parent) : QAbstractButton(parent)
 {
     setCheckable(true);
     setFocusPolicy(Qt::NoFocus);
     setCursor(Qt::PointingHandCursor);
-    setFixedSize(42, 42);
+    setFixedHeight(28);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 }
 
 void SoundToggle::paintEvent(QPaintEvent *)
@@ -21,41 +36,36 @@ void SoundToggle::paintEvent(QPaintEvent *)
     const bool on = isChecked();
     const bool hover = underMouse();
     const QColor accent = pal.color(QPalette::Highlight);
+    const QColor mid = pal.color(QPalette::Mid);
 
-    // círculo
-    const QRectF circle = QRectF(rect()).adjusted(3, 3, -3, -3);
+    // pílula (mesmo desenho das pílulas Desktop/Mic: borda de 1 px, cantos totalmente arredondados)
+    const QRectF box = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    const double r = box.height() / 2;
     QColor fill = on ? accent : QColor(0, 0, 0, 0);
-    if (hover) fill = on ? accent.lighter(115) : pal.color(QPalette::Mid);
-    QColor line = pal.color(QPalette::Mid);
+    QColor border = on ? accent : mid;
+    if (hover) {
+        if (on) fill = fill.lighter(112);
+        else    fill = QColor(255, 255, 255, 14), border = border.lighter(130);
+    }
     p.setBrush(fill);
-    p.setPen(on ? Qt::NoPen : QPen(line, 1.5));
-    p.drawEllipse(circle);
+    p.setPen(QPen(border, 1));
+    p.drawRoundedRect(box, r, r);
 
-    // ícone (caixa de 20x20 centralizada)
     QColor ink = on ? pal.color(QPalette::HighlightedText) : pal.color(QPalette::WindowText);
-    if (!on) ink.setAlpha(hover ? 230 : 170);
-    p.translate(rect().center() - QPointF(10, 10));
-    p.setPen(Qt::NoPen);
-    p.setBrush(ink);
-    QPainterPath speaker;
-    speaker.moveTo(2, 7.5);
-    speaker.lineTo(6, 7.5);
-    speaker.lineTo(11, 3.5);
-    speaker.lineTo(11, 16.5);
-    speaker.lineTo(6, 12.5);
-    speaker.lineTo(2, 12.5);
-    speaker.closeSubpath();
-    p.drawPath(speaker);
+    if (!on) ink.setAlpha(hover ? 230 : 160);
 
-    QPen pen(ink, 1.7, Qt::SolidLine, Qt::RoundCap);
-    p.setBrush(Qt::NoBrush);
-    p.setPen(pen);
-    if (on) { // ondas sonoras
-        p.drawArc(QRectF(7.5, 5.5, 9, 9), -45 * 16, 90 * 16);
-        p.drawArc(QRectF(4.5, 2, 15, 16), -45 * 16, 90 * 16);
-    } else {  // risco: som desligado
-        p.setPen(QPen(ink, 1.9, Qt::SolidLine, Qt::RoundCap));
-        p.drawLine(QPointF(3.5, 3), QPointF(18.5, 17.5));
+    if (const QString family = iconFontFamily(); !family.isEmpty()) {
+        QFont f(family);
+        f.setPixelSize(16);
+        p.setFont(f);
+        p.setPen(ink);
+        p.drawText(box, Qt::AlignCenter, QString(QChar(on ? 0xE767 : 0xE74F))); // E767 = volume, E74F = mudo
+    } else {
+        QFont f = font();
+        f.setPixelSize(14);
+        p.setFont(f);
+        p.setOpacity(on || hover ? 1.0 : 0.65);
+        p.drawText(box, Qt::AlignCenter, QString::fromUcs4(on ? U"\U0001F50A" : U"\U0001F507")); // 🔊 / 🔇
     }
 }
 

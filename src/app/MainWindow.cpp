@@ -233,16 +233,9 @@ QWidget *MainWindow::buildEditor()
         pv->addSpacing(10);
         m_scrubBtn = new SoundToggle;
         m_scrubBtn->setChecked(QSettings().value("player/scrubAudio", true).toBool());
-        const QString scrubTip = "Ouvir o som enquanto você arrasta na timeline, com o vídeo parado. Clique para ligar ou desligar.";
-        m_scrubBtn->setToolTip(scrubTip);
-        auto *scrubCap = new QLabel("Som ao arrastar");
-        scrubCap->setProperty("role", "cap");
-        scrubCap->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-        scrubCap->setWordWrap(true);
-        scrubCap->setToolTip(scrubTip);
-        pv->addWidget(m_scrubBtn, 0, Qt::AlignHCenter);
-        pv->addSpacing(2);
-        pv->addWidget(scrubCap);
+        m_scrubBtn->setToolTip("Som ao arrastar: ouve o áudio enquanto você arrasta na timeline, com o vídeo parado. "
+                               "Clique para ligar ou desligar.");
+        pv->addWidget(m_scrubBtn);
         connect(m_scrubBtn, &QAbstractButton::toggled, this, [](bool on) { QSettings().setValue("player/scrubAudio", on); });
         m_audioBox->hide();
         root->addWidget(m_audioBox);
@@ -621,25 +614,11 @@ void MainWindow::updateInfo()
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w + " — K encaixa no keyframe");
-    if (!plan.copyVideo) {
-        msg << "Início exato: a exportação demora um pouco mais.";
-    }
-    const int nOn = enabledTrackCount(r.audio);
-    if (r.audio.empty()) {
-        msg << "Este vídeo não tem áudio.";
-    } else if (nOn == 0) {
-        msg << "⚠ Nenhuma faixa de áudio ligada: o clipe ficará sem áudio.";
-    } else if (nOn == 1) {
-        size_t idx = 0;
-        while (!r.audio[idx].enabled) ++idx;
-        const QString name = trackName(int(idx), int(r.audio.size()));
-        msg << (r.audio[idx].gainDb == 0.0 ? QString("Áudio: só %1.").arg(name)
-                                           : QString("Áudio: só %1, com o volume ajustado.").arg(name));
-    } else if (nOn == 2 && r.audio.size() >= 2 && r.audio[0].enabled && r.audio[1].enabled) {
-        msg << "Áudio: Desktop e Mic juntos.";
-    } else {
-        msg << QString("Áudio: %1 faixas juntas em uma só.").arg(nOn);
-    }
+    msg << (r.mode == CutMode::Fast
+                ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
+                : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
+    if (!r.audio.empty() && enabledTrackCount(r.audio) == 0)
+        msg << "⚠ Nenhuma faixa de áudio ligada: o clipe ficará sem som.";
     m_warning->setText(msg.join("   ·   "));
 
     // previsão do tempo de exportação
@@ -889,7 +868,7 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addStretch(1);
     }
     m_audioBox->setFixedWidth(96);
-    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 96);
+    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32 + 50);
     // 2+ faixas: o cartão preenche a altura toda; com 1 faixa só, um cartão mínimo no topo
     m_editorRoot->setAlignment(m_audioBox, n >= 2 ? Qt::Alignment() : Qt::AlignTop);
     m_audioBox->setVisible(n > 0);

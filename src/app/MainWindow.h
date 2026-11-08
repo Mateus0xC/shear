@@ -6,6 +6,7 @@
 #include <QMainWindow>
 #include <vector>
 
+class QAction;
 class QButtonGroup;
 class QComboBox;
 class QFrame;
@@ -69,7 +70,7 @@ private:
     ExportRequest currentRequest() const;
     void keepLastOutput();
     void deleteLastOutput();
-    void deleteOriginal();
+    void deleteOriginal(bool alsoClip);
     void cleanupTemp(bool wholeDir);
     static QString tempDir();
     void hideResultButtons();
@@ -103,7 +104,10 @@ private:
     int m_volume = 100;                // volume do preview (roda do mouse / setas ↑↓)
     QTimer *m_audioTimer = nullptr;
     std::vector<TrackRow> m_rows;
-    QPushButton *m_exportBtn, *m_cancelBtn, *m_openFolderBtn, *m_copyBtn, *m_keepBtn, *m_deleteBtn, *m_deleteOrigBtn;
+    QPushButton *m_exportBtn, *m_cancelBtn, *m_copyBtn, *m_keepBtn;
+    QToolButton *m_moreBtn;                      // menu "⋯" do resultado
+    QAction *m_actDelClip, *m_actDelBoth;        // só valem enquanto o clipe cortado existe e é temporário
+
     QProgressBar *m_bar;
     QLabel *m_eta = nullptr; // previsão do tempo de exportação
     ExportRates m_rates;

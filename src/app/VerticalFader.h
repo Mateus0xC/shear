@@ -20,8 +20,8 @@ protected:
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void wheelEvent(QWheelEvent *e) override;
-    QSize sizeHint() const override { return {68, 170}; }
-    QSize minimumSizeHint() const override { return {64, 110}; }
+    QSize sizeHint() const override { return {80, 260}; }
+    QSize minimumSizeHint() const override { return {76, 140}; }
 
 private:
     double yFor(int v) const;

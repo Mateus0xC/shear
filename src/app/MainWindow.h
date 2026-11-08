@@ -7,6 +7,7 @@
 
 class QComboBox;
 class QFrame;
+class QHBoxLayout;
 class QVBoxLayout;
 class QSlider;
 class QTimer;
@@ -77,6 +78,7 @@ private:
     struct TrackRow { QToolButton *on; };
     QFrame *m_audioBox = nullptr;      // painel lateral fino, só com as faixas
     QVBoxLayout *m_audioRows = nullptr;
+    QHBoxLayout *m_editorRoot = nullptr; // [coluna principal | cartão de áudio]
     VerticalFader *m_micFader = nullptr; // volume só do mic (faixa 2); o desktop não precisa de ajuste
     QToolButton *m_micVal = nullptr;
     int m_volume = 100;                // volume do preview (roda do mouse / setas ↑↓)

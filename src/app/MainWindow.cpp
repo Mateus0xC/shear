@@ -121,6 +121,7 @@ QWidget *MainWindow::buildEditor()
     auto *root = new QHBoxLayout(w);
     root->setContentsMargins(10, 8, 10, 10);
     root->setSpacing(10);
+    m_editorRoot = root;
     auto *l = new QVBoxLayout; // coluna principal: player, timeline, opções, exportar
     root->addLayout(l, 1);
 
@@ -193,7 +194,6 @@ QWidget *MainWindow::buildEditor()
         pv->addLayout(m_audioRows, 1);
         m_audioBox->hide();
         root->addWidget(m_audioBox);
-        root->setAlignment(m_audioBox, Qt::AlignTop); // alinhado ao topo do player
     }
     m_volume = QSettings().value("player/volume", 100).toInt();
     m_mpv->setVolume(m_volume);
@@ -712,8 +712,7 @@ void MainWindow::rebuildAudioRows(int n)
         m_micVal->setEnabled(micOn);
         m_audioRows->addSpacing(4);
         m_audioRows->addWidget(cap);
-        m_micFader->setFixedHeight(170); // altura fixa: cartão compacto, sem coluna gigante e vazia
-        m_audioRows->addWidget(m_micFader, 0, Qt::AlignHCenter);
+        m_audioRows->addWidget(m_micFader, 1); // o fader ocupa toda a altura disponível: grande e sem espaço vazio
         m_audioRows->addWidget(m_micVal, 0, Qt::AlignHCenter);
         connect(m_micFader, &VerticalFader::valueChanged, this, [this](int g) {
             m_micVal->setText(QString("%1%2 dB").arg(g > 0 ? "+" : "").arg(g));
@@ -724,9 +723,10 @@ void MainWindow::rebuildAudioRows(int n)
     } else {
         m_audioRows->addStretch(1);
     }
-    m_audioBox->setFixedWidth(88);
-    m_audioBox->adjustSize();
-    m_audioBox->setMaximumHeight(n >= 2 ? 330 : 14 + n * 32); // cartão compacto ancorado no topo
+    m_audioBox->setFixedWidth(96);
+    m_audioBox->setMaximumHeight(n >= 2 ? QWIDGETSIZE_MAX : 14 + n * 32);
+    // 2+ faixas: o cartão preenche a altura toda; com 1 faixa só, um cartão mínimo no topo
+    m_editorRoot->setAlignment(m_audioBox, n >= 2 ? Qt::Alignment() : Qt::AlignTop);
     m_audioBox->setVisible(n > 0);
 }
 

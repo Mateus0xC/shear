@@ -49,35 +49,38 @@ void VerticalFader::paintEvent(QPaintEvent *)
     const QColor mid = pal.color(QPalette::Mid);
     const QColor accent = on ? pal.color(QPalette::Highlight) : mid;
 
-    const double cx = width() - 24; // alça de 26 px encosta quase na borda direita: sem faixa vazia
+    const double cx = width() - 21; // alça de 30 px encosta quase na borda direita: sem faixa vazia
 
-    // escala em dB (esquerda)
+    // escala em dB (esquerda): marca a cada 5 dB, número a cada 10
     QFont f = font();
-    f.setPixelSize(10);
+    f.setPixelSize(11);
     p.setFont(f);
-    for (int v = kMax; v >= kMin; v -= 10) {
+    for (int v = kMax; v >= kMin; v -= 5) {
         const double y = yFor(v);
+        const bool labeled = v % 10 == 0;
         const bool zero = v == 0;
-        p.setPen(QPen(zero ? text : dim, zero ? 1.5 : 1));
-        p.drawLine(QPointF(cx - 13, y), QPointF(cx - 6, y));
-        p.setPen(zero ? text : dim);
-        const QString label = v > 0 ? QString("+%1").arg(v) : QString::number(v);
-        p.drawText(QRectF(0, y - 8, cx - 17, 16), Qt::AlignRight | Qt::AlignVCenter, label);
+        p.setPen(QPen(zero ? text : dim, zero ? 1.6 : 1));
+        p.drawLine(QPointF(cx - (labeled ? 15 : 10), y), QPointF(cx - 6, y));
+        if (labeled) {
+            p.setPen(zero ? text : dim);
+            const QString label = v > 0 ? QString("+%1").arg(v) : QString::number(v);
+            p.drawText(QRectF(0, y - 8, cx - 19, 16), Qt::AlignRight | Qt::AlignVCenter, label);
+        }
     }
 
     // trilho + preenchimento a partir do 0 dB até a alça
     p.setPen(Qt::NoPen);
     p.setBrush(mid);
-    p.drawRoundedRect(QRectF(cx - 2.5, yFor(kMax), 5, yFor(kMin) - yFor(kMax)), 2.5, 2.5);
+    p.drawRoundedRect(QRectF(cx - 3, yFor(kMax), 6, yFor(kMin) - yFor(kMax)), 3, 3);
     const double y0 = yFor(0), yv = yFor(m_val);
     p.setBrush(accent);
-    p.drawRect(QRectF(cx - 2.5, std::min(y0, yv), 5, std::abs(yv - y0)));
+    p.drawRect(QRectF(cx - 3, std::min(y0, yv), 6, std::abs(yv - y0)));
 
     // alça
-    const QRectF h(cx - 13, yv - 7, 26, 14);
+    const QRectF h(cx - 15, yv - 8, 30, 16);
     p.setBrush(on ? text : pal.color(QPalette::Midlight));
     p.setPen(QPen(on ? accent : dim, 1.5));
-    p.drawRoundedRect(h, 5, 5);
+    p.drawRoundedRect(h, 6, 6);
 }
 
 void VerticalFader::mousePressEvent(QMouseEvent *e) { setValue(valueAt(e->position().y())); }

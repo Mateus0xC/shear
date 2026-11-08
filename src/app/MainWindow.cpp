@@ -175,27 +175,27 @@ QWidget *MainWindow::buildEditor()
             #audioPanel QLabel { background: transparent; }
             #audioPanel QLabel[role="title"] { font-weight: 700; }
             #audioPanel QSlider::groove:vertical { width: 5px; border-radius: 2px; background: %2; }
-            #audioPanel QSlider::handle:vertical { height: 12px; width: 20px; margin: 0 -8px;
+            #audioPanel QSlider::handle:vertical { height: 14px; width: 20px; margin: 0 -8px;
                                                   border-radius: 5px; background: %4; border: 1px solid %2; }
             #audioPanel QSlider::handle:vertical:hover { background: %5; }
             #audioPanel QSlider::handle:vertical:disabled { background: %2; }
-            #audioPanel QToolButton[role="pill"] { border: 1px solid %2; border-radius: 10px; padding: 2px 4px;
+            #audioPanel QToolButton[role="pill"] { border: 1px solid %2; border-radius: 10px; padding: 3px 2px; font-size: 10px;
                                                   background: transparent; color: %3; }
             #audioPanel QToolButton[role="pill"]:checked { background: %5; border-color: %5; color: %6; font-weight: 600; }
-            #audioPanel QToolButton[role="val"] { border: none; border-radius: 4px; padding: 0px 2px;
+            #audioPanel QToolButton[role="val"] { border: none; border-radius: 4px; padding: 1px 0px; font-size: 10px;
                                                  background: transparent; color: %4; font-weight: 600; }
             #audioPanel QToolButton[role="val"]:hover { background: %2; }
             #audioPanel QToolButton[role="val"]:disabled { color: %3; }
         )").arg(base, mid, dim, text, accent, onAccent));
 
         auto *pv = new QVBoxLayout(m_audioBox);
-        pv->setContentsMargins(6, 6, 6, 5);
+        pv->setContentsMargins(5, 8, 5, 8);
         pv->setSpacing(0);
         m_audioRows = new QHBoxLayout;
-        m_audioRows->setSpacing(3);
+        m_audioRows->setSpacing(2);
         pv->addLayout(m_audioRows, 1);
         m_audioBox->hide();
-        bottom->addWidget(m_audioBox, 0, Qt::AlignTop);
+        root->addWidget(m_audioBox); // barra lateral de altura total, mas estreita
     }
     m_volume = QSettings().value("player/volume", 100).toInt();
     m_mpv->setVolume(m_volume);
@@ -673,10 +673,10 @@ void MainWindow::rebuildAudioRows(int n)
     }
     for (int i = 0; i < n; ++i) {
         auto *col = new QWidget;
-        col->setFixedWidth(56);
+        col->setFixedWidth(44);
         auto *v = new QVBoxLayout(col);
         v->setContentsMargins(0, 0, 0, 0);
-        v->setSpacing(3);
+        v->setSpacing(6);
 
         // um botão só: aceso = você ouve e vai no vídeo; apagado = fora
         auto *on = new QToolButton;
@@ -692,7 +692,6 @@ void MainWindow::rebuildAudioRows(int n)
 
         auto *gain = new QSlider(Qt::Vertical);
         gain->setRange(-30, 30);
-        gain->setFixedHeight(84);
         gain->setFocusPolicy(Qt::NoFocus);
         gain->setEnabled(on->isChecked());
         gain->setToolTip("Volume da faixa (dB)");
@@ -722,7 +721,7 @@ void MainWindow::rebuildAudioRows(int n)
         });
         connect(val, &QToolButton::clicked, gain, [gain] { gain->setValue(0); });
     }
-    m_audioBox->setFixedWidth(14 + n * 56 + std::max(0, n - 1) * 3);
+    m_audioBox->setFixedWidth(10 + n * 44 + std::max(0, n - 1) * 2 + 2);
     m_audioBox->setVisible(n > 0);
 }
 

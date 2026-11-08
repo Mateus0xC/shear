@@ -61,6 +61,8 @@ private:
     EditState currentState() const;
     void pushUndo(const EditState &s); // guarda o estado ANTES de uma alteração
     void undo();
+    void redo();
+    void applyState(const EditState &s);
     void stepBy(int dir, int frames);  // frame a frame (1) ou mais rápido (Shift = 10, Ctrl = 60 quadros)
     void updateInfo();
     ExportRequest currentRequest() const;
@@ -108,7 +110,7 @@ private:
     qint64 m_fileSize = 0;
     bool m_scrubbing = false;          // mouse pressionado na timeline
     AudioScrubber *m_scrub = nullptr; // player só de áudio para o "áudio ao arrastar"
-    std::vector<EditState> m_undo;
+    std::vector<EditState> m_undo, m_redo;
     EditState m_dragSnapshot;           // estado no momento em que o mouse foi pressionado na timeline
     bool m_restoring = false;           // desfazendo: as mudanças não entram na pilha
     QElapsedTimer m_micClock;           // agrupa os ajustes de volume do mic de um mesmo gesto

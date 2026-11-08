@@ -141,6 +141,7 @@ MainWindow::MainWindow()
     sc(Qt::Key_Q, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->start()); }); // vai para o ponto I
     sc(Qt::Key_E, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->end()); });   // vai para o ponto O
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
+    sc(QKeySequence::Redo, [=, this] { if (inEditor()) redo(); }); // Ctrl+Y e Ctrl+Shift+Z
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Enter, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Escape, [=, this] { if (inEditor() && !m_job) showHome(); });
@@ -561,6 +562,7 @@ void MainWindow::openFile(const QString &path)
     setWindowTitle("Shear — " + QFileInfo(path).fileName());
     m_timeline->reset(0);
     m_undo.clear();
+    m_redo.clear();
     m_micClock.invalidate();
     m_lastMicGain = 0;
     m_status->clear();
@@ -635,6 +637,7 @@ void MainWindow::pushUndo(const EditState &s)
 {
     if (m_restoring)
         return;
+    m_redo.clear(); // uma alteração nova depois de desfazer invalida o "refazer"
     if (!m_undo.empty()) {
         const EditState &b = m_undo.back();
         if (b.start == s.start && b.end == s.end && b.micGain == s.micGain)
@@ -645,12 +648,8 @@ void MainWindow::pushUndo(const EditState &s)
         m_undo.erase(m_undo.begin());
 }
 
-void MainWindow::undo()
+void MainWindow::applyState(const EditState &s)
 {
-    if (m_undo.empty() || m_job)
-        return;
-    const EditState s = m_undo.back();
-    m_undo.pop_back();
     const double oldStart = m_timeline->start(), oldEnd = m_timeline->end();
     m_restoring = true;
     m_timeline->setRange(s.start, s.end);
@@ -661,9 +660,29 @@ void MainWindow::undo()
     updateInfo();
     applyPreviewAudio();
     if (std::abs(s.start - oldStart) > 1e-6)
-        m_mpv->seek(s.start); // mostra o ponto que voltou
+        m_mpv->seek(s.start); // mostra o ponto que mudou
     else if (std::abs(s.end - oldEnd) > 1e-6)
         m_mpv->seek(s.end);
+}
+
+void MainWindow::undo()
+{
+    if (m_undo.empty() || m_job)
+        return;
+    const EditState s = m_undo.back();
+    m_undo.pop_back();
+    m_redo.push_back(currentState()); // para poder refazer
+    applyState(s);
+}
+
+void MainWindow::redo()
+{
+    if (m_redo.empty() || m_job)
+        return;
+    const EditState s = m_redo.back();
+    m_redo.pop_back();
+    m_undo.push_back(currentState());
+    applyState(s);
 }
 
 void MainWindow::stepBy(int dir, int frames)
@@ -954,6 +973,8 @@ void MainWindow::rebuildAudioRows(int n)
         m_audioRows->addWidget(m_micVal, 0, Qt::AlignHCenter);
         m_lastMicGain = 0;
         connect(m_micFader, &VerticalFader::valueChanged, this, [this](int g) {
+            if (!m_restoring)
+                m_redo.clear();
             if (!m_restoring && (!m_micClock.isValid() || m_micClock.elapsed() > 500)) {
                 EditState before = currentState(); // início de um gesto: guarda o volume de ANTES
                 before.micGain = m_lastMicGain;

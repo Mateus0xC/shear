@@ -24,6 +24,7 @@ marcar início e fim, exportar e colar no Discord.
 | `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`) |
 | `↑` / `↓` ou roda do mouse sobre o vídeo | volume do preview (estilo VLC; não muda o arquivo) |
 | `Ctrl` + `Z` | desfaz: marcadores de início/fim e volume do mic |
+| `Ctrl` + `Y` (ou `Ctrl` + `Shift` + `Z`) | refaz o que foi desfeito |
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
 

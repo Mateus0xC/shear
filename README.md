@@ -16,7 +16,7 @@ marcar início e fim, exportar e colar no Discord.
 | Tecla | Ação |
 |---|---|
 | `Espaço` | play/pause |
-| `I` / `O` | marca início / fim |
+| `I` / `O` | marca início / fim (no modo Rápido o `I` encaixa no keyframe e o playback vai para lá) |
 | `←` `→` ou `A` `D` | pula 1 s para trás / frente, sem pausar o vídeo (segurando, repete) |
 | `Shift` + `←` `→` / `A` `D` | 5 s |
 | `Ctrl` + `←` `→` / `A` `D` | 15 s |

@@ -628,6 +628,9 @@ void MainWindow::markStart(double t)
         pushUndo(currentState());
     if (t >= m_timeline->end()) m_timeline->setEnd(m_timeline->duration());
     m_timeline->setStart(t);
+    // Modo Rápido: o início encaixou num keyframe, então o playback vai para lá (o quadro mostrado é o do corte).
+    if (!m_exactBtn->isChecked() && std::abs(m_timeline->start() - m_mpv->position()) > 1e-3)
+        m_mpv->seek(m_timeline->start());
     updateInfo();
 }
 

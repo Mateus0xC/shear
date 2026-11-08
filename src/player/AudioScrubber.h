@@ -27,6 +27,7 @@ public:
     // soundMs: quanto o som dura depois do último movimento (mais curto quando há mais zoom).
     void scrub(double sec, int soundMs = 140);
     void stop();
+    void unload() { stop(); command({"stop"}); } // solta o arquivo
 
 private slots:
     void handleEvents();

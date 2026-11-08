@@ -18,6 +18,7 @@ public:
     ~MpvWidget() override;
 
     void loadFile(const QString &path);
+    void unload() { command({"stop"}); } // solta o arquivo (ex.: antes de apagá-lo)
     void seek(double sec);
     void seekBy(double sec); // relativo (negativo = para trás)
     void setPaused(bool p);

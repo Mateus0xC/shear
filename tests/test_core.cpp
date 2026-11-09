@@ -1,4 +1,5 @@
 #include <QtTest>
+#include "core/CleanStart.h"
 #include "core/CutPlanner.h"
 #include "core/ExportEstimate.h"
 #include "core/FfmpegCommandBuilder.h"
@@ -176,6 +177,28 @@ private slots:
         QCOMPARE(formatDuration(0.4), QString("menos de 1 s"));
         QCOMPARE(formatDuration(3.2), QString("~3 s"));
         QCOMPARE(formatDuration(80), QString("~1 min 20 s"));
+    }
+    void clean_start_skips_damaged_beginning()
+    {
+        // 60 fps; os primeiros 44 s só têm 20% dos quadros, o resto está inteiro
+        auto frames = [](double damagedUntil, double dur, double badRatio) {
+            std::vector<double> v;
+            for (int s = 0; s < int(dur); ++s) {
+                const int n = s < damagedUntil ? int(60 * badRatio) : 60;
+                for (int i = 0; i < n; ++i) v.push_back(s + double(i) / n);
+            }
+            return v;
+        };
+        QCOMPARE(shear::firstCleanTime(frames(44, 120, 0.2), 60, 120), 44.0);
+        QCOMPARE(shear::firstCleanTime(frames(0, 120, 0.2), 60, 120), 0.0);   // sem dano
+        // quedas isoladas (1 ou 2 segundos ruins seguidos) não contam
+        auto v = frames(0, 60, 0.2);
+        v = frames(0, 60, 1);
+        std::vector<double> w;
+        for (double t : v) { const int s = int(t); if (s != 10 && s != 30 && s != 31) w.push_back(t); }
+        QCOMPARE(shear::firstCleanTime(w, 60, 60), 0.0);
+        QCOMPARE(shear::firstCleanTime(frames(60, 60, 0.2), 60, 60), 0.0);    // dano até o fim: nada a aproveitar
+        QCOMPARE(shear::firstCleanTime({}, 60, 2), 0.0);                       // vídeo curto demais
     }
     void naming_never_overwrites()
     {

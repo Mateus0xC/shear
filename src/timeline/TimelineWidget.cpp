@@ -216,6 +216,7 @@ void TimelineWidget::reset(double duration)
     m_start = 0;
     m_end = duration;
     m_kf.clear();
+    m_floor = 0;
     m_ghost.reset();
     m_scanDone = false;
     m_fps = 0;
@@ -235,7 +236,7 @@ void TimelineWidget::setPosition(double p) { m_pos = p; update(); }
 
 void TimelineWidget::setStart(double s)
 {
-    m_start = std::clamp(s, 0.0, std::max(0.0, m_end - 0.05));
+    m_start = std::clamp(s, m_floor, std::max(m_floor, m_end - 0.05));
     update();
 }
 
@@ -247,15 +248,24 @@ void TimelineWidget::setEnd(double e)
 
 void TimelineWidget::setRange(double s, double e)
 {
-    m_start = std::clamp(s, 0.0, m_dur);
+    m_start = std::clamp(s, m_floor, m_dur);
     m_end = std::clamp(e, m_start, m_dur);
     update();
 }
 
 void TimelineWidget::addKeyframes(const QVector<double> &batch)
 {
-    m_kf.insert(m_kf.end(), batch.begin(), batch.end());
+    for (double k : batch)
+        if (k >= m_floor - 1e-6) m_kf.push_back(k); // keyframes do trecho corrompido não servem
     std::sort(m_kf.begin(), m_kf.end());
+    update();
+}
+
+void TimelineWidget::setDamagedUntil(double t)
+{
+    m_floor = std::max(0.0, t);
+    m_kf.erase(std::remove_if(m_kf.begin(), m_kf.end(), [this](double k) { return k < m_floor - 1e-6; }), m_kf.end());
+    if (m_start < m_floor) m_start = std::min(m_floor, std::max(m_floor, m_end - 0.05));
     update();
 }
 
@@ -269,6 +279,13 @@ std::optional<double> TimelineWidget::keyframeAtOrBefore(double t) const
     auto it = std::upper_bound(m_kf.begin(), m_kf.end(), t + 1e-3);
     if (it == m_kf.begin()) return std::nullopt;
     return *std::prev(it);
+}
+
+std::optional<double> TimelineWidget::firstKeyframeAtOrAfter(double t) const
+{
+    auto it = std::lower_bound(m_kf.begin(), m_kf.end(), t - 1e-3);
+    if (it == m_kf.end()) return std::nullopt;
+    return *it;
 }
 
 std::optional<double> TimelineWidget::nearestKeyframe(double t) const
@@ -314,6 +331,11 @@ void TimelineWidget::paintEvent(QPaintEvent *)
 
     const double xs = secToX(m_start), xe = secToX(m_end);
     p.fillRect(QRectF(xs, top, xe - xs, bottom - top), QColor(60, 110, 200, 90));
+    if (m_floor > 0) { // trecho corrompido: hachurado em vermelho
+        const QRectF bad(kMargin, top, secToX(m_floor) - kMargin, bottom - top);
+        p.fillRect(bad, QBrush(QColor(200, 60, 60, 150), Qt::BDiagPattern));
+        p.fillRect(bad, QColor(200, 60, 60, 35));
+    }
 
     p.setPen(QPen(QColor(150, 150, 160), 1));
     for (double k : m_kf) {
@@ -404,6 +426,7 @@ void TimelineWidget::emitSeekIfFrameChanged(double t)
 
 void TimelineWidget::applyDrag(double t)
 {
+    t = std::max(t, m_floor); // o trecho corrompido não é alcançável
     switch (m_drag) {
     case Drag::Seek:  m_dragT = t; emitSeekIfFrameChanged(t); break;
     // Os marcadores também levam o vídeo junto enquanto são arrastados (scrubbing em tempo real).

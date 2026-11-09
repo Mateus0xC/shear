@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QPainter>
 #include <QTimer>
+#include <algorithm>
 #include <cmath>
 #include <QWheelEvent>
 #include <mpv/client.h>
@@ -131,11 +132,16 @@ void MpvWidget::loadFile(const QString &path)
 
 void MpvWidget::seek(double sec)
 {
+    sec = std::max(sec, m_minPos);
     command({"seek", QString::number(sec, 'f', 3), "absolute+exact"});
 }
 
 void MpvWidget::seekBy(double sec)
 {
+    if (m_minPos > 0 && m_pos + sec < m_minPos) {
+        seek(m_minPos);
+        return;
+    }
     command({"seek", QString::number(sec, 'f', 3), "relative+exact"});
 }
 
@@ -218,7 +224,12 @@ void MpvWidget::wheelEvent(QWheelEvent *e)
 
 void MpvWidget::togglePause() { setPaused(!m_paused); }
 
-void MpvWidget::stepFrame(bool forward) { command({forward ? "frame-step" : "frame-back-step"}); }
+void MpvWidget::stepFrame(bool forward)
+{
+    if (!forward && m_minPos > 0 && m_pos - 1.5 / 60 < m_minPos)
+        return; // não volta para dentro do trecho corrompido
+    command({forward ? "frame-step" : "frame-back-step"});
+}
 
 void MpvWidget::onRenderUpdate()
 {

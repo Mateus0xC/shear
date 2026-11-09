@@ -9,6 +9,7 @@
 #include "VerticalFader.h"
 #include "player/AudioScrubber.h"
 #include "player/MpvWidget.h"
+#include "timeline/DamageScanner.h"
 #include "timeline/KeyframeScanner.h"
 #include "timeline/TimelineWidget.h"
 #include "util/Metrics.h"
@@ -672,10 +673,26 @@ void MainWindow::openFile(const QString &path)
     });
     connect(m_scanner, &QThread::finished, this, [this] {
         m_timeline->setScanDone(true);
+        applyDamageFloor(); // com todos os keyframes lidos, o início utilizável cai num keyframe de verdade
         metrics::log(QString("keyframes lidos: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
         updateInfo();
     });
     QTimer::singleShot(0, m_scanner, [s = m_scanner] { s->start(QThread::LowPriority); });
+
+    // Começo corrompido (quadros que não decodificam): detecta e pula, para não atrapalhar o resto do vídeo.
+    m_mpv->setMinPosition(0);
+    if (m_damage) {
+        m_damage->disconnect(this);
+        m_damage->requestInterruption();
+        connect(m_damage, &QThread::finished, m_damage, &QObject::deleteLater);
+    }
+    m_damage = new DamageScanner(path);
+    m_damageT = 0;
+    connect(m_damage, &DamageScanner::damaged, this, [this](double t) {
+        m_damageT = t;
+        applyDamageFloor();
+    });
+    QTimer::singleShot(0, m_damage, [s = m_damage] { s->start(QThread::LowPriority); });
     raise();
     activateWindow();
     updateInfo();
@@ -686,6 +703,23 @@ QString MainWindow::fmt(double s)
     s = std::max(0.0, s);
     const int m = int(s) / 60;
     return QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s - m * 60, 4, 'f', 1, QChar('0')).replace('.', ',');
+}
+
+void MainWindow::applyDamageFloor()
+{
+    if (m_damageT <= 0 || m_file.isEmpty()) return;
+    m_timeline->setDamagedUntil(m_damageT); // descarta os keyframes do trecho corrompido
+    double floor = m_damageT;
+    if (auto k = m_timeline->firstKeyframeAtOrAfter(m_damageT))
+        floor = *k; // o corte rápido só começa em keyframe: o início utilizável é o primeiro depois do dano
+    m_timeline->setDamagedUntil(floor);
+    m_mpv->setMinPosition(floor);
+    if (m_mpv->position() < floor)
+        m_mpv->seek(floor);
+    m_status->setText(QString("O início do vídeo está corrompido: os primeiros %1 s foram pulados.")
+                          .arg(QString::number(floor, 'f', 1).replace('.', ',')));
+    metrics::log(QString("início corrompido: pulando os primeiros %1 s").arg(floor, 0, 'f', 2));
+    updateInfo();
 }
 
 void MainWindow::markStart(double t)
@@ -1056,6 +1090,11 @@ void MainWindow::closeEvent(QCloseEvent *e)
         m_scanner->disconnect(this);
         m_scanner->requestInterruption();
         m_scanner->wait(2000);
+    }
+    if (m_damage) {
+        m_damage->disconnect(this);
+        m_damage->requestInterruption();
+        m_damage->wait(2000);
     }
     QMainWindow::closeEvent(e);
 }

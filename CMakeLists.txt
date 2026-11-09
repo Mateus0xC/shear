@@ -15,6 +15,7 @@ set(THIRD_PARTY "${CMAKE_SOURCE_DIR}/third_party" CACHE PATH "Dependências baix
 
 # --- core: funções puras (sem GUI), testáveis ---
 add_library(shear_core STATIC
+  src/core/CleanStart.cpp
   src/core/CutPlanner.cpp
   src/core/ExportEstimate.cpp
   src/core/FfmpegCommandBuilder.cpp

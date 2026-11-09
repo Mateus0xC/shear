@@ -20,7 +20,8 @@ public:
     void loadFile(const QString &path);
     void unload() { command({"stop"}); } // solta o arquivo (ex.: antes de apagá-lo)
     void seek(double sec);
-    void seekBy(double sec); // relativo (negativo = para trás)
+    void seekBy(double sec);
+    void setMinPosition(double sec) { m_minPos = sec; } // trecho anterior (corrompido) não é alcançável // relativo (negativo = para trás)
     void setPaused(bool p);
     void togglePause();
     void stepFrame(bool forward);
@@ -60,6 +61,7 @@ private:
     mpv_render_context *m_ctx = nullptr;
     QImage m_frame;
     double m_pos = 0, m_dur = 0;
+    double m_minPos = 0; // início utilizável (vídeo com começo corrompido)
     bool m_paused = false;
     int m_volume = 100;
     bool m_awaitFirst = false, m_awaitPaint = false;

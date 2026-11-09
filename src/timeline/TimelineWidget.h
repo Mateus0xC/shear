@@ -25,6 +25,9 @@ public:
     void setSnapStart(bool snap) { m_snapStart = snap; }
     double snapToKeyframe(double t) const; // keyframe mais próximo (ou t, se ainda não foi lido)
     void setGhostStart(std::optional<double> g);
+    // Começo do vídeo corrompido: nada antes de t pode ser marcado nem exportado (desenhado hachurado em vermelho).
+    void setDamagedUntil(double t);
+    double damagedUntil() const { return m_floor; }
     void setFps(double fps) { m_fps = fps; } // com a taxa de quadros, o zoom fino anda de frame em frame
 
     double duration() const { return m_dur; }
@@ -35,6 +38,7 @@ public:
     // Keyframe <= t (ou vazio se ainda desconhecido)
     std::optional<double> keyframeAtOrBefore(double t) const;
     std::optional<double> nearestKeyframe(double t) const;
+    std::optional<double> firstKeyframeAtOrAfter(double t) const;
 
 signals:
     void seekRequested(double sec);
@@ -66,6 +70,7 @@ private:
     double secToX(double s) const;
 
     double m_dur = 0, m_pos = 0, m_start = 0, m_end = 0;
+    double m_floor = 0; // início utilizável (0 = vídeo sadio)
     std::vector<double> m_kf;
     std::optional<double> m_ghost;
     bool m_scanDone = false;

@@ -5,7 +5,7 @@ set(FF_DIR ${THIRD_PARTY}/ffmpeg)
 add_executable(shear WIN32
   main.cpp MainWindow.cpp NavKeys.cpp SettingsDialog.cpp SingleInstance.cpp VerticalFader.cpp
   ${S}/player/MpvWidget.cpp ${S}/player/AudioScrubber.cpp
-  ${S}/timeline/TimelineWidget.cpp ${S}/timeline/KeyframeScanner.cpp
+  ${S}/timeline/TimelineWidget.cpp ${S}/timeline/KeyframeScanner.cpp ${S}/timeline/DamageScanner.cpp
   ${S}/export/ExportJob.cpp
   ${S}/platform/Windows.cpp
   ${S}/util/Settings.cpp ${S}/util/Metrics.cpp

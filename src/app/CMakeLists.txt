@@ -9,7 +9,7 @@ add_executable(shear WIN32
   ${S}/export/ExportJob.cpp
   ${S}/platform/Windows.cpp
   ${S}/util/Settings.cpp ${S}/util/Metrics.cpp
-  ${CMAKE_SOURCE_DIR}/resources/shear.rc) # ícone do exe (logo)
+  ${CMAKE_SOURCE_DIR}/resources/shear.rc ${CMAKE_SOURCE_DIR}/resources/shear.qrc) # ícone do exe (logo)
 
 target_include_directories(shear PRIVATE ${S} ${MPV_DIR}/include ${FF_DIR}/include)
 target_link_directories(shear PRIVATE ${FF_DIR}/lib)

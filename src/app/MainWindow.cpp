@@ -638,7 +638,7 @@ void MainWindow::openFile(const QString &path)
     }
     m_file = path;
     m_title->setText(QFileInfo(path).fileName());
-    setWindowTitle("shear — " + QFileInfo(path).fileName());
+    setWindowTitle("shear"); // o título da janela é sempre só o nome do app
     m_timeline->reset(0);
     m_undo.clear();
     m_redo.clear();

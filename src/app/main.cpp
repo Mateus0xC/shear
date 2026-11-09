@@ -3,6 +3,7 @@
 #include "util/Metrics.h"
 #include <QApplication>
 #include <QFileInfo>
+#include <QIcon>
 #include <QTimer>
 
 int main(int argc, char **argv)
@@ -13,6 +14,7 @@ int main(int argc, char **argv)
     const double tApp = processAgeMs();
     QApplication::setOrganizationName("Shear");
     QApplication::setApplicationName("Shear");
+    QApplication::setWindowIcon(QIcon(":/logo.png")); // ícone no canto da janela e na barra de tarefas
 
     QString path;
     for (const QString &a : app.arguments().mid(1))

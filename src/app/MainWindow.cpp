@@ -108,8 +108,8 @@ static QString trackName(int i, int n)
     return QString("Faixa %1").arg(i + 1);
 }
 
-// Clipe mais recente salvo há até 10 s: o app abre direto nele. Se foi há até 5 min: fica destacado no topo da lista.
-static constexpr qint64 kFreshOpenSec = 10, kFreshHighlightSec = 300;
+// Clipe mais recente salvo há até 15 s: o app abre direto nele. Se foi há até 5 min: fica destacado no topo da lista.
+static constexpr qint64 kFreshOpenSec = 15, kFreshHighlightSec = 300;
 
 static QString formatAgo(qint64 s)
 {

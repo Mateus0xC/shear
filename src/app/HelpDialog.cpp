@@ -55,92 +55,89 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
     const QPalette pal = palette();
 
     const std::vector<Section> playback = {
-        {"Reproduzir", {
-            {"Espaço · clique no vídeo", "play / pause (uma animação rápida aparece sobre o vídeo)"},
-            {"Espaço no fim do vídeo ou no O", "recomeça do I (ou do começo do vídeo, se não houver I)"},
-            {"[ · -", "velocidade do preview mais lenta (0,25× a 3×; não muda o arquivo)"},
-            {"] · +", "velocidade do preview mais rápida"},
-            {"Backspace", "volta a 1×"},
-            {"botão 1× (barra de cima)", "escolhe a velocidade num menu"},
+        {"Tocar", {
+            {"Espaço · clique no vídeo", "Toca ou pausa"},
+            {"Espaço no fim do vídeo ou no O", "Toca de novo a partir do I"},
+            {"[ · -", "Deixa o vídeo mais lento"},
+            {"] · +", "Deixa o vídeo mais rápido"},
+            {"Backspace", "Volta à velocidade normal"},
         }},
-        {"Pular no tempo (sem pausar)", {
-            {"← → · A D", "1 s para trás / frente"},
-            {"Shift + ← → · A D", "0,3 s (passo fino)"},
-            {"Ctrl + ← → · A D", "5 s"},
-            {"Ctrl + Shift + ← → · A D", "15 s"},
-            {"Alt + ← → · , .", "1 quadro (pausa para mostrar o quadro)"},
-            {"J · L", "5 s para trás / frente"},
-            {"Home · End", "início / fim do vídeo"},
-            {"0 a 9", "pula para 0% a 90% do vídeo (como no YouTube)"},
-            {"Q · E", "vai para o ponto I / O (o E, com o vídeo rodando, pausa em cima do O)"},
+        {"Avançar e voltar", {
+            {"← → · A D", "Volta ou avança 1 segundo"},
+            {"Shift + ← → · A D", "Passo curto: 0,3 segundo"},
+            {"Ctrl + ← → · A D", "Passo médio: 5 segundos"},
+            {"Ctrl + Shift + ← → · A D", "Passo longo: 15 segundos"},
+            {"Alt + ← → · , .", "Anda um quadro de cada vez"},
+            {"Home · End", "Vai para o começo ou para o fim do vídeo"},
+            {"0 a 9", "Vai direto para uma parte do vídeo: 0 é o começo, 5 é a metade, 9 é quase o fim"},
+            {"Q · E", "Vai para o ponto I ou para o ponto O"},
         }},
-        {"Volume e imagem", {
-            {"↑ ↓ · W S · roda sobre o vídeo", "volume do preview (não muda o arquivo)"},
-            {"Ctrl + roda sobre o vídeo", "zoom no vídeo, até 8×"},
-            {"arrastar (com zoom)", "move a imagem"},
-            {"Ctrl + 0", "tira o zoom (1×)"},
+        {"Volume e zoom", {
+            {"↑ ↓ · W S · roda do mouse sobre o vídeo", "Aumenta ou diminui o volume"},
+            {"Ctrl + roda do mouse sobre o vídeo", "Aproxima ou afasta a imagem"},
+            {"Arrastar o vídeo (com zoom)", "Move a imagem"},
+            {"Ctrl + 0", "Volta ao tamanho normal"},
         }},
     };
 
     const std::vector<Section> cutting = {
-        {"Marcar o trecho que fica", {
-            {"I · Z", "marca o início (no modo Rápido encaixa no keyframe e o vídeo vai para lá)"},
-            {"O · C", "marca o fim; a reprodução para ao chegar nele"},
-            {"arrastar as marcas azul / vermelha", "ajusta início / fim direto na timeline"},
-            {"Ctrl + Z", "desfaz (marcas, trechos apagados e volume do mic, um passo de cada vez)"},
-            {"Ctrl + Y · Ctrl + Shift + Z", "refaz"},
+        {"Escolher o pedaço que fica", {
+            {"I · Z", "Marca onde o clipe começa"},
+            {"O · C", "Marca onde o clipe termina"},
+            {"Ctrl + Z", "Desfaz a última ação"},
+            {"Ctrl + Y · Ctrl + Shift + Z", "Refaz o que foi desfeito"},
         }},
-        {"Apagar um trecho do meio", {
-            {"X", "1º X = onde o trecho a apagar começa; 2º X = onde termina"},
-            {"Esc", "cancela o trecho que estava sendo marcado"},
-            {"botão direito no trecho", "traz o trecho de volta"},
-            {"(automático)", "o preview pula por cima dele; na exportação o que sobra é emendado e o modo vira Exato"},
+        {"Tirar um pedaço do meio", {
+            {"X", "Aperte uma vez onde o pedaço a tirar começa e outra vez onde ele termina"},
+            {"Esc", "Cancela a marcação"},
+            {"Botão direito no pedaço tirado", "Devolve o pedaço ao vídeo"},
         }},
-        {"Modo de corte e exportação", {
-            {"Rápido", "corte instantâneo, sem recodificar; o início encaixa nos keyframes"},
-            {"Exato", "corta no quadro escolhido (recodifica o vídeo, demora um pouco mais)"},
-            {"Enter", "exporta"},
-            {"Copiar (ícone)", "copia o clipe para a área de transferência (Ctrl+V onde quiser colar)"},
-            {"Manter clipe", "guarda o clipe; com Shift o botão vira “Manter e apagar original”"},
-            {"Apagar original", "manda só o vídeo original para a Lixeira (aparece depois de Manter)"},
-            {"Apagar original e clipe", "apaga os dois (confirma antes)"},
-            {"nome do arquivo (embaixo)", "abre a pasta do clipe"},
+        {"Salvar o clipe", {
+            {"Enter", "Exporta o clipe"},
+            {"Rápido", "Corta na hora; o começo se ajusta ao ponto mais próximo"},
+            {"Exato", "Corta exatamente onde você marcou (demora um pouco mais)"},
+            {"Ícone de copiar", "Copia o clipe para você colar em outro lugar (Ctrl + V)"},
+            {"Manter clipe", "Guarda o clipe. Segure Shift para guardar e já apagar o vídeo original"},
+            {"Apagar original", "Manda o vídeo original para a Lixeira"},
+            {"Apagar original e clipe", "Apaga os dois"},
+            {"Nome do arquivo (embaixo)", "Abre a pasta onde o clipe está"},
         }},
     };
 
     const std::vector<Section> mouse = {
-        {"Timeline", {
-            {"clicar / arrastar", "vai para aquele ponto do vídeo"},
-            {"arrastar e puxar o mouse para baixo", "régua ampliada para ajustar com precisão (4 níveis; quanto mais baixo, mais zoom)"},
-            {"roda do mouse", "pula como as setas: 1 s por clique (Shift 0,3 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro)"},
-            {"botão direito num trecho apagado", "traz o trecho de volta"},
+        {"Barra de tempo (embaixo do vídeo)", {
+            {"Clicar ou arrastar", "Vai para aquele ponto do vídeo"},
+            {"Arrastar e puxar o mouse para baixo", "Mostra a barra ampliada, para escolher o ponto com mais precisão"},
+            {"Roda do mouse", "Volta ou avança, como as setas"},
+            {"Botão direito num pedaço tirado", "Devolve o pedaço ao vídeo"},
         }},
         {"Vídeo", {
-            {"clique", "play / pause"},
-            {"roda", "volume"},
-            {"Ctrl + roda", "zoom; depois arraste para mover a imagem"},
+            {"Clique", "Toca ou pausa"},
+            {"Roda do mouse", "Volume"},
+            {"Ctrl + roda do mouse", "Aproxima ou afasta a imagem; depois é só arrastar para mover"},
         }},
-        {"Áudio (painel à direita)", {
-            {"Desktop / Mic", "liga ou desliga cada faixa: o que está ligado você ouve e vai no arquivo"},
-            {"fader do Mic", "volume do microfone (−30 a +30 dB); clique no valor para zerar"},
-            {"alto-falante (1 faixa só)", "liga ou desliga o som do vídeo"},
+        {"Som (painel à direita)", {
+            {"Desktop · Mic", "Liga ou desliga cada som. O que está ligado você ouve e vai para o clipe"},
+            {"Barra do Mic", "Volume do microfone; clique no número para voltar ao normal"},
+            {"Alto-falante (quando o vídeo tem um som só)", "Liga ou desliga o som"},
         }},
     };
 
     const std::vector<Section> general = {
         {"Janela e arquivos", {
-            {"F1", "abre esta ajuda"},
-            {"← Clipes", "volta à lista de clipes (o clipe não mantido é apagado)"},
-            {"engrenagem", "Configurações"},
-            {"arrastar um vídeo para a janela", "abre o vídeo"},
-            {"Cortar com shear (botão direito num vídeo)", "abre o vídeo no shear; ative em Configurações → Menu do Windows"},
+            {"F1", "Abre esta ajuda"},
+            {"← Clipes", "Volta para a lista de clipes (o clipe que você não guardou é apagado)"},
+            {"Engrenagem", "Abre as Configurações"},
+            {"Arrastar um vídeo para a janela", "Abre o vídeo"},
+            {"Cortar com shear (botão direito num vídeo)", "Abre o vídeo no shear; para ativar, vá em Configurações → Menu do Windows"},
         }},
         {"Configurações", {
-            {"Modo de corte padrão", "Rápido ou Exato"},
-            {"Pasta dos clipes mantidos / do ShadowPlay", "onde guardar e onde procurar os clipes"},
-            {"Placa de vídeo no preview", "deixa o preview mais leve para o processador"},
-            {"Som ao arrastar", "ouvir o áudio enquanto arrasta na timeline"},
-            {"Suavizar as emendas", "fade rápido no vídeo e crossfade no áudio nos cortes do meio (ligado por padrão)"},
+            {"Modo de corte padrão", "Escolhe se o corte começa em Rápido ou em Exato"},
+            {"Pasta dos clipes mantidos", "Onde os clipes guardados são salvos"},
+            {"Pasta do ShadowPlay", "Onde o shear procura seus clipes"},
+            {"Placa de vídeo no preview", "Deixa a reprodução mais leve para o computador"},
+            {"Som ao arrastar", "Você ouve o som enquanto arrasta na barra de tempo"},
+            {"Suavizar as emendas", "Quando você tira um pedaço do meio, a junção fica suave (ligado por padrão)"},
         }},
     };
 

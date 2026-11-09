@@ -419,10 +419,14 @@ void MpvWidget::applyView()
     // O quadro é desenhado numa área maior (janela + margem): o mpv ajusta o vídeo a ela, então o zoom é corrigido para
     // o vídeo continuar com o MESMO tamanho na tela (o ajuste só depende da proporção da imagem).
     double zoomForBuffer = m_zoomLog;
-    if (const int M = margin(); M > 0) {
+    {
         double aspect = 16.0 / 9.0;
         if (m_mpv) mpv_get_property(m_mpv, "video-params/aspect", MPV_FORMAT_DOUBLE, &aspect);
         if (aspect <= 0.1) aspect = 16.0 / 9.0;
+        m_aspect = aspect;
+    }
+    if (const int M = margin(); M > 0) {
+        const double aspect = m_aspect;
         const double fitView = std::min(width() / aspect, double(height()));
         const double fitBuf = std::min((width() + 2.0 * M) / aspect, height() + 2.0 * M);
         zoomForBuffer += std::log2(fitView / fitBuf);
@@ -451,9 +455,7 @@ void MpvWidget::mouseMoveEvent(QMouseEvent *e)
     if (!m_panning && (e->pos() - m_pressPos).manhattanLength() < 4) return; // ainda é um clique
     m_panning = true;
     setCursor(Qt::ClosedHandCursor);
-    double aspect = 16.0 / 9.0;
-    if (m_mpv) mpv_get_property(m_mpv, "video-params/aspect", MPV_FORMAT_DOUBLE, &aspect);
-    if (aspect <= 0.1) aspect = 16.0 / 9.0;
+    const double aspect = m_aspect; // guardada em applyView: perguntar ao mpv a cada movimento do mouse bloqueava a interface
     const double z = std::pow(2.0, m_zoomLog);
     const double dispW = std::min<double>(width(), height() * aspect) * z; // tamanho do vídeo ampliado, em px
     const double dispH = std::min<double>(height(), width() / aspect) * z;

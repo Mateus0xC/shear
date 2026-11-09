@@ -110,6 +110,7 @@ private:
     bool m_applyPending = false; // posição enviada ao mpv, esperando ele redesenhar (só com o vídeo parado)
     QElapsedTimer m_pumpClock;
     bool m_needRender = true;    // o mpv avisou que tem quadro novo para desenhar
+    double m_aspect = 16.0 / 9.0; // proporção do vídeo (guardada para não perguntar ao mpv a cada movimento do mouse)
     QPoint m_pressPos, m_lastPos;
     bool m_pressed = false, m_panning = false;
     // animação sobre o vídeo

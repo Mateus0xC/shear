@@ -15,7 +15,7 @@ marcar início e fim, exportar e colar no Discord.
 
 | Tecla | Ação |
 |---|---|
-| `Espaço` ou clique no vídeo | play/pause (com uma animação rápida sobre o vídeo; pular também mostra "+5 s", "−0,5 s"…) |
+| `Espaço` ou clique no vídeo | play/pause (com uma animação rápida sobre o vídeo; pular também mostra "+5 s", "−0,5 s"…). Ao chegar na marca de fim (`O`) a reprodução **para**, como se o vídeo tivesse acabado; play de novo (no `O` ou no fim do vídeo) **recomeça do `I`** |
 | `Ctrl` + roda do mouse sobre o vídeo | zoom no vídeo (até 8×); com zoom, arraste com o botão esquerdo para mover a imagem; `Ctrl` + `0` volta a 1× |
 | `-` / `+` (ou o botão **1×** no topo) | velocidade do preview: 0,25× a 3× (não muda o arquivo exportado); `Backspace` volta a 1× |
 | `I` / `O` ou `Z` / `C` | marca início / fim (no modo Rápido o `I`/`Z` encaixa no keyframe e o playback vai para lá) |

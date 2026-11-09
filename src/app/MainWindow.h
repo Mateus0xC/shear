@@ -80,6 +80,7 @@ private:
     void setSpeed(double speed, bool osd = true); // velocidade do preview
     void stepSpeed(int dir);           // próxima velocidade mais lenta (-1) ou mais rápida (+1)
     QToolButton *m_speedBtn = nullptr;
+    double m_prevPos = 0;              // posição anterior do playback (para detectar a chegada na marca de fim)
     void jumpBy(double sec);           // pula para frente/trás SEM pausar o vídeo
     void stepOneFrame(int dir);        // 1 quadro: pausa, senão o quadro não fica na tela
     void updateInfo();

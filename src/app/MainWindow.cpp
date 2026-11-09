@@ -499,6 +499,16 @@ QWidget *MainWindow::buildEditor()
                 break;
             }
     });
+    // Tocando e chegou na marca de FIM (O): para, como se o vídeo tivesse acabado (Espaço/play recomeça do I).
+    // Só vale para a reprodução normal (passo curto de tempo); pular por cima do O com as setas não para nada.
+    connect(m_mpv, &MpvWidget::positionChanged, this, [this](double p) {
+        const double prev = m_prevPos;
+        m_prevPos = p;
+        const double end = m_timeline->end();
+        if (m_mpv->paused() || end <= 0 || end >= m_mpv->duration() - 0.05) return; // O no fim do vídeo: o próprio fim vale
+        if (prev < end && p >= end && p - prev < 0.5)
+            m_mpv->setPaused(true);
+    });
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
     connect(m_mpv, &MpvWidget::fpsChanged, this, [this](double f) { m_fps = f; });
     connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
@@ -1005,9 +1015,13 @@ void MainWindow::jumpBy(double sec)
 
 void MainWindow::userTogglePause()
 {
-    // No fim do vídeo (parado lá), play recomeça do início do clipe (a marca de início; sem marca, o começo do vídeo).
+    // Parado no fim do vídeo OU na marca de fim (O), play recomeça do início do clipe (a marca I; sem marca, o começo).
     const double dur = m_mpv->duration();
-    if (dur > 0 && m_mpv->position() >= dur - std::max(0.08, 1.5 / std::max(1.0, m_fps))) {
+    const double pos = m_mpv->position(), eps = std::max(0.08, 1.5 / std::max(1.0, m_fps));
+    const bool atVideoEnd = dur > 0 && pos >= dur - eps;
+    const double end = m_timeline->end();
+    const bool atMarkEnd = m_mpv->paused() && end > 0 && pos >= end - eps && pos <= end + 0.5; // logo depois do O, onde parou
+    if (atVideoEnd || atMarkEnd) {
         m_mpv->seek(m_timeline->start());
         m_mpv->setPaused(false);
         m_mpv->flash(MpvWidget::Overlay::Play);

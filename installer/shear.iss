@@ -26,6 +26,10 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
+; Sempre pergunta a pasta de instalação (mesmo numa reinstalação) e sempre começa com as caixas marcadas como o padrão:
+; sem isto o Inno repete as escolhas da instalação anterior (e uma caixa nova, como a do menu, aparecia desmarcada).
+DisableDirPage=no
+UsePreviousTasks=no
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"

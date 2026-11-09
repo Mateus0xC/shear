@@ -171,7 +171,13 @@ MainWindow::MainWindow()
                 m_mpv->seek(m_timeline->duration() * n / 10.0);
         });
     sc(Qt::Key_Q, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->start()); }); // vai para o ponto I
-    sc(Qt::Key_E, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->end()); });   // vai para o ponto O
+    // E: vai para o ponto O; se o vídeo estava rodando, para em cima dele (para ver/ajustar o fim)
+    sc(Qt::Key_E, [=, this] {
+        if (!inEditor()) return;
+        if (!m_mpv->paused())
+            m_mpv->setPaused(true);
+        m_mpv->seek(m_timeline->end());
+    });
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
     sc(QKeySequence::Redo, [=, this] { if (inEditor()) redo(); }); // Ctrl+Y e Ctrl+Shift+Z
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });

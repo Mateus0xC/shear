@@ -28,7 +28,7 @@ marcar início e fim, exportar e colar no Discord.
 | `J` / `L` | −5 s / +5 s |
 | `X` | apaga um trecho do **meio**: o 1º `X` marca onde ele começa, o 2º onde termina (`Esc` cancela). O trecho fica hachurado em laranja na timeline, o preview pula por cima dele, e na exportação o que sobra é emendado (com trechos apagados o modo **Exato** é selecionado à força e o **Rápido** fica desabilitado, porque o vídeo é recodificado; quando todos os trechos somem, volta ao modo de antes). Botão direito num trecho apagado traz ele de volta; `Ctrl+Z` desfaz um passo de cada vez (o 2º `X` sai, o início continua marcado) |
 | **Configurações → Emendas** | "Suavizar as emendas" (ligado por padrão): nas emendas dos trechos apagados o vídeo esmaece rapidinho (0,2 s) e o áudio faz **crossfade**; o começo e o fim do vídeo ficam como estão |
-| `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`) |
+| `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`); o `E` com o vídeo rodando **pausa em cima do `O`** |
 | `0` a `9` | pula para 0% a 90% do vídeo (como no YouTube) |
 | `↑` / `↓` ou `W` / `S` ou roda do mouse sobre o vídeo | volume do preview (estilo VLC; não muda o arquivo) |
 | `Ctrl` + `Z` | desfaz: marcadores de início/fim e volume do mic |

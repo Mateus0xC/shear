@@ -36,7 +36,7 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
     setAttribute(Qt::WA_OpaquePaintEvent);
     m_ovTimer.setInterval(16); // ~60 quadros/s, só enquanto uma animação está na tela
     connect(&m_ovTimer, &QTimer::timeout, this, [this] {
-        if (m_ovActive) update(); else m_ovTimer.stop();
+        if (m_ovActive || m_osdActive) update(); else m_ovTimer.stop();
     });
 
     // Segurança do arrasto: se o mpv não avisar que redesenhou, não fica esperando para sempre.
@@ -51,11 +51,6 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
     // Render por software: o redimensionamento da imagem é feito na CPU. "bilinear" é bem mais leve que o padrão
     // (bicúbico) e na prática não se nota; com zoom isso pesa a cada quadro.
     mpv_set_option_string(m_mpv, "sws-scaler", "bilinear");
-    // Textos sobre o vídeo (volume, zoom, velocidade, avisos): canto inferior direito, fora do caminho da imagem.
-    mpv_set_option_string(m_mpv, "osd-align-x", "right");
-    mpv_set_option_string(m_mpv, "osd-align-y", "bottom");
-    mpv_set_option_string(m_mpv, "osd-margin-x", "16");
-    mpv_set_option_string(m_mpv, "osd-margin-y", "14");
     mpv_set_option_string(m_mpv, "load-scripts", "no");
     mpv_set_option_string(m_mpv, "ytdl", "no");
     mpv_set_option_string(m_mpv, "osc", "no");
@@ -160,6 +155,10 @@ void MpvWidget::paintEvent(QPaintEvent *)
         const double t = double(m_ovClock.elapsed()) / dur;
         if (t >= 1.0) m_ovActive = false; // acabou: o timer se desliga sozinho
         else paintOverlay(p, t);
+    }
+    if (m_osdActive) {
+        if (m_osdClock.elapsed() >= m_osdMs) m_osdActive = false;
+        else paintOsdText(p);
     }
     if (m_awaitPaint) {
         m_awaitPaint = false;
@@ -276,9 +275,40 @@ void MpvWidget::setVolume(int percent)
     command({"set", "volume", QString::number(percent)});
 }
 
+// Texto rápido no canto inferior direito (volume, zoom, velocidade, avisos). Desenhado pelo próprio widget, em
+// coordenadas da janela: assim não depende do zoom nem da margem do quadro que o mpv desenha.
 void MpvWidget::showText(const QString &text, int ms)
 {
-    command({"show-text", text, QString::number(ms)});
+    m_osdText = text;
+    m_osdMs = std::max(300, ms);
+    m_osdActive = true;
+    m_osdClock.restart();
+    if (!m_ovTimer.isActive()) m_ovTimer.start();
+    update();
+}
+
+void MpvWidget::paintOsdText(QPainter &p) const
+{
+    const double elapsed = double(m_osdClock.elapsed());
+    const double fade = elapsed < m_osdMs - 300 ? 1.0 : 1.0 - (elapsed - (m_osdMs - 300)) / 300.0; // some nos últimos 300 ms
+    const double alpha = std::clamp(fade, 0.0, 1.0);
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    QFont f = font();
+    f.setBold(true);
+    f.setPixelSize(std::clamp(int(height() * 0.042), 13, 24));
+    p.setFont(f);
+    const QFontMetrics fm(f);
+    const int marginX = 16, marginY = 14, padX = 10, padY = 5;
+    const QString txt = fm.elidedText(m_osdText, Qt::ElideRight, std::max(40, width() - 2 * (marginX + padX)));
+    const QSize box(fm.horizontalAdvance(txt) + 2 * padX, fm.height() + 2 * padY);
+    const QRectF r(width() - marginX - box.width(), height() - marginY - box.height(), box.width(), box.height());
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0, 0, 0, int(165 * alpha)));
+    p.drawRoundedRect(r, 7, 7);
+    p.setPen(QColor(255, 255, 255, int(245 * alpha)));
+    p.drawText(r, Qt::AlignCenter, txt);
+    p.restore();
 }
 
 void MpvWidget::wheelEvent(QWheelEvent *e)

@@ -84,6 +84,7 @@ private:
     void command(const QStringList &args);
     void applyView();                      // zoom e posição da imagem no mpv
     int margin() const;                    // margem do quadro desenhado (só com zoom)
+    void paintOsdText(QPainter &p) const;  // texto rápido (volume, zoom...) no canto inferior direito
     void pumpPan();                        // manda a posição desejada da imagem ao mpv quando ele não está ocupado
     void paintOverlay(QPainter &p, double t) const; // t = 0..1 do progresso da animação
     void finishRestore(quint64 gen);
@@ -117,6 +118,11 @@ private:
     Overlay m_ovKind = Overlay::Play;
     bool m_ovActive = false;
     QString m_ovText;
+    // texto rápido (showText)
+    QString m_osdText;
+    int m_osdMs = 0;
+    bool m_osdActive = false;
+    QElapsedTimer m_osdClock;
     QElapsedTimer m_ovClock;
     QTimer m_ovTimer;
     bool m_awaitFirst = false, m_awaitPaint = false;

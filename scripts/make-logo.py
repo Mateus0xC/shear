@@ -6,13 +6,24 @@ import math, sys
 OUT = sys.argv[1] if len(sys.argv) > 1 else "D:/Coding/shear/resources"
 COLOR = (0, 128, 250)
 
-# Vértices (x, y, raio) no quadro de 1024 x 1024. Raio 0 = canto vivo.
-#  - cantos de fora: levemente arredondados
-#  - todos os cantos do corte (no centro): vivos; as duas bordas do corte são paralelas, com um vão fino
-#  - a metade de baixo desliza para baixo/direita em relação à de cima
-OUTER = 24
-LEFT = [(85, 210, OUTER), (611, 210, 0), (389, 668, 0), (85, 670, OUTER)]
-RIGHT = [(639, 354, 0), (939, 354, OUTER), (939, 814, OUTER), (416, 814, 0)]
+# Geometria exata (quadro 1024 x 1024). A peça de cima é um trapézio: topo e base HORIZONTAIS, lado esquerdo VERTICAL e
+# lado direito (o corte) inclinado. A peça de baixo é a MESMA peça girada 180° em torno do centro: por isso os dois lados
+# do corte são paralelos (mesmo ângulo), os dois desníveis são iguais e o conjunto é perfeitamente simétrico.
+ANGLE = 26.0          # inclinação do corte em relação à vertical (graus)
+A = 86                # x da borda esquerda da peça de cima (a da peça de baixo é 1024 - A)
+B = 210               # y do topo da peça de cima (a base da peça de baixo é 1024 - B)
+H = 460               # altura de cada peça
+GAP = 46              # vão entre as peças, medido na horizontal
+OUTER = 24            # raio dos cantos de fora; os cantos do corte ficam vivos
+K = math.tan(math.radians(ANGLE))
+W = (1024 - 2 * A + K * (1024 - 2 * B) - GAP) / 2     # largura do topo da peça de cima, para dar exatamente o vão GAP
+
+def rot(v):          # giro de 180° em torno do centro (512, 512)
+    return (1024 - v[0], 1024 - v[1], v[2])
+
+LEFT = [(A, B, OUTER), (A + W, B, 0), (A + W - K * H, B + H, 0), (A, B + H, OUTER)]
+# a peça de baixo = a de cima girada; a ordem dos vértices é refeita para continuar no sentido horário
+RIGHT = [rot(LEFT[2]), rot(LEFT[3]), rot(LEFT[0]), rot(LEFT[1])]
 CX, CY, SCALE = 512, 512, 1.0
 
 def xf(v):

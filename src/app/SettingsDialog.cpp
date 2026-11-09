@@ -56,6 +56,11 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     m_scrub->setToolTip("Toca um trecho do áudio a cada posição, com o vídeo parado. Quanto maior o zoom, mais curto o trecho.");
     form->addRow("Som ao arrastar:", m_scrub);
 
+    m_limit20 = new QCheckBox("Sempre comprimir o clipe para até 20 MB");
+    m_limit20->setChecked(c.limit20);
+    m_limit20->setToolTip("Começa cada vídeo com a opção “Até 20 MB” ligada (dá para desligar na hora de exportar).");
+    form->addRow("Tamanho:", m_limit20);
+
     m_fade = new QCheckBox("Suavizar as emendas ao apagar trechos do meio");
     m_fade->setChecked(c.fadeJoins);
     m_fade->setToolTip("Nas emendas o vídeo esmaece rapidinho (0,2 s) e o áudio faz crossfade. "
@@ -106,6 +111,7 @@ Config SettingsDialog::config() const
     c.gpuDecode = m_gpu->isChecked();
     c.scrubAudio = m_scrub->isChecked();
     c.fadeJoins = m_fade->isChecked();
+    c.limit20 = m_limit20->isChecked();
     c.outputDir = m_out->text().trimmed();
     c.shadowPlayDir = m_sp->text().trimmed();
     return c;

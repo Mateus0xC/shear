@@ -137,6 +137,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"Pasta dos vídeos", "Onde o shear procura seus clipes"},
             {"Placa de vídeo no preview", "Deixa a reprodução mais leve para o computador"},
             {"Som ao arrastar", "Você ouve o som enquanto arrasta na barra de tempo"},
+            {"Sempre comprimir para até 20 MB", "Cada vídeo já começa com a opção “Até 20 MB” ligada"},
             {"Suavizar as emendas", "Quando você tira um pedaço do meio, a junção fica suave (ligado por padrão)"},
         }},
     };

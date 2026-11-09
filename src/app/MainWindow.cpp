@@ -410,11 +410,8 @@ QWidget *MainWindow::buildEditor()
     m_limitCheck->setToolTip("Comprime o vídeo para o arquivo ficar com até 20 MB. Reduz a qualidade e, se o trecho for longo, "
                              "a resolução. O vídeo é recodificado (o modo fica em Exato).");
     m_limitCheck->setFocusPolicy(Qt::NoFocus);
-    m_limitCheck->setChecked(QSettings().value("export/limit20", false).toBool());
-    connect(m_limitCheck, &QCheckBox::toggled, this, [this](bool on) {
-        QSettings().setValue("export/limit20", on);
-        updateInfo();
-    });
+    m_limitCheck->setChecked(m_cfg.limit20); // o padrão vem das Configurações; cada vídeo começa com ele
+    connect(m_limitCheck, &QCheckBox::toggled, this, [this] { updateInfo(); });
     opts->addWidget(seg);
     opts->addWidget(m_limitCheck);
     opts->addWidget(m_warning, 1);
@@ -751,10 +748,13 @@ void MainWindow::openSettings()
         return;
     }
     const CutMode oldDefault = m_cfg.mode;
+    const bool oldLimit = m_cfg.limit20;
     m_cfg = d.config();
     m_cfg.save();
     if (m_editor && m_cfg.mode != oldDefault) // só muda o modo da edição se o padrão mudou
         setCutMode(m_cfg.mode);
+    if (m_limitCheck && m_cfg.limit20 != oldLimit) // idem para o "Até 20 MB"
+        m_limitCheck->setChecked(m_cfg.limit20);
     refreshRecent();
     updateInfo();
 }
@@ -796,6 +796,8 @@ void MainWindow::openFile(const QString &path)
     rebuildAudioRows(0);
     if (m_mpv->speed() != 1.0)
         setSpeed(1.0, false); // cada vídeo começa em 1×
+    if (m_limitCheck)
+        m_limitCheck->setChecked(m_cfg.limit20); // e com o “Até 20 MB” do jeito que as Configurações pedem
     m_mpv->resetAudio();
     m_scrub->resetAudio();
     m_scrub->loadFile(path);
@@ -1154,13 +1156,11 @@ void MainWindow::updateInfo()
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w);
     if (r.maxBytes > 0)
-        msg << "Até 20 MB: o vídeo é recodificado e a qualidade (e a resolução, se precisar) se ajusta para caber.";
+        msg << "Comprime para caber em 20 MB";
     else if (plan.assembled)
-        msg << "Com trechos apagados, o vídeo é recodificado (corte exato; exporta um pouco mais devagar).";
+        msg << "Trechos apagados: recodifica o vídeo";
     else
-        msg << (r.mode == CutMode::Fast
-                    ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
-                    : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
+        msg << (r.mode == CutMode::Fast ? "Corta na hora" : "Corta no quadro marcado (demora mais)");
     m_warning->setText(msg.join("   ·   "));
 
     // previsão do tempo de exportação

@@ -12,6 +12,7 @@ Config Config::load()
     c.gpuDecode = s.value("player/gpuDecode", true).toBool();
     c.scrubAudio = s.value("player/scrubAudio", true).toBool();
     c.fadeJoins = s.value("export/fadeJoins", true).toBool();
+    c.limit20 = s.value("export/limit20Default", false).toBool();
     c.outputDir = s.value("paths/output").toString();
     c.shadowPlayDir = s.value("paths/shadowplay").toString();
     return c;
@@ -24,6 +25,7 @@ void Config::save() const
     s.setValue("player/gpuDecode", gpuDecode);
     s.setValue("player/scrubAudio", scrubAudio);
     s.setValue("export/fadeJoins", fadeJoins);
+    s.setValue("export/limit20Default", limit20);
     s.setValue("paths/output", outputDir);
     s.setValue("paths/shadowplay", shadowPlayDir);
 }

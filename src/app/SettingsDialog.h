@@ -20,7 +20,7 @@ public:
 
 private:
     QComboBox *m_mode;
-    QCheckBox *m_gpu, *m_scrub, *m_fade, *m_ctx;
+    QCheckBox *m_gpu, *m_scrub, *m_fade, *m_limit20, *m_ctx;
     QLineEdit *m_out, *m_sp;
     bool m_wantsHelp = false;
 };

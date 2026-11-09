@@ -43,7 +43,6 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
     m_viewTimer.setSingleShot(true);
     connect(&m_viewTimer, &QTimer::timeout, this, [this] {
         m_applyPending = false;
-        pumpPan();
         update();
     });
 
@@ -114,13 +113,19 @@ void MpvWidget::paintEvent(QPaintEvent *)
     }
     // Arrastando e o mpv ainda está redesenhando na posição nova: mostra o último quadro deslocado (acompanha o mouse
     // na hora). O vídeo não congela: assim que o mpv responde, volta a desenhar de verdade.
+    // Com zoom o quadro é desenhado MAIOR que a janela (uma margem de cada lado): arrastar só desloca esse quadro, e a
+    // margem cobre o que aparece enquanto o mpv redesenha, sem faixa preta.
+    const int M = margin();
+    const QPointF origin(-M + (m_panning ? (m_panX - m_framePanX) * m_panPxX : 0.0),
+                         -M + (m_panning ? (m_panY - m_framePanY) * m_panPxY : 0.0));
     if (m_panning && m_applyPending && !m_frame.isNull()) {
+        trace("MARK pan-blit");
         p.fillRect(rect(), Qt::black);
-        p.drawImage(QPointF((m_panX - m_framePanX) * m_panPxX, (m_panY - m_framePanY) * m_panPxY), m_frame);
+        p.drawImage(origin, m_frame);
         return;
     }
     const qreal dpr = devicePixelRatioF();
-    const QSize px(int(width() * dpr), int(height() * dpr));
+    const QSize px(int((width() + 2 * M) * dpr), int((height() + 2 * M) * dpr));
     if (px.isEmpty())
         return;
     if (m_frame.size() != px) {
@@ -139,9 +144,21 @@ void MpvWidget::paintEvent(QPaintEvent *)
         mpv_render_context_render(m_ctx, params);
         m_framePanX = m_appliedPanX; // o quadro pronto foi desenhado com esta posição
         m_framePanY = m_appliedPanY;
+        if (m_panning) {
+            trace("MARK pan-render");
+            pumpPan(); // com este quadro já desenhado, manda a posição seguinte ao mpv
+        }
     }
     m_frame.setDevicePixelRatio(dpr);
-    p.drawImage(0, 0, m_frame);
+    if (M > 0 || m_panning) {
+        // a posição do quadro pode ter mudado com o render acima (m_framePan): recalcula
+        const QPointF o(-M + (m_panning ? (m_panX - m_framePanX) * m_panPxX : 0.0),
+                        -M + (m_panning ? (m_panY - m_framePanY) * m_panPxY : 0.0));
+        p.fillRect(rect(), Qt::black);
+        p.drawImage(o, m_frame);
+    } else {
+        p.drawImage(0, 0, m_frame);
+    }
     if (m_ovActive) {
         const double dur = m_ovKind == Overlay::Skip ? 700.0 : 480.0;
         const double t = double(m_ovClock.elapsed()) / dur;
@@ -379,13 +396,39 @@ void MpvWidget::resetZoom()
     showText(QStringLiteral("Zoom 1×"), 700);
 }
 
+// Margem (px) de cada lado do quadro desenhado quando há zoom.
+int MpvWidget::margin() const
+{
+    return m_zoomLog > 1e-9 ? int(std::round(std::min(width(), height()) * 0.10)) : 0;
+}
+
+void MpvWidget::resizeEvent(QResizeEvent *e)
+{
+    QWidget::resizeEvent(e);
+    if (m_zoomLog > 1e-9)
+        applyView(); // a margem e o zoom do quadro maior dependem do tamanho da janela
+}
+
 void MpvWidget::applyView()
 {
     // O pan do mpv é em frações do vídeo JÁ ampliado: para ver as bordas basta (z-1)/(2z).
     const double z = std::pow(2.0, m_zoomLog), maxPan = (z - 1.0) / (2.0 * z);
     m_panX = std::clamp(m_panX, -maxPan, maxPan);
     m_panY = std::clamp(m_panY, -maxPan, maxPan);
-    command({"set", "video-zoom", QString::number(m_zoomLog, 'f', 4)});
+    // O quadro é desenhado numa área maior (janela + margem): o mpv ajusta o vídeo a ela, então o zoom é corrigido para
+    // o vídeo continuar com o MESMO tamanho na tela (o ajuste só depende da proporção da imagem).
+    double zoomForBuffer = m_zoomLog;
+    if (const int M = margin(); M > 0) {
+        double aspect = 16.0 / 9.0;
+        if (m_mpv) mpv_get_property(m_mpv, "video-params/aspect", MPV_FORMAT_DOUBLE, &aspect);
+        if (aspect <= 0.1) aspect = 16.0 / 9.0;
+        const double fitView = std::min(width() / aspect, double(height()));
+        const double fitBuf = std::min((width() + 2.0 * M) / aspect, height() + 2.0 * M);
+        zoomForBuffer += std::log2(fitView / fitBuf);
+    }
+    // Com zoom o desenho por software pesa mais: escala mais barata (a diferença quase não se nota em movimento).
+    command({"set", "sws-scaler", m_zoomLog > 1e-9 ? "fast-bilinear" : "bilinear"});
+    command({"set", "video-zoom", QString::number(zoomForBuffer, 'f', 4)});
     command({"set", "video-pan-x", QString::number(m_panX, 'f', 5)});
     command({"set", "video-pan-y", QString::number(m_panY, 'f', 5)});
     m_appliedPanX = m_panX;
@@ -430,14 +473,24 @@ void MpvWidget::mouseMoveEvent(QMouseEvent *e)
 // Manda a posição desejada da imagem ao mpv, se ele não estiver ocupado com uma anterior.
 void MpvWidget::pumpPan()
 {
-    if (!m_mpv || m_applyPending) return;
+    if (!m_mpv) return;
+    if (m_paused) {
+        if (m_applyPending) return; // parado: espera o mpv redesenhar a posição anterior (sem fila)
+    } else {
+        // Tocando: o mpv já redesenha a cada quadro do vídeo, então não precisa esperar; só limita a ~120 envios/s.
+        if (m_pumpClock.isValid() && m_pumpClock.elapsed() < 8) return;
+        m_pumpClock.restart();
+    }
     if (std::abs(m_panX - m_appliedPanX) < 1e-7 && std::abs(m_panY - m_appliedPanY) < 1e-7) return;
     m_appliedPanX = m_panX;
     m_appliedPanY = m_panY;
-    mpv_set_property(m_mpv, "video-pan-x", MPV_FORMAT_DOUBLE, &m_panX); // síncrono: o quadro seguinte já vem com ela
-    mpv_set_property(m_mpv, "video-pan-y", MPV_FORMAT_DOUBLE, &m_panY);
-    m_applyPending = true; // até o mpv avisar que redesenhou
-    m_viewTimer.start(100); // segurança: se ele não avisar, não fica esperando para sempre
+    // Assíncrono: a versão síncrona bloqueava a interface enquanto o mpv estava ocupado decodificando/desenhando.
+    mpv_set_property_async(m_mpv, 0, "video-pan-x", MPV_FORMAT_DOUBLE, &m_appliedPanX);
+    mpv_set_property_async(m_mpv, 0, "video-pan-y", MPV_FORMAT_DOUBLE, &m_appliedPanY);
+    if (m_paused) {
+        m_applyPending = true; // até o mpv avisar que redesenhou
+        m_viewTimer.start(100); // segurança: se ele não avisar, não fica esperando para sempre
+    }
 }
 
 void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
@@ -469,10 +522,9 @@ void MpvWidget::onRenderUpdate()
 {
     if (m_ctx)
         mpv_render_context_update(m_ctx);
-    if (m_applyPending) { // o mpv redesenhou na posição enviada: pode desenhar de verdade e já manda a próxima
-        m_applyPending = false;
+    if (m_applyPending) { // o mpv redesenhou na posição enviada: o próximo paint desenha de verdade (e só depois
+        m_applyPending = false; // dele segue a posição seguinte, para o quadro desenhado ter a posição certa)
         m_viewTimer.stop();
-        pumpPan();
     }
     update();
 }
@@ -512,6 +564,8 @@ void MpvWidget::handleEvents()
                 emit pausedChanged(m_paused);
             }
         } else if (e->event_id == MPV_EVENT_FILE_LOADED) {
+            if (m_zoomLog > 1e-9)
+                applyView(); // agora a proporção do vídeo é conhecida (zoom do quadro maior)
             emit fileLoaded();
         } else if (e->event_id == MPV_EVENT_PLAYBACK_RESTART && m_restore.active) {
             // o filtro novo está no ar: volta exatamente ao ponto de antes e retoma

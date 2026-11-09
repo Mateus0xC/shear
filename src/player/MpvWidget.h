@@ -70,6 +70,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent *) override;
     void wheelEvent(QWheelEvent *e) override;
+    void resizeEvent(QResizeEvent *e) override;
     void mousePressEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
@@ -81,6 +82,7 @@ private slots:
 private:
     void command(const QStringList &args);
     void applyView();                      // zoom e posição da imagem no mpv
+    int margin() const;                    // margem do quadro desenhado (só com zoom)
     void pumpPan();                        // manda a posição desejada da imagem ao mpv quando ele não está ocupado
     void paintOverlay(QPainter &p, double t) const; // t = 0..1 do progresso da animação
     void finishRestore(quint64 gen);
@@ -104,7 +106,8 @@ private:
     double m_appliedPanX = 0, m_appliedPanY = 0; // o que o mpv tem agora
     double m_framePanX = 0, m_framePanY = 0;     // com que posição o quadro guardado (m_frame) foi desenhado
     double m_panPxX = 1, m_panPxY = 1;           // px de tela por unidade de pan
-    bool m_applyPending = false; // posição enviada ao mpv, esperando ele redesenhar
+    bool m_applyPending = false; // posição enviada ao mpv, esperando ele redesenhar (só com o vídeo parado)
+    QElapsedTimer m_pumpClock;
     QPoint m_pressPos, m_lastPos;
     bool m_pressed = false, m_panning = false;
     // animação sobre o vídeo

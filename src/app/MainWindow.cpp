@@ -1005,6 +1005,14 @@ void MainWindow::jumpBy(double sec)
 
 void MainWindow::userTogglePause()
 {
+    // No fim do vídeo (parado lá), play recomeça do início do clipe (a marca de início; sem marca, o começo do vídeo).
+    const double dur = m_mpv->duration();
+    if (dur > 0 && m_mpv->position() >= dur - std::max(0.08, 1.5 / std::max(1.0, m_fps))) {
+        m_mpv->seek(m_timeline->start());
+        m_mpv->setPaused(false);
+        m_mpv->flash(MpvWidget::Overlay::Play);
+        return;
+    }
     const bool willPause = !m_mpv->paused();
     m_mpv->togglePause();
     m_mpv->flash(willPause ? MpvWidget::Overlay::Pause : MpvWidget::Overlay::Play);

@@ -590,7 +590,9 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
 void TimelineWidget::mouseReleaseEvent(QMouseEvent *)
 {
     const bool was = m_drag != Drag::None;
+    // Soltou em cima de uma marca: a barra branca do preview vai para ela (início e fim se comportam igual).
     if (m_drag == Drag::Start) emit seekRequested(m_start);
+    else if (m_drag == Drag::End) emit seekRequested(m_end);
     hideHint();
     if (m_zoom) leaveZoom();
     m_drag = Drag::None;

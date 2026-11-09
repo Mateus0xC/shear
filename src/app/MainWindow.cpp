@@ -138,6 +138,8 @@ MainWindow::MainWindow()
     sc(Qt::Key_Minus, [=, this] { if (inEditor()) stepSpeed(-1); });
     sc(Qt::Key_Plus, [=, this] { if (inEditor()) stepSpeed(+1); });
     sc(Qt::Key_Equal, [=, this] { if (inEditor()) stepSpeed(+1); });
+    sc(Qt::Key_BracketLeft, [=, this] { if (inEditor()) stepSpeed(-1); });  // [ ] também (como no mpv/VLC)
+    sc(Qt::Key_BracketRight, [=, this] { if (inEditor()) stepSpeed(+1); });
     sc(Qt::Key_Backspace, [=, this] { if (inEditor()) setSpeed(1.0); });
     sc(QKeySequence(Qt::CTRL | Qt::Key_0), [=, this] { if (inEditor()) m_mpv->resetZoom(); });
     sc(Qt::Key_I, [=, this] { if (inEditor()) markStart(m_mpv->position()); });

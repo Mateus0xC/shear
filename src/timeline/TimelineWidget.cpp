@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QScreen>
 #include <QWheelEvent>
 #include <algorithm>
 #include <cmath>
@@ -440,7 +441,8 @@ void TimelineWidget::showLens()
 {
     if (!m_lens) m_lens = new TimelineLens(this);
     m_lens->resize(width(), 108);
-    m_lens->move(mapToGlobal(QPoint(0, height() + 6)));
+    // Sem espaço embaixo (tela cheia): a régua ampliada aparece ACIMA da timeline.
+    m_lens->move(mapToGlobal(QPoint(0, roomBelow() >= 108 + 12 ? height() + 6 : -108 - 6)));
     LensState s;
     s.win0 = m_win0; s.span = m_span; s.dur = m_dur; s.start = m_start; s.end = m_end;
     s.cur = m_dragT; s.fps = m_fps; s.level = m_level; s.kf = &m_kf;
@@ -448,10 +450,18 @@ void TimelineWidget::showLens()
     if (!m_lens->isVisible()) m_lens->show();
 }
 
+double TimelineWidget::roomBelow() const
+{
+    const QScreen *sc = screen();
+    if (!sc) return 400;
+    return std::max(0.0, double(sc->geometry().bottom() - mapToGlobal(QPoint(0, height())).y()));
+}
+
 void TimelineWidget::showHint()
 {
     if (!m_hint) m_hint = new TimelineHint(this);
-    m_hint->move(mapToGlobal(QPoint((width() - m_hint->width()) / 2, height() + 6)));
+    const bool below = roomBelow() >= m_hint->height() + 12;
+    m_hint->move(mapToGlobal(QPoint((width() - m_hint->width()) / 2, below ? height() + 6 : -m_hint->height() - 6)));
     if (!m_hint->isVisible()) m_hint->show();
 }
 
@@ -476,8 +486,15 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
     const double w = width() - 2.0 * kMargin;
     const double frac = std::clamp((pos.x() - kMargin) / w, 0.0, 1.0); // posição horizontal dentro da timeline/régua
 
-    // Entra no zoom ao passar de kEnterBeyond e só sai ao voltar para dentro da timeline (histerese).
-    const bool wantZoom = m_zoom ? beyond > 0 : beyond > kEnterBeyond;
+    // Em tela cheia a timeline fica colada embaixo e o mouse não tem 170 px para descer: as faixas de zoom se ajustam
+    // ao espaço que sobra até a borda da tela (de 55 px por nível até ~4 px, mas sempre os 4 níveis).
+    const double room = roomBelow();
+    const double enterBeyond = std::min(kEnterBeyond, std::max(2.0, room / 6));
+    const double levelH = std::clamp((room - enterBeyond - 4.0) / (kLevels - 1), 4.0, kLevelHeight);
+    const double hysteresis = std::min(kHysteresis, levelH / 3);
+
+    // Entra no zoom ao passar de enterBeyond e só sai ao voltar para dentro da timeline (histerese).
+    const bool wantZoom = m_zoom ? beyond > 0 : beyond > enterBeyond;
     if (!wantZoom) {
         if (m_zoom) leaveZoom();
         applyDrag(xToSec(pos.x()));
@@ -488,10 +505,10 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
     hideHint();
 
     // Nível de zoom por faixas de altura, com folga para não ficar trocando na borda.
-    auto bandStart = [](int L) { return kEnterBeyond + kLevelHeight * L; };
+    auto bandStart = [&](int L) { return enterBeyond + levelH * L; };
     int level = m_level;
-    if (level < 0 || beyond < bandStart(level) - kHysteresis || (level < kLevels - 1 && beyond >= bandStart(level + 1) + kHysteresis))
-        level = std::clamp(int((beyond - kEnterBeyond) / kLevelHeight), 0, kLevels - 1);
+    if (level < 0 || beyond < bandStart(level) - hysteresis || (level < kLevels - 1 && beyond >= bandStart(level + 1) + hysteresis))
+        level = std::clamp(int((beyond - enterBeyond) / levelH), 0, kLevels - 1);
     const double span = std::min(kSpans[level], std::max(0.4, m_dur));
 
     // (Re)ancora a janela de modo que a posição atual fique exatamente embaixo do mouse: sem saltos ao entrar

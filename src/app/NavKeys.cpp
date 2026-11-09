@@ -26,10 +26,10 @@ void registerNavShortcuts(QWidget *parent, const std::function<void(const NavAct
         const Qt::Key key = kd.first;
         const int dir = kd.second;
         const auto seq = [key](Qt::KeyboardModifiers m) { return QKeySequence(QKeyCombination(m, key)); };
-        add(parent, seq(Qt::NoModifier), jump(dir * 1.0), onAction);
-        add(parent, seq(Qt::ShiftModifier), jump(dir * 5.0), onAction);
-        add(parent, seq(Qt::ControlModifier), jump(dir * 15.0), onAction);
-        add(parent, seq(Qt::ControlModifier | Qt::ShiftModifier), jump(dir * 60.0), onAction);
+        add(parent, seq(Qt::NoModifier), jump(dir * kJumpPlain), onAction);
+        add(parent, seq(Qt::ShiftModifier), jump(dir * kJumpShift), onAction);
+        add(parent, seq(Qt::ControlModifier), jump(dir * kJumpCtrl), onAction);
+        add(parent, seq(Qt::ControlModifier | Qt::ShiftModifier), jump(dir * kJumpCtrlShift), onAction);
         add(parent, seq(Qt::AltModifier), frame(dir), onAction);
     }
 }

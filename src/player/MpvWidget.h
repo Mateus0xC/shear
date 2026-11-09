@@ -30,7 +30,20 @@ public:
         if (hold) { m_holdClock.restart(); QTimer::singleShot(600, this, [this] { if (m_hold) update(); }); }
         update();
     }
-    void setMinPosition(double sec) { m_minPos = sec; } // trecho anterior (corrompido) não é alcançável // relativo (negativo = para trás)
+    void setMinPosition(double sec) { m_minPos = sec; } // trecho anterior (corrompido) não é alcançável
+
+    // Animações rápidas sobre o vídeo (só desenham enquanto duram; sem animação o widget não faz nada extra).
+    enum class Overlay { Play, Pause, Skip };
+    void flash(Overlay kind, const QString &text = QString()); // Skip: text = "+5 s" / "−0,5 s"
+
+    // Velocidade do preview (não afeta o arquivo exportado).
+    void setSpeed(double speed);
+    double speed() const { return m_speed; }
+
+    // Zoom no vídeo (Ctrl + roda do mouse); com zoom, arrastar com o botão esquerdo move a imagem.
+    void zoomBy(double stepsLog2); // positivo aproxima
+    void resetZoom();
+    double zoomLog2() const { return m_zoomLog; }
     void setPaused(bool p);
     void togglePause();
     void stepFrame(bool forward);
@@ -52,10 +65,14 @@ signals:
     void volumeWheel(int delta); // roda do mouse sobre o vídeo: +5 / -5 por "clique"
     void firstFrame();
     void playbackRestarted(); // seek concluído
+    void clicked();           // clique simples no vídeo (play/pause)
 
 protected:
     void paintEvent(QPaintEvent *) override;
     void wheelEvent(QWheelEvent *e) override;
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
 
 private slots:
     void handleEvents();
@@ -63,6 +80,8 @@ private slots:
 
 private:
     void command(const QStringList &args);
+    void applyView();                      // zoom e posição da imagem no mpv
+    void paintOverlay(QPainter &p, double t) const; // t = 0..1 do progresso da animação
     void finishRestore(quint64 gen);
     static void wakeup(void *ctx);
     static void renderUpdate(void *ctx);
@@ -76,6 +95,17 @@ private:
     double m_minPos = 0; // início utilizável (vídeo com começo corrompido)
     bool m_paused = false;
     int m_volume = 100;
+    double m_speed = 1.0;
+    // zoom / posição da imagem
+    double m_zoomLog = 0, m_panX = 0, m_panY = 0;
+    QPoint m_pressPos, m_lastPos;
+    bool m_pressed = false, m_panning = false;
+    // animação sobre o vídeo
+    Overlay m_ovKind = Overlay::Play;
+    bool m_ovActive = false;
+    QString m_ovText;
+    QElapsedTimer m_ovClock;
+    QTimer m_ovTimer;
     bool m_awaitFirst = false, m_awaitPaint = false;
     QString m_graph;      // grafo de áudio atual (para não reconfigurar sem necessidade)
     bool m_muted = false; // aid=no

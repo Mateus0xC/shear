@@ -38,7 +38,9 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QAction>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProcess>
@@ -89,6 +91,9 @@ static QString iconFontFamily()
     return family;
 }
 
+// Velocidades do preview (botão da barra de cima e teclas - / +).
+static const double kSpeeds[] = {0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0};
+
 static QString trackName(int i, int n)
 {
     if (n >= 2 && i == 0) return "Desktop";
@@ -125,13 +130,19 @@ MainWindow::MainWindow()
         connect(s, &QShortcut::activated, this, fn);
     };
     auto inEditor = [this] { return m_stack->currentIndex() == 1; };
-    sc(Qt::Key_Space, [=, this] { if (inEditor()) m_mpv->togglePause(); });
+    sc(Qt::Key_Space, [=, this] { if (inEditor()) userTogglePause(); });
+    // Velocidade do preview: - / + (ou =) mais lento / mais rápido; Backspace volta a 1×. Ctrl+0 tira o zoom do vídeo.
+    sc(Qt::Key_Minus, [=, this] { if (inEditor()) stepSpeed(-1); });
+    sc(Qt::Key_Plus, [=, this] { if (inEditor()) stepSpeed(+1); });
+    sc(Qt::Key_Equal, [=, this] { if (inEditor()) stepSpeed(+1); });
+    sc(Qt::Key_Backspace, [=, this] { if (inEditor()) setSpeed(1.0); });
+    sc(QKeySequence(Qt::CTRL | Qt::Key_0), [=, this] { if (inEditor()) m_mpv->resetZoom(); });
     sc(Qt::Key_I, [=, this] { if (inEditor()) markStart(m_mpv->position()); });
     sc(Qt::Key_O, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
     // Z e C = I e O (mão esquerda no teclado, junto de A/D e W/S)
     sc(Qt::Key_Z, [=, this] { if (inEditor()) markStart(m_mpv->position()); });
     sc(Qt::Key_C, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
-    // Pular com o teclado (não pausa o vídeo): setas ou A/D = 1 s; Shift = 5 s; Ctrl = 15 s; Ctrl+Shift = 1 min.
+    // Pular com o teclado (não pausa o vídeo): setas ou A/D = 1 s; Shift = 0,5 s; Ctrl = 5 s; Ctrl+Shift = 15 s.
     // Alt (ou , e .) = 1 quadro. O mapa de teclas fica em NavKeys.cpp (testado em tests/test_navkeys.cpp).
     registerNavShortcuts(this, [this](const NavAction &a) {
         if (a.kind == NavAction::Kind::JumpSeconds)
@@ -148,8 +159,8 @@ MainWindow::MainWindow()
     sc(Qt::Key_Down, [=, this] { if (inEditor()) changeVolume(-5); });
     sc(Qt::Key_W, [=, this] { if (inEditor()) changeVolume(+5); }); // W/S = ↑/↓
     sc(Qt::Key_S, [=, this] { if (inEditor()) changeVolume(-5); });
-    sc(Qt::Key_J, [=, this] { if (inEditor()) m_mpv->seek(std::max(0.0, m_mpv->position() - 5)); });
-    sc(Qt::Key_L, [=, this] { if (inEditor()) m_mpv->seek(m_mpv->position() + 5); });
+    sc(Qt::Key_J, [=, this] { if (inEditor()) jumpBy(-5); });
+    sc(Qt::Key_L, [=, this] { if (inEditor()) jumpBy(+5); });
     // Como no YouTube: 0 a 9 pulam para 0% a 90% do vídeo (continua tocando ou pausado, como estava).
     for (int n = 0; n <= 9; ++n)
         sc(QKeySequence(Qt::Key(int(Qt::Key_0) + n)), [=, this] {
@@ -224,6 +235,21 @@ QWidget *MainWindow::buildEditor()
     connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::openSettings);
     top->addWidget(back);
     top->addWidget(m_title, 1);
+    // Velocidade do preview: botão com menu (também as teclas - e +, Backspace volta a 1×)
+    m_speedBtn = new QToolButton;
+    m_speedBtn->setText("1×");
+    m_speedBtn->setToolTip("Velocidade do preview (teclas - e +; Backspace volta a 1×). Não muda o arquivo exportado.");
+    m_speedBtn->setPopupMode(QToolButton::InstantPopup);
+    m_speedBtn->setStyleSheet("QToolButton::menu-indicator { image: none; }");
+    m_speedBtn->setFocusPolicy(Qt::NoFocus);
+    m_speedBtn->setFixedWidth(46);
+    auto *speedMenu = new QMenu(m_speedBtn);
+    for (double s : kSpeeds) {
+        auto *a = speedMenu->addAction(QString::number(s, 'g', 3).replace('.', ',') + "×");
+        connect(a, &QAction::triggered, this, [this, s] { setSpeed(s); });
+    }
+    m_speedBtn->setMenu(speedMenu);
+    top->addWidget(m_speedBtn);
     top->addWidget(settingsBtn);
     l->addLayout(top);
 
@@ -454,13 +480,14 @@ QWidget *MainWindow::buildEditor()
             m_scrub->scrub(t, kSoundMs[std::clamp(m_timeline->zoomLevel() + 1, 0, 4)]);
         }
     });
+    connect(m_mpv, &MpvWidget::clicked, this, &MainWindow::userTogglePause); // clicar no vídeo = play/pause
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
     connect(m_mpv, &MpvWidget::fpsChanged, this, [this](double f) { m_fps = f; });
     connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
     connect(m_timeline, &TimelineWidget::endChanged, this, [this] { updateInfo(); });
     // Enquanto o mouse está pressionado na timeline o vídeo fica pausado (a timeline pede o seek a cada movimento,
     // então você vê o quadro sob o mouse). Ao soltar, volta a tocar se estava tocando.
-    // Roda do mouse na timeline = setas: 1 s por clique (Shift 5 s, Ctrl 15 s, Ctrl+Shift 1 min, Alt 1 quadro).
+    // Roda do mouse na timeline = setas: 1 s por clique (Shift 0,5 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro).
     // Para cima avança, para baixo volta (como W/S e as setas ↑/↓ aumentam).
     connect(m_timeline, &TimelineWidget::scrolled, this, [this](int notches, Qt::KeyboardModifiers m) {
         if (m & Qt::AltModifier) {
@@ -469,7 +496,7 @@ QWidget *MainWindow::buildEditor()
             return;
         }
         const bool ctrl = m & Qt::ControlModifier, shift = m & Qt::ShiftModifier;
-        jumpBy(notches * (ctrl && shift ? 60.0 : ctrl ? 15.0 : shift ? 5.0 : 1.0));
+        jumpBy(notches * (ctrl && shift ? kJumpCtrlShift : ctrl ? kJumpCtrl : shift ? kJumpShift : kJumpPlain));
     });
     connect(m_timeline, &TimelineWidget::dragStarted, this, [this] {
         m_dragSnapshot = currentState();
@@ -685,6 +712,8 @@ void MainWindow::openFile(const QString &path)
     hideResultButtons();
     m_stack->setCurrentIndex(1);
     rebuildAudioRows(0);
+    if (m_mpv->speed() != 1.0)
+        setSpeed(1.0, false); // cada vídeo começa em 1×
     m_mpv->resetAudio();
     m_scrub->resetAudio();
     m_scrub->loadFile(path);
@@ -889,6 +918,39 @@ void MainWindow::jumpBy(double sec)
     if (m_stack->currentIndex() != 1)
         return;
     m_mpv->seekBy(sec); // não pausa: se estava tocando, continua tocando do ponto novo
+    // animação "+5 s" / "−0,5 s" sobre o vídeo
+    const double a = std::abs(sec);
+    const QString num = (a == std::floor(a) ? QString::number(int(a)) : QString::number(a, 'f', 1)).replace('.', ',');
+    m_mpv->flash(MpvWidget::Overlay::Skip, QString("%1%2 s").arg(sec < 0 ? QChar(0x2212) : QChar('+')).arg(num));
+}
+
+void MainWindow::userTogglePause()
+{
+    const bool willPause = !m_mpv->paused();
+    m_mpv->togglePause();
+    m_mpv->flash(willPause ? MpvWidget::Overlay::Pause : MpvWidget::Overlay::Play);
+}
+
+void MainWindow::setSpeed(double speed, bool osd)
+{
+    m_mpv->setSpeed(speed);
+    const QString txt = QString::number(speed, 'g', 3).replace('.', ',') + "×";
+    if (m_speedBtn) {
+        m_speedBtn->setText(txt);
+        QFont f = m_speedBtn->font();
+        f.setBold(speed != 1.0); // fora de 1× o botão fica em negrito
+        m_speedBtn->setFont(f);
+    }
+    if (osd)
+        m_mpv->showText("Velocidade " + txt, 800);
+}
+
+void MainWindow::stepSpeed(int dir)
+{
+    int idx = 3; // 1×
+    for (int i = 0; i < 8; ++i)
+        if (std::abs(kSpeeds[i] - m_mpv->speed()) < 1e-6) idx = i;
+    setSpeed(kSpeeds[std::clamp(idx + dir, 0, 7)]);
 }
 
 void MainWindow::stepOneFrame(int dir)

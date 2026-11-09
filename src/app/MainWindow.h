@@ -66,6 +66,10 @@ private:
     void undo();
     void redo();
     void applyState(const EditState &s);
+    void userTogglePause();            // play/pause pedido pelo usuário (com a animação sobre o vídeo)
+    void setSpeed(double speed, bool osd = true); // velocidade do preview
+    void stepSpeed(int dir);           // próxima velocidade mais lenta (-1) ou mais rápida (+1)
+    QToolButton *m_speedBtn = nullptr;
     void jumpBy(double sec);           // pula para frente/trás SEM pausar o vídeo
     void stepOneFrame(int dir);        // 1 quadro: pausa, senão o quadro não fica na tela
     void updateInfo();

@@ -62,6 +62,7 @@ private:
     void applyDrag(double t);
     long long frameKey(double t) const;          // índice do quadro de t (sem fps conhecido, usa 60)
     void emitSeekIfFrameChanged(double t);       // só pede seek (e portanto som) quando o QUADRO muda
+    double roomBelow() const; // px que o mouse tem para descer abaixo da timeline até a borda da tela
     void showLens();
     void showHint();
     void hideHint();

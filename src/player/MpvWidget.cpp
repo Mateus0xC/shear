@@ -1,7 +1,9 @@
 #include "MpvWidget.h"
 #include <QElapsedTimer>
 #include <QFile>
+#include <QMouseEvent>
 #include <QPainter>
+#include <QPolygonF>
 #include <QTimer>
 #include <algorithm>
 #include <cmath>
@@ -32,6 +34,10 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
 {
     setFocusPolicy(Qt::NoFocus);
     setAttribute(Qt::WA_OpaquePaintEvent);
+    m_ovTimer.setInterval(16); // ~60 quadros/s, só enquanto uma animação está na tela
+    connect(&m_ovTimer, &QTimer::timeout, this, [this] {
+        if (m_ovActive) update(); else m_ovTimer.stop();
+    });
 
     m_mpv = mpv_create();
     mpv_set_option_string(m_mpv, "config", "no");
@@ -111,6 +117,12 @@ void MpvWidget::paintEvent(QPaintEvent *)
     }
     m_frame.setDevicePixelRatio(dpr);
     p.drawImage(0, 0, m_frame);
+    if (m_ovActive) {
+        const double dur = m_ovKind == Overlay::Skip ? 700.0 : 480.0;
+        const double t = double(m_ovClock.elapsed()) / dur;
+        if (t >= 1.0) m_ovActive = false; // acabou: o timer se desliga sozinho
+        else paintOverlay(p, t);
+    }
     if (m_awaitPaint) {
         m_awaitPaint = false;
         emit firstFrame();
@@ -135,6 +147,10 @@ void MpvWidget::loadFile(const QString &path)
 {
     m_awaitFirst = true;
     m_pos = m_dur = 0;
+    if (m_zoomLog != 0 || m_panX != 0 || m_panY != 0) { // vídeo novo começa sem zoom
+        m_zoomLog = m_panX = m_panY = 0;
+        applyView();
+    }
     command({"loadfile", path});
 }
 
@@ -225,9 +241,152 @@ void MpvWidget::showText(const QString &text, int ms)
 void MpvWidget::wheelEvent(QWheelEvent *e)
 {
     const int notches = e->angleDelta().y() / 120;
-    if (notches != 0)
-        emit volumeWheel(notches * 5);
+    if (notches != 0) {
+        if (e->modifiers() & Qt::ControlModifier)
+            zoomBy(notches * 0.25); // Ctrl + roda = zoom no vídeo
+        else
+            emit volumeWheel(notches * 5);
+    }
     e->accept();
+}
+
+void MpvWidget::flash(Overlay kind, const QString &text)
+{
+    if (m_hold) return;
+    m_ovKind = kind;
+    m_ovText = text;
+    m_ovActive = true;
+    m_ovClock.restart();
+    if (!m_ovTimer.isActive()) m_ovTimer.start();
+    update();
+}
+
+// t: 0 (começou) .. 1 (sumiu). O ícone cresce um pouco e some; o texto do pulo desliza e some.
+void MpvWidget::paintOverlay(QPainter &p, double t) const
+{
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    const double fade = t < 0.35 ? 1.0 : 1.0 - (t - 0.35) / 0.65; // fica cheio e depois some
+    const double alpha = std::clamp(fade, 0.0, 1.0);
+    const QPointF c(width() / 2.0, height() / 2.0);
+    if (m_ovKind == Overlay::Skip) {
+        const bool fwd = !m_ovText.startsWith(QChar(0x2212)) && !m_ovText.startsWith('-'); // "−" ou "-" = para trás
+        const double r = std::min(width(), height()) * 0.075;
+        const QPointF ctr(width() * (fwd ? 0.80 : 0.20), height() / 2.0);
+        const QRectF pill(ctr.x() - r * 1.9, ctr.y() - r, r * 3.8, r * 2);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0, 0, 0, int(150 * alpha)));
+        p.drawRoundedRect(pill, r, r);
+        p.setBrush(QColor(255, 255, 255, int(235 * alpha)));
+        // dois triângulos (▶▶ ou ◀◀)
+        const double s = r * 0.34, dir = fwd ? 1.0 : -1.0;
+        for (int i = 0; i < 2; ++i) {
+            const double x0 = ctr.x() - dir * r * 1.15 + dir * i * s * 1.1;
+            QPolygonF tri;
+            tri << QPointF(x0, ctr.y() - s) << QPointF(x0, ctr.y() + s) << QPointF(x0 + dir * s * 1.4, ctr.y());
+            p.drawPolygon(tri);
+        }
+        QFont f = font();
+        f.setBold(true);
+        f.setPixelSize(std::max(12, int(r * 0.62)));
+        p.setFont(f);
+        p.setPen(QColor(255, 255, 255, int(240 * alpha)));
+        p.drawText(QRectF(ctr.x() - r * 0.4, ctr.y() - r, r * 2.2, r * 2), Qt::AlignCenter, m_ovText);
+    } else {
+        const double grow = 1.0 + 0.35 * t;
+        const double r = std::min(width(), height()) * 0.085 * grow;
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0, 0, 0, int(150 * alpha)));
+        p.drawEllipse(c, r, r);
+        p.setBrush(QColor(255, 255, 255, int(240 * alpha)));
+        if (m_ovKind == Overlay::Play) {
+            const double s = r * 0.46;
+            QPolygonF tri;
+            tri << QPointF(c.x() - s * 0.7, c.y() - s) << QPointF(c.x() - s * 0.7, c.y() + s) << QPointF(c.x() + s * 1.1, c.y());
+            p.drawPolygon(tri);
+        } else {
+            const double w = r * 0.20, h = r * 0.9, gap = r * 0.16;
+            p.drawRoundedRect(QRectF(c.x() - gap - w, c.y() - h / 2, w, h), w / 3, w / 3);
+            p.drawRoundedRect(QRectF(c.x() + gap, c.y() - h / 2, w, h), w / 3, w / 3);
+        }
+    }
+    p.restore();
+}
+
+void MpvWidget::setSpeed(double speed)
+{
+    m_speed = std::clamp(speed, 0.1, 4.0);
+    command({"set", "speed", QString::number(m_speed, 'f', 3)});
+}
+
+// --- zoom e posição da imagem ---------------------------------------------------------------------------------------
+void MpvWidget::zoomBy(double stepsLog2)
+{
+    m_zoomLog = std::clamp(m_zoomLog + stepsLog2, 0.0, 3.0); // até 8x
+    if (m_zoomLog <= 1e-9) m_panX = m_panY = 0;
+    applyView();
+    showText(m_zoomLog <= 1e-9 ? QStringLiteral("Zoom 1×")
+                               : QString("Zoom %1×").arg(std::pow(2.0, m_zoomLog), 0, 'f', 1).replace('.', ','),
+             700);
+}
+
+void MpvWidget::resetZoom()
+{
+    if (m_zoomLog <= 1e-9 && m_panX == 0 && m_panY == 0) return;
+    m_zoomLog = m_panX = m_panY = 0;
+    applyView();
+    showText(QStringLiteral("Zoom 1×"), 700);
+}
+
+void MpvWidget::applyView()
+{
+    // O pan do mpv é em frações do vídeo JÁ ampliado: para ver as bordas basta (z-1)/(2z).
+    const double z = std::pow(2.0, m_zoomLog), maxPan = (z - 1.0) / (2.0 * z);
+    m_panX = std::clamp(m_panX, -maxPan, maxPan);
+    m_panY = std::clamp(m_panY, -maxPan, maxPan);
+    command({"set", "video-zoom", QString::number(m_zoomLog, 'f', 4)});
+    command({"set", "video-pan-x", QString::number(m_panX, 'f', 5)});
+    command({"set", "video-pan-y", QString::number(m_panY, 'f', 5)});
+    setCursor(m_zoomLog > 1e-9 ? Qt::OpenHandCursor : Qt::ArrowCursor);
+}
+
+void MpvWidget::mousePressEvent(QMouseEvent *e)
+{
+    if (e->button() != Qt::LeftButton) return;
+    m_pressed = true;
+    m_panning = false;
+    m_pressPos = m_lastPos = e->pos();
+}
+
+void MpvWidget::mouseMoveEvent(QMouseEvent *e)
+{
+    if (!m_pressed || m_zoomLog <= 1e-9) return;
+    if (!m_panning && (e->pos() - m_pressPos).manhattanLength() < 4) return; // ainda é um clique
+    m_panning = true;
+    setCursor(Qt::ClosedHandCursor);
+    double aspect = 16.0 / 9.0;
+    if (m_mpv) mpv_get_property(m_mpv, "video-params/aspect", MPV_FORMAT_DOUBLE, &aspect);
+    if (aspect <= 0.1) aspect = 16.0 / 9.0;
+    const double z = std::pow(2.0, m_zoomLog);
+    const double dispW = std::min<double>(width(), height() * aspect) * z; // tamanho do vídeo ampliado, em px
+    const double dispH = std::min<double>(height(), width() / aspect) * z;
+    const QPoint d = e->pos() - m_lastPos;
+    m_lastPos = e->pos();
+    m_panX += d.x() / dispW;
+    m_panY += d.y() / dispH;
+    applyView();
+}
+
+void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
+{
+    if (e->button() != Qt::LeftButton || !m_pressed) return;
+    m_pressed = false;
+    if (m_panning) {
+        m_panning = false;
+        setCursor(m_zoomLog > 1e-9 ? Qt::OpenHandCursor : Qt::ArrowCursor);
+        return; // era um arrasto, não um clique
+    }
+    emit clicked();
 }
 
 void MpvWidget::togglePause() { setPaused(!m_paused); }

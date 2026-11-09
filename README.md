@@ -15,12 +15,14 @@ marcar início e fim, exportar e colar no Discord.
 
 | Tecla | Ação |
 |---|---|
-| `Espaço` | play/pause |
+| `Espaço` ou clique no vídeo | play/pause (com uma animação rápida sobre o vídeo; pular também mostra "+5 s", "−0,5 s"…) |
+| `Ctrl` + roda do mouse sobre o vídeo | zoom no vídeo (até 8×); com zoom, arraste com o botão esquerdo para mover a imagem; `Ctrl` + `0` volta a 1× |
+| `-` / `+` (ou o botão **1×** no topo) | velocidade do preview: 0,25× a 3× (não muda o arquivo exportado); `Backspace` volta a 1× |
 | `I` / `O` ou `Z` / `C` | marca início / fim (no modo Rápido o `I`/`Z` encaixa no keyframe e o playback vai para lá) |
 | `←` `→` ou `A` `D` | pula 1 s para trás / frente, sem pausar o vídeo (segurando, repete) |
-| `Shift` + `←` `→` / `A` `D` | 5 s |
-| `Ctrl` + `←` `→` / `A` `D` | 15 s |
-| `Ctrl` + `Shift` + `←` `→` / `A` `D` | 1 min |
+| `Shift` + `←` `→` / `A` `D` | 0,5 s (passo fino) |
+| `Ctrl` + `←` `→` / `A` `D` | 5 s |
+| `Ctrl` + `Shift` + `←` `→` / `A` `D` | 15 s |
 | `Alt` + `←` `→` / `A` `D` (ou `,` `.`) | 1 frame (pausa o vídeo para mostrar o quadro) |
 | `Home` / `End` | início / fim do vídeo |
 | `J` / `L` | −5 s / +5 s |
@@ -31,7 +33,8 @@ marcar início e fim, exportar e colar no Discord.
 | `Ctrl` + `Y` (ou `Ctrl` + `Shift` + `Z`) | refaz o que foi desfeito |
 | `Enter` | exporta |
 | `Esc` | volta à lista de clipes |
-| roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 5 s, Ctrl 15 s, Ctrl+Shift 1 min, Alt 1 quadro); para cima avança |
+| puxar o mouse para baixo ao arrastar na timeline | régua ampliada (zoom de precisão); em tela cheia, quando falta espaço até a borda da tela, as faixas de zoom ficam mais estreitas e a régua aparece acima da timeline |
+| roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 0,5 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro); para cima avança |
 
 ### Menu de contexto do Explorer
 Em **Configurações → Menu do Windows** (caixa de seleção) o item “Cortar com shear” passa a aparecer ao clicar com o botão direito em

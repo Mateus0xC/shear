@@ -1159,8 +1159,8 @@ void MainWindow::updateInfo()
         msg << "Comprime para caber em 20 MB";
     else if (plan.assembled)
         msg << "Trechos apagados: recodifica o vídeo";
-    else
-        msg << (r.mode == CutMode::Fast ? "Corta na hora" : "Corta no quadro marcado (demora mais)");
+    else if (r.mode == CutMode::Exact)
+        msg << "Corta no quadro marcado (demora mais)"; // no Rápido não precisa de texto
     m_warning->setText(msg.join("   ·   "));
 
     // previsão do tempo de exportação

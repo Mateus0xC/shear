@@ -22,6 +22,7 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPixmap>
+#include <QWheelEvent>
 #include <QScrollArea>
 #include <QSettings>
 #include <QSlider>
@@ -275,6 +276,7 @@ QWidget *MainWindow::buildEditor()
     m_speedBtn->setToolTip("Velocidade do preview. Botão direito volta a 1×.");
     m_speedBtn->setContextMenuPolicy(Qt::CustomContextMenu); // botão direito = velocidade normal
     connect(m_speedBtn, &QWidget::customContextMenuRequested, this, [this] { setSpeed(1.0); });
+    m_speedBtn->installEventFilter(this); // roda do mouse sobre o botão também muda a velocidade
     m_speedBtn->setPopupMode(QToolButton::InstantPopup);
     m_speedBtn->setStyleSheet("QToolButton::menu-indicator { image: none; }");
     m_speedBtn->setFocusPolicy(Qt::NoFocus);
@@ -1366,6 +1368,23 @@ void MainWindow::dropEvent(QDropEvent *e)
 {
     for (const auto &u : e->mimeData()->urls())
         if (u.isLocalFile()) { openFile(u.toLocalFile()); break; }
+}
+
+// Roda do mouse sobre o botão de velocidade: para cima acelera, para baixo desacelera (um passo por "clique" da roda).
+bool MainWindow::eventFilter(QObject *obj, QEvent *e)
+{
+    if (obj == m_speedBtn && e->type() == QEvent::Wheel) {
+        auto *w = static_cast<QWheelEvent *>(e);
+        m_speedWheelAcc += w->angleDelta().y();
+        const int notches = m_speedWheelAcc / 120;
+        if (notches != 0) {
+            m_speedWheelAcc -= notches * 120;
+            for (int i = 0; i < std::abs(notches); ++i)
+                stepSpeed(notches > 0 ? +1 : -1);
+        }
+        return true;
+    }
+    return QMainWindow::eventFilter(obj, e);
 }
 
 void MainWindow::closeEvent(QCloseEvent *e)

@@ -1,6 +1,5 @@
 """Gera a logo (resources/logo.svg, logo.png e shear.ico): um quadro de vídeo dividido em duas metades por um corte
-inclinado. O vão entre as metades desenha um S (as duas dobras do corte são curvas). As pontas do corte ficam vivas e
-os cantos de fora, arredondados. Uso: python scripts/make-logo.py [pasta de saída]  (precisa do Pillow)."""
+inclinado e reto (bordas paralelas, cantos do corte vivos); só os cantos de fora são arredondados. Uso: python scripts/make-logo.py [pasta de saída]  (precisa do Pillow)."""
 from PIL import Image, ImageDraw
 import math, sys
 
@@ -8,13 +7,13 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else "D:/Coding/shear/resources"
 COLOR = (0, 128, 250)
 
 # Vértices (x, y, raio) no quadro de 1024 x 1024. Raio 0 = canto vivo.
-#  - cantos de fora: raio pequeno
-#  - pontas do corte (em cima à direita da metade de cima, embaixo à esquerda da de baixo): vivas
-#  - dobras do corte (embaixo à direita da de cima, em cima à esquerda da de baixo): raio grande = o S do vão
-OUTER, BEND = 26, 100
-LEFT = [(180, 250, OUTER), (605, 250, 0), (435, 605, BEND), (180, 605, OUTER)]
-RIGHT = [(600, 380, BEND), (845, 380, OUTER), (782, 742, OUTER), (427, 742, 0)]
-CX, CY, SCALE = 512, 496, 1.2
+#  - cantos de fora: levemente arredondados
+#  - todos os cantos do corte (no centro): vivos; as duas bordas do corte são paralelas, com um vão fino
+#  - a metade de baixo desliza para baixo/direita em relação à de cima
+OUTER = 24
+LEFT = [(85, 210, OUTER), (611, 210, 0), (389, 668, 0), (85, 670, OUTER)]
+RIGHT = [(639, 354, 0), (939, 354, OUTER), (939, 814, OUTER), (416, 814, 0)]
+CX, CY, SCALE = 512, 512, 1.0
 
 def xf(v):
     return (CX + (v[0] - CX) * SCALE, CY + (v[1] - CY) * SCALE, v[2] * SCALE)

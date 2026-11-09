@@ -11,6 +11,10 @@ add_executable(shear WIN32
   ${S}/util/Settings.cpp ${S}/util/Metrics.cpp ${S}/util/CrashLog.cpp
   ${CMAKE_SOURCE_DIR}/resources/shear.rc ${CMAKE_SOURCE_DIR}/resources/shear.qrc) # ícone do exe (logo)
 
+# O ícone do exe vem do .rc, que só aponta para o .ico: sem isto, trocar a logo não recompilava o recurso do exe.
+set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/shear.rc PROPERTIES
+  OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/resources/shear.ico)
+
 target_include_directories(shear PRIVATE ${S} ${MPV_DIR}/include ${FF_DIR}/include)
 target_link_directories(shear PRIVATE ${FF_DIR}/lib)
 target_link_libraries(shear PRIVATE shear_core Qt6::Widgets Qt6::Network

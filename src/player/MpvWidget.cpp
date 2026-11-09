@@ -284,27 +284,37 @@ void MpvWidget::paintOverlay(QPainter &p, double t) const
     const QPointF c(width() / 2.0, height() / 2.0);
     if (m_ovKind == Overlay::Skip) {
         const bool fwd = !m_ovText.startsWith(QChar(0x2212)) && !m_ovText.startsWith('-'); // "−" ou "-" = para trás
-        const double r = std::min(width(), height()) * 0.075;
-        const QPointF ctr(width() * (fwd ? 0.80 : 0.20), height() / 2.0);
-        const QRectF pill(ctr.x() - r * 1.9, ctr.y() - r, r * 3.8, r * 2);
-        p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0, 0, 0, int(150 * alpha)));
-        p.drawRoundedRect(pill, r, r);
-        p.setBrush(QColor(255, 255, 255, int(235 * alpha)));
-        // dois triângulos (▶▶ ou ◀◀)
-        const double s = r * 0.34, dir = fwd ? 1.0 : -1.0;
-        for (int i = 0; i < 2; ++i) {
-            const double x0 = ctr.x() - dir * r * 1.15 + dir * i * s * 1.1;
-            QPolygonF tri;
-            tri << QPointF(x0, ctr.y() - s) << QPointF(x0, ctr.y() + s) << QPointF(x0 + dir * s * 1.4, ctr.y());
-            p.drawPolygon(tri);
-        }
+        // Pílula pequena: [ ◀◀  −5 s ] ou [ ▶▶  +5 s ]. Primeiro as setas, depois o texto (nunca um por cima do outro).
         QFont f = font();
         f.setBold(true);
-        f.setPixelSize(std::max(12, int(r * 0.62)));
+        f.setPixelSize(std::clamp(int(std::min(width(), height()) * 0.032), 11, 20));
         p.setFont(f);
+        const QFontMetrics fm(f);
+        const double fpx = f.pixelSize();
+        const double s = fpx * 0.42;                 // meia altura de cada triângulo
+        const double step = s * 1.1, triW = s * 1.4; // dois triângulos lado a lado
+        const double iconW = step + triW;
+        const double pad = fpx * 0.8, gap = fpx * 0.55;
+        const double textW = fm.horizontalAdvance(m_ovText);
+        const double pillW = pad + iconW + gap + textW + pad, pillH = fpx * 2.1;
+        const QPointF ctr(width() * (fwd ? 0.82 : 0.18), height() / 2.0);
+        const QRectF pill(ctr.x() - pillW / 2, ctr.y() - pillH / 2, pillW, pillH);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0, 0, 0, int(150 * alpha)));
+        p.drawRoundedRect(pill, pillH / 2, pillH / 2);
+        p.setBrush(QColor(255, 255, 255, int(235 * alpha)));
+        const double x0 = pill.left() + pad;
+        for (int i = 0; i < 2; ++i) { // ▶▶ aponta para a direita, ◀◀ para a esquerda
+            const double xl = x0 + i * step; // borda esquerda do triângulo i
+            QPolygonF tri;
+            if (fwd)
+                tri << QPointF(xl, ctr.y() - s) << QPointF(xl, ctr.y() + s) << QPointF(xl + triW, ctr.y());
+            else
+                tri << QPointF(xl + triW, ctr.y() - s) << QPointF(xl + triW, ctr.y() + s) << QPointF(xl, ctr.y());
+            p.drawPolygon(tri);
+        }
         p.setPen(QColor(255, 255, 255, int(240 * alpha)));
-        p.drawText(QRectF(ctr.x() - r * 0.4, ctr.y() - r, r * 2.2, r * 2), Qt::AlignCenter, m_ovText);
+        p.drawText(QRectF(x0 + iconW + gap, pill.top(), textW + 2, pillH), Qt::AlignLeft | Qt::AlignVCenter, m_ovText);
     } else {
         const double grow = 1.0 + 0.35 * t;
         const double r = std::min(width(), height()) * 0.085 * grow;

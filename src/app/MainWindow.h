@@ -81,6 +81,11 @@ private:
     void userTogglePause();            // play/pause pedido pelo usuário (com a animação sobre o vídeo)
     void setSpeed(double speed, bool osd = true); // velocidade do preview
     void stepSpeed(int dir);           // próxima velocidade mais lenta (-1) ou mais rápida (+1)
+    QCheckBox *m_limitCheck = nullptr;     // "Até 20 MB": comprime o vídeo para caber nesse tamanho
+    qint64 m_exportMaxBytes = 0;           // limite da exportação em andamento (0 = sem limite)
+    double m_limitScale = 1.0;             // ajuste do bitrate depois de uma tentativa que passou do limite
+    int m_limitTries = 0;
+    bool m_retrying = false;               // startExport chamado pela nova tentativa, não pelo usuário
     QToolButton *m_speedBtn = nullptr;
     int m_speedWheelAcc = 0;           // soma da roda do mouse sobre o botão de velocidade
     double m_prevPos = 0;              // posição anterior do playback (para detectar a chegada na marca de fim)

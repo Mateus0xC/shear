@@ -1,4 +1,5 @@
 #pragma once
+#include <QtGlobal>
 #include <QString>
 #include <QStringList>
 #include <optional>
@@ -28,6 +29,8 @@ struct ExportRequest {
     bool hasNvenc = true;
     std::vector<Range> gaps;      // trechos do MEIO a apagar (o que sobra é emendado); dentro de [startSec, endSec]
     double fadeSec = 0;           // > 0: esmaece cada EMENDA entre pedaços (o começo e o fim do vídeo não)
+    qint64 maxBytes = 0;          // > 0: comprime o vídeo para caber neste tamanho (recodifica; reduz qualidade/resolução)
+    double bitrateScale = 1.0;    // ajuste fino do bitrate da compressão (reduzido quando o 1º resultado passou do limite)
 };
 
 inline constexpr double kJoinFadeSec = 0.2; // duração do fade nas emendas: rápido, só para não "dar tranco"

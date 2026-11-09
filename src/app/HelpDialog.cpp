@@ -95,6 +95,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"Enter", "Exporta o clipe"},
             {"Rápido", "Corta na hora; o começo se ajusta ao ponto mais próximo"},
             {"Exato", "Corta exatamente onde você marcou (demora um pouco mais)"},
+            {"Até 20 MB", "Comprime o vídeo para o arquivo ficar com até 20 MB (a qualidade baixa um pouco, e em trechos longos a resolução também)"},
             {"Ícone de copiar", "Copia o clipe para você colar em outro lugar (Ctrl + V)"},
             {"Manter clipe", "Guarda o clipe. Segure Shift para guardar e já apagar o vídeo original"},
             {"Apagar original", "Manda o vídeo original para a Lixeira"},

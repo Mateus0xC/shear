@@ -20,6 +20,16 @@ QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, c
 
 int enabledTrackCount(const std::vector<AudioTrack> &tracks);
 
+// Compressão "até X MB": bitrates e resolução para caber em maxBytes em `seconds` de vídeo. O áudio sai em AAC (todas as
+// faixas ligadas juntadas em uma). height 0 = mantém a resolução; sem o limite (maxBytes == 0) devolve zeros.
+struct Compression {
+    int videoKbps = 0;
+    int audioKbps = 0;
+    int height = 0;       // altura máxima do vídeo (0 = a original)
+    bool cap30fps = false; // com pouco bitrate, 30 quadros/s rendem mais qualidade que 60
+};
+Compression planCompression(const ExportRequest &r, double seconds);
+
 // Formata segundos com 3 casas, sempre com ponto.
 QString fmtSeconds(double s);
 

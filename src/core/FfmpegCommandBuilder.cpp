@@ -62,8 +62,43 @@ QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, c
     return parts.join(';');
 }
 
-static void videoEncodeArgs(QStringList &a, const ExportRequest &r)
+Compression planCompression(const ExportRequest &r, double seconds)
 {
+    Compression c;
+    if (r.maxBytes <= 0 || seconds <= 0)
+        return c;
+    const bool hasAudio = enabledTrackCount(r.audio) > 0;
+    // 6% de folga para o contêiner (cabeçalhos, índice) e para o bitrate não ser 100% exato
+    const double totalKbps = double(r.maxBytes) * 8.0 * 0.94 / 1000.0 / seconds;
+    c.audioKbps = hasAudio ? (totalKbps < 450 ? 64 : 96) : 0;
+    c.videoKbps = std::max(60, int((totalKbps - c.audioKbps) * r.bitrateScale));
+    // quanto menos bitrate, menor a resolução (mais nítido do que esticar poucos bits num quadro grande)
+    c.height = c.videoKbps >= 4000 ? 0 : c.videoKbps >= 2000 ? 720 : c.videoKbps >= 1000 ? 540 : 360;
+    c.cap30fps = c.videoKbps < 2500;
+    return c;
+}
+
+// Filtros de vídeo da compressão (vazio = nenhum). A vírgula dentro de min() é escapada para o ffmpeg.
+static QString compressionFilters(const Compression &c)
+{
+    QStringList f;
+    if (c.height > 0)
+        f << QString("scale=-2:min(%1\\,ih)").arg(c.height); // nunca aumenta o vídeo
+    if (c.cap30fps)
+        f << "fps=fps=min(30\\,source_fps)";
+    return f.join(',');
+}
+
+static void videoEncodeArgs(QStringList &a, const ExportRequest &r, const Compression &c = {})
+{
+    if (c.videoKbps > 0) { // compressão: bitrate fixo, perto do alvo
+        const QString k = QString::number(c.videoKbps) + "k", buf = QString::number(c.videoKbps * 2) + "k";
+        if (r.hasNvenc)
+            a << "-c:v" << "h264_nvenc" << "-preset" << "p5" << "-rc" << "cbr" << "-b:v" << k << "-maxrate" << k << "-bufsize" << buf;
+        else
+            a << "-c:v" << "libx264" << "-preset" << "veryfast" << "-b:v" << k << "-maxrate" << k << "-bufsize" << buf;
+        return;
+    }
     if (r.hasNvenc)
         a << "-c:v" << "h264_nvenc" << "-preset" << "p3" << "-rc" << "vbr" << "-cq" << "19" << "-b:v" << "0";
     else
@@ -87,6 +122,9 @@ static QStringList buildAssembledArgs(const ExportRequest &r)
         join[k] = r.fadeSec > 0.001 ? std::min({r.fadeSec, len[k] / 2, len[k + 1] / 2}) : 0.0;
     const bool crossfade = std::any_of(join.begin(), join.end(), [](double d) { return d > 0.001; });
     const bool hasAudio = enabledTrackCount(r.audio) > 0;
+    const Compression comp = planCompression(r, keptSeconds(r));
+    const QString vf = compressionFilters(comp);
+    const QString vlabel = vf.isEmpty() ? "[vout]" : "[vcat]"; // com compressão, os filtros vêm depois do concat
 
     QStringList a;
     a << "-hide_banner" << "-n" << "-nostats" << "-progress" << "pipe:1";
@@ -114,9 +152,9 @@ static QStringList buildAssembledArgs(const ExportRequest &r)
         QString both;
         for (size_t k = 0; k < n; ++k)
             both += vIn[int(k)] + aIn[int(k)];
-        graph << QString("%1concat=n=%2:v=1:a=1[vout][aout]").arg(both).arg(n);
+        graph << QString("%1concat=n=%2:v=1:a=1%3[aout]").arg(both).arg(n).arg(vlabel);
     } else {
-        graph << QString("%1concat=n=%2:v=1:a=0[vout]").arg(vIn.join(QString())).arg(n);
+        graph << QString("%1concat=n=%2:v=1:a=0%3").arg(vIn.join(QString())).arg(n).arg(vlabel);
         if (hasAudio) { // crossfade encadeado: ((a0 x a1) x a2) ...
             QString cur = "[a0]";
             for (size_t k = 1; k < n; ++k) {
@@ -129,12 +167,14 @@ static QStringList buildAssembledArgs(const ExportRequest &r)
             }
         }
     }
+    if (!vf.isEmpty())
+        graph << QString("[vcat]%1[vout]").arg(vf);
     a << "-filter_complex" << graph.join(';') << "-map" << "[vout]";
     if (hasAudio)
         a << "-map" << "[aout]";
-    videoEncodeArgs(a, r);
+    videoEncodeArgs(a, r, comp);
     if (hasAudio)
-        a << "-c:a" << "aac" << "-b:a" << "320k";
+        a << "-c:a" << "aac" << "-b:a" << (comp.audioKbps > 0 ? QString::number(comp.audioKbps) + "k" : QString("320k"));
     else
         a << "-an";
     a << "-movflags" << "+faststart" << r.outputPath;
@@ -153,6 +193,8 @@ QStringList buildFfmpegArgs(const ExportRequest &r, const CutPlan &plan)
     a << "-ss" << fmtSeconds(start) << "-t" << fmtSeconds(dur) << "-i" << r.inputPath;
     a << "-map" << "0:V:0";
 
+    const Compression comp = planCompression(r, dur);
+    const QString aacRate = comp.audioKbps > 0 ? QString::number(comp.audioKbps) + "k" : QString("320k");
     QStringList audio; // opções de áudio, depois das de vídeo
     const int n = enabledTrackCount(r.audio);
     if (n == 0) {
@@ -160,22 +202,28 @@ QStringList buildFfmpegArgs(const ExportRequest &r, const CutPlan &plan)
     } else if (n == 1) {
         size_t idx = 0;
         while (!r.audio[idx].enabled) ++idx;
-        if (r.audio[idx].gainDb == 0.0) { // cópia direta
+        if (r.audio[idx].gainDb == 0.0) {
             a << "-map" << QString("0:a:%1").arg(idx);
-            audio << "-c:a" << "copy";
+            if (comp.audioKbps > 0) // comprimindo: o áudio é recodificado (a cópia pode ocupar mais do que o limite)
+                audio << "-c:a" << "aac" << "-b:a" << aacRate;
+            else // cópia direta
+                audio << "-c:a" << "copy";
         } else {
             a << "-filter_complex" << buildAudioMixGraph(r.audio, false, "aout") << "-map" << "[aout]";
-            audio << "-c:a" << "aac" << "-b:a" << "320k";
+            audio << "-c:a" << "aac" << "-b:a" << aacRate;
         }
     } else {
         a << "-filter_complex" << buildAudioMixGraph(r.audio, false, "aout") << "-map" << "[aout]";
-        audio << "-c:a" << "aac" << "-b:a" << "320k";
+        audio << "-c:a" << "aac" << "-b:a" << aacRate;
     }
 
-    if (plan.copyVideo)
+    if (plan.copyVideo) {
         a << "-c:v" << "copy" << "-avoid_negative_ts" << "make_zero";
-    else
-        videoEncodeArgs(a, r);
+    } else {
+        if (const QString vf = compressionFilters(comp); !vf.isEmpty())
+            a << "-vf" << vf;
+        videoEncodeArgs(a, r, comp);
+    }
     a << audio << "-movflags" << "+faststart" << r.outputPath;
     return a;
 }

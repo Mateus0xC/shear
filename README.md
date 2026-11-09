@@ -28,6 +28,7 @@ marcar início e fim, exportar e colar no Discord.
 | `Home` / `End` | início / fim do vídeo |
 | `J` / `L` | −5 s / +5 s |
 | `X` | apaga um trecho do **meio**: o 1º `X` marca onde ele começa, o 2º onde termina (`Esc` cancela). O trecho fica hachurado em laranja na timeline, o preview pula por cima dele, e na exportação o que sobra é emendado (com trechos apagados o modo **Exato** é selecionado à força e o **Rápido** fica desabilitado, porque o vídeo é recodificado; quando todos os trechos somem, volta ao modo de antes). Botão direito num trecho apagado traz ele de volta; `Ctrl+Z` desfaz um passo de cada vez (o 2º `X` sai, o início continua marcado) |
+| caixa **Até 20 MB** (ao lado de Rápido/Exato) | comprime o clipe para ficar com até 20 MB: o bitrate é calculado pela duração (vídeo + áudio em AAC), a resolução cai (720p, 540p ou 360p) e o vídeo vai para 30 quadros/s quando o bitrate é baixo; se o resultado passar do limite o shear tenta de novo, até 2 vezes, com bitrate menor. Recodifica (o modo fica Exato). A escolha é lembrada |
 | **Configurações → Emendas** | "Suavizar as emendas" (ligado por padrão): nas emendas dos trechos apagados o vídeo esmaece rapidinho (0,2 s) e o áudio faz **crossfade**; o começo e o fim do vídeo ficam como estão |
 | `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`); o `E` com o vídeo rodando **pausa em cima do `O`** |
 | `0` a `9` | pula para 0% a 90% do vídeo (como no YouTube) |
@@ -124,7 +125,7 @@ essa pasta é portátil (copie-a inteira ou compacte em .zip).
 
 ### Instalador
 
-`winget install JRSoftware.InnoSetup` (uma vez) e depois, com o projeto compilado, `scripts\make-installer.ps1` gera `dist\shear-setup.exe` (~140 MB, já inclui o runtime do Visual C++). Instala só para o usuário (sem administrador) em `%LOCALAPPDATA%\Programs\shear`, com atalho no menu Iniciar (e na área de trabalho, se marcado) e desinstalador, que também remove o item do botão direito.
+`winget install JRSoftware.InnoSetup` (uma vez) e depois, com o projeto compilado, `scripts\make-installer.ps1` gera `dist\shear-setup.exe` (~140 MB, já inclui o runtime do Visual C++). Instala só para o usuário (sem administrador) em `%LOCALAPPDATA%\Programs\shear`, com atalho no menu Iniciar (e na área de trabalho, se marcado) e desinstalador. Uma caixa do instalador (marcada por padrão) instala o item **Cortar com shear** do botão direito; o mesmo item também liga e desliga em Configurações → Menu do Windows, e o desinstalador o remove.
 
 ### Dependências
 | Dependência | Origem |

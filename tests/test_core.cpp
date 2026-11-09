@@ -103,6 +103,52 @@ private slots:
         QVERIFY(g2.contains("concat=n=2:v=1:a=0[vout]"));
         QVERIFY(a2.contains("-an"));
     }
+    void compression_picks_bitrate_and_resolution_for_the_limit()
+    {
+        auto r = base(); // 60..120 = 60 s
+        r.maxBytes = 20LL * 1024 * 1024;
+        r.audio = {{true, 0.0}};
+        auto c = planCompression(r, 60);
+        QCOMPARE(c.audioKbps, 96);
+        QVERIFY(c.videoKbps > 2300 && c.videoKbps < 2700); // 20 MiB * 0,94 / 60 s ~ 2,6 Mbps, menos o áudio
+        QCOMPARE(c.height, 720);
+        QVERIFY(c.cap30fps == false || c.videoKbps < 2500);
+        // vídeo longo: bitrate baixo, resolução menor, 30 fps
+        c = planCompression(r, 300);
+        QVERIFY(c.videoKbps < 600);
+        QCOMPARE(c.height, 360);
+        QVERIFY(c.cap30fps);
+        // 'bitrateScale' reduz o bitrate (usado quando o 1º resultado passou do limite)
+        r.bitrateScale = 0.8;
+        QVERIFY(planCompression(r, 60).videoKbps < c.videoKbps * 10);
+        // sem limite: nada
+        r.maxBytes = 0;
+        QCOMPARE(planCompression(r, 60).videoKbps, 0);
+    }
+    void compression_args_reencode_audio_and_video_with_fixed_bitrate()
+    {
+        auto r = base();
+        r.maxBytes = 20LL * 1024 * 1024;
+        r.mode = CutMode::Fast;
+        r.audio = {{true, 0.0}};
+        const auto plan = planCut(r);
+        QVERIFY(!plan.copyVideo);
+        QCOMPARE(plan.actualStartSec, 60.0);
+        const auto args = buildFfmpegArgs(r, plan);
+        QVERIFY(!args.contains("copy"));              // nem vídeo nem áudio são copiados
+        QVERIFY(args.contains("-b:v") && args.contains("-maxrate") && args.contains("cbr"));
+        QVERIFY(args.contains("aac"));
+        const int vf = args.indexOf("-vf");
+        QVERIFY(vf >= 0);
+        QVERIFY(args[vf + 1].contains("scale=-2:min(720\\,ih)"));
+        // com trecho apagado a compressão vem depois do concat
+        r.gaps = {{80, 90}};
+        const auto a2 = buildFfmpegArgs(r, planCut(r));
+        const QString g = a2[a2.indexOf("-filter_complex") + 1];
+        QVERIFY(g.contains("concat=n=2:v=1:a=1[vcat][aout]"));
+        QVERIFY(g.contains("[vcat]scale=-2:min("));
+        QVERIFY(a2.contains("-b:v"));
+    }
     void fast_mode_warning()
     {
         auto r = base();

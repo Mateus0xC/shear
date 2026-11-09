@@ -32,6 +32,7 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; Flags: unchecked
+Name: "contextmenu"; Description: "Mostrar “Cortar com shear” ao clicar com o botão direito em um vídeo"
 
 [Files]
 Source: "{#AppDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; \
@@ -48,8 +49,24 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\shear.exe"; Tasks: desktopico
 [Run]
 Filename: "{app}\shear.exe"; Description: "Abrir o shear"; Flags: nowait postinstall skipifsilent
 
-; Ao desinstalar, remove o item "Cortar com shear" do botão direito (se foi ativado nas Configurações).
+; Item "Cortar com shear" do botão direito (marcado por padrão; também dá para ligar/desligar nas Configurações do app).
+; Ao desinstalar, a chave inteira é removida (mesmo se foi criada pelo app).
 [Registry]
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mp4\shell\Shear"; ValueType: string; ValueName: ""; ValueData: "Cortar com shear"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mp4\shell\Shear"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\shear.exe"",0"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mp4\shell\Shear\command"; ValueType: string; ValueName: ""; ValueData: """{app}\shear.exe"" ""%1"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mkv\shell\Shear"; ValueType: string; ValueName: ""; ValueData: "Cortar com shear"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mkv\shell\Shear"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\shear.exe"",0"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mkv\shell\Shear\command"; ValueType: string; ValueName: ""; ValueData: """{app}\shear.exe"" ""%1"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mov\shell\Shear"; ValueType: string; ValueName: ""; ValueData: "Cortar com shear"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mov\shell\Shear"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\shear.exe"",0"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mov\shell\Shear\command"; ValueType: string; ValueName: ""; ValueData: """{app}\shear.exe"" ""%1"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.webm\shell\Shear"; ValueType: string; ValueName: ""; ValueData: "Cortar com shear"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.webm\shell\Shear"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\shear.exe"",0"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.webm\shell\Shear\command"; ValueType: string; ValueName: ""; ValueData: """{app}\shear.exe"" ""%1"""; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.avi\shell\Shear"; ValueType: string; ValueName: ""; ValueData: "Cortar com shear"; Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.avi\shell\Shear"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\shear.exe"",0"; Tasks: contextmenu
+Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.avi\shell\Shear\command"; ValueType: string; ValueName: ""; ValueData: """{app}\shear.exe"" ""%1"""; Tasks: contextmenu
 Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mp4\shell\Shear"; Flags: dontcreatekey uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mkv\shell\Shear"; Flags: dontcreatekey uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\SystemFileAssociations\.mov\shell\Shear"; Flags: dontcreatekey uninsdeletekey

@@ -95,6 +95,9 @@ static QString iconFontFamily()
     return family;
 }
 
+// Limite da opção "Até 20 MB" (20 MiB).
+static constexpr qint64 kLimitBytes = 20LL * 1024 * 1024;
+
 // Velocidades do preview (botão da barra de cima e teclas - / +).
 static const double kSpeeds[] = {0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0};
 
@@ -402,7 +405,18 @@ QWidget *MainWindow::buildEditor()
     m_exportBtn = new QPushButton("Exportar (Enter)");
     m_exportBtn->setFixedSize(150, 30);
     m_exportBtn->setFocusPolicy(Qt::NoFocus);
+    // Comprimir para caber em 20 MB (lembra a última escolha)
+    m_limitCheck = new QCheckBox("Até 20 MB");
+    m_limitCheck->setToolTip("Comprime o vídeo para o arquivo ficar com até 20 MB. Reduz a qualidade e, se o trecho for longo, "
+                             "a resolução. O vídeo é recodificado (o modo fica em Exato).");
+    m_limitCheck->setFocusPolicy(Qt::NoFocus);
+    m_limitCheck->setChecked(QSettings().value("export/limit20", false).toBool());
+    connect(m_limitCheck, &QCheckBox::toggled, this, [this](bool on) {
+        QSettings().setValue("export/limit20", on);
+        updateInfo();
+    });
     opts->addWidget(seg);
+    opts->addWidget(m_limitCheck);
     opts->addWidget(m_warning, 1);
     opts->addWidget(m_eta);
     opts->addWidget(m_exportBtn);
@@ -919,13 +933,14 @@ void MainWindow::syncModeWithGaps()
 {
     if (m_syncingMode) return;
     m_syncingMode = true; // o setChecked abaixo chama onModeChanged -> updateInfo de novo: não reentra
-    if (!m_timeline->gaps().empty()) {
+    // Trechos apagados e a compressão "até 20 MB" recodificam o vídeo: o modo é Exato e o Rápido fica desabilitado.
+    if (!m_timeline->gaps().empty() || (m_limitCheck && m_limitCheck->isChecked())) {
         if (!m_exactBtn->isChecked()) {
             m_fastBeforeGaps = true; // lembra que era Rápido, para voltar quando não houver mais trechos apagados
             m_exactBtn->setChecked(true);
         }
         m_fastBtn->setEnabled(false);
-        m_fastBtn->setToolTip("Com trechos apagados o corte é sempre Exato (o vídeo é recodificado).");
+        m_fastBtn->setToolTip("Com trechos apagados ou “Até 20 MB” o corte é sempre Exato (o vídeo é recodificado).");
     } else {
         m_fastBtn->setEnabled(true);
         m_fastBtn->setToolTip("Corte instantâneo. O início encaixa nas marcas da timeline.");
@@ -1108,6 +1123,10 @@ ExportRequest MainWindow::currentRequest() const
     r.hasNvenc = m_hasNvenc;
     r.gaps = m_timeline->gaps();
     r.fadeSec = m_cfg.fadeJoins ? kJoinFadeSec : 0.0; // opção das Configurações (ligada por padrão)
+    if (m_limitCheck && m_limitCheck->isChecked()) {
+        r.maxBytes = kLimitBytes;
+        r.bitrateScale = m_limitScale; // < 1 depois de uma tentativa que passou do limite
+    }
     r.audio = currentAudio();
     if (auto k = m_timeline->keyframeAtOrBefore(r.startSec))
         r.keyframeBeforeStart = *k;
@@ -1134,7 +1153,9 @@ void MainWindow::updateInfo()
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w);
-    if (plan.assembled)
+    if (r.maxBytes > 0)
+        msg << "Até 20 MB: o vídeo é recodificado e a qualidade (e a resolução, se precisar) se ajusta para caber.";
+    else if (plan.assembled)
         msg << "Com trechos apagados, o vídeo é recodificado (corte exato; exporta um pouco mais devagar).";
     else
         msg << (r.mode == CutMode::Fast
@@ -1153,7 +1174,13 @@ void MainWindow::updateInfo()
 void MainWindow::startExport()
 {
     if (m_job || m_file.isEmpty()) return;
+    if (!m_retrying) { // exportação pedida pelo usuário (e não uma nova tentativa da compressão)
+        m_limitScale = 1.0;
+        m_limitTries = 0;
+    }
+    m_retrying = false;
     auto r = currentRequest();
+    m_exportMaxBytes = r.maxBytes;
     if (keptSeconds(r) < 0.1) {
         m_status->setText(r.gaps.empty() ? "Selecione um trecho maior." : "Os trechos apagados cobrem tudo: nada sobrou para exportar.");
         return;
@@ -1343,8 +1370,20 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
         metrics::log("exportação falhou: " + err);
         return;
     }
+    const qint64 size = QFileInfo(path).size();
+    // "Até 20 MB": passou do limite? Apaga e tenta de novo com bitrate menor (até 2 vezes).
+    if (m_exportMaxBytes > 0 && size > m_exportMaxBytes && m_limitTries < 2) {
+        QFile::remove(path);
+        m_limitScale *= std::max(0.35, double(m_exportMaxBytes) * 0.96 / double(size));
+        ++m_limitTries;
+        m_status->setText(QString("Ajustando para caber em %1 MB…").arg(m_exportMaxBytes / (1024 * 1024)));
+        metrics::log(QString("compressão: %1 bytes passou do limite; nova tentativa (escala %2)").arg(size).arg(m_limitScale, 0, 'f', 3));
+        m_retrying = true;
+        QTimer::singleShot(0, this, &MainWindow::startExport);
+        return;
+    }
     // calibra a previsão com o tempo real desta exportação
-    const double outBytes = double(QFileInfo(path).size());
+    const double outBytes = double(size);
     m_rates = calibrate(m_rates, m_exportKind, m_hasNvenc, m_exportClipSec,
                         m_exportKind == ExportKind::VideoReencode ? m_exportClipBytes : outBytes, sec);
     saveRates(m_rates);
@@ -1354,7 +1393,13 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
     for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_deleteBothBtn), static_cast<QWidget *>(m_fileLink)})
         b->show();
     setResultLink(path);
-    m_status->setText(QString("· Pronto em %1 s").arg(QString::number(sec, 'f', 1).replace('.', ',')));
+    QString done = QString("· Pronto em %1 s").arg(QString::number(sec, 'f', 1).replace('.', ','));
+    if (m_exportMaxBytes > 0) {
+        const QString mb = QString::number(double(size) / (1024.0 * 1024.0), 'f', 1).replace('.', ',') + " MB";
+        done += size > m_exportMaxBytes ? QString(" · ficou com %1 (não coube em %2 MB; use um trecho menor)").arg(mb).arg(m_exportMaxBytes / (1024 * 1024))
+                                         : " · " + mb;
+    }
+    m_status->setText(done);
     updateInfo(); // a próxima previsão já usa a taxa recalibrada
     metrics::log(QString("exportação concluída em %1 s: %2").arg(sec, 0, 'f', 2).arg(path));
 }

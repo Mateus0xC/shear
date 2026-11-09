@@ -39,6 +39,13 @@ CutPlan planCut(const ExportRequest &r)
     }
     const double gap = std::max(0.0, r.startSec - r.keyframeBeforeStart);
 
+    if (r.maxBytes > 0) { // comprimir para caber num tamanho: recodifica (o corte já sai exato)
+        p.copyVideo = false;
+        p.actualStartSec = r.startSec;
+        p.earlyBySec = 0;
+        return p;
+    }
+
     const bool fast = r.mode == CutMode::Fast;
 
     p.copyVideo = fast;

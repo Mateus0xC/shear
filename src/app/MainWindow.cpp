@@ -871,6 +871,28 @@ void MainWindow::markStart(double t)
     updateInfo();
 }
 
+void MainWindow::syncModeWithGaps()
+{
+    if (m_syncingMode) return;
+    m_syncingMode = true; // o setChecked abaixo chama onModeChanged -> updateInfo de novo: não reentra
+    if (!m_timeline->gaps().empty()) {
+        if (!m_exactBtn->isChecked()) {
+            m_fastBeforeGaps = true; // lembra que era Rápido, para voltar quando não houver mais trechos apagados
+            m_exactBtn->setChecked(true);
+        }
+        m_fastBtn->setEnabled(false);
+        m_fastBtn->setToolTip("Com trechos apagados o corte é sempre Exato (o vídeo é recodificado).");
+    } else {
+        m_fastBtn->setEnabled(true);
+        m_fastBtn->setToolTip("Corte instantâneo. O início encaixa nas marcas da timeline.");
+        if (m_fastBeforeGaps) {
+            m_fastBeforeGaps = false;
+            m_fastBtn->setChecked(true);
+        }
+    }
+    m_syncingMode = false;
+}
+
 void MainWindow::toggleGap()
 {
     if (m_job) return;
@@ -1047,6 +1069,7 @@ ExportRequest MainWindow::currentRequest() const
 void MainWindow::updateInfo()
 {
     if (m_file.isEmpty()) return;
+    syncModeWithGaps();
     const auto r = currentRequest();
     const auto plan = planCut(r);
     m_times->setText(QString("Início %1    Fim %2    Duração %3%4")

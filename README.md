@@ -26,8 +26,8 @@ marcar início e fim, exportar e colar no Discord.
 | `Alt` + `←` `→` / `A` `D` (ou `,` `.`) | 1 frame (pausa o vídeo para mostrar o quadro) |
 | `Home` / `End` | início / fim do vídeo |
 | `J` / `L` | −5 s / +5 s |
-| `X` | apaga um trecho do **meio**: o 1º `X` marca onde ele começa, o 2º onde termina (`Esc` cancela). O trecho fica hachurado em laranja na timeline, o preview pula por cima dele, e na exportação o que sobra é emendado. Botão direito num trecho apagado traz ele de volta; `Ctrl+Z` desfaz um passo de cada vez (o 2º `X` sai, o início continua marcado) |
-| caixa **Fade** | esmaece rapidinho (0,2 s) nas **emendas** dos trechos apagados; o começo e o fim do vídeo ficam como estão. Só vale quando há trecho apagado |
+| `X` | apaga um trecho do **meio**: o 1º `X` marca onde ele começa, o 2º onde termina (`Esc` cancela). O trecho fica hachurado em laranja na timeline, o preview pula por cima dele, e na exportação o que sobra é emendado (com trechos apagados o modo **Exato** é selecionado à força e o **Rápido** fica desabilitado, porque o vídeo é recodificado; quando todos os trechos somem, volta ao modo de antes). Botão direito num trecho apagado traz ele de volta; `Ctrl+Z` desfaz um passo de cada vez (o 2º `X` sai, o início continua marcado) |
+| caixa **Fade** | nas **emendas** dos trechos apagados: o vídeo esmaece rapidinho (0,2 s) e o áudio faz **crossfade**; o começo e o fim do vídeo ficam como estão. Só vale quando há trecho apagado |
 | `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`) |
 | `0` a `9` | pula para 0% a 90% do vídeo (como no YouTube) |
 | `↑` / `↓` ou `W` / `S` ou roda do mouse sobre o vídeo | volume do preview (estilo VLC; não muda o arquivo) |

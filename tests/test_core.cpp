@@ -75,19 +75,25 @@ private slots:
         QCOMPARE(args.count("-i"), 2); // um -i por pedaço (o que foi apagado nem é lido)
         const int ss0 = args.indexOf("-ss");
         QCOMPARE(args[ss0 + 1], QString("60.000"));
-        QCOMPARE(args[ss0 + 3], QString("20.000"));
+        // o áudio do 1º pedaço é lido 0,2 s além do fim (o crossfade consome esse trecho): 20 + 0,2
+        QCOMPARE(args[ss0 + 3], QString("20.200"));
+        QCOMPARE(args[args.indexOf("-ss", ss0 + 1) + 3], QString("30.000")); // o último pedaço não precisa de sobra
         const QString g = args[args.indexOf("-filter_complex") + 1];
-        QVERIFY(g.contains("[0:V:0]"));
-        QVERIFY(g.contains("[1:V:0]"));
         QVERIFY(g.contains("[1:a:0]"));                       // o áudio de cada pedaço vem do seu -i
-        // fade só na emenda: o 1º pedaço (60..80) sai com fade, o 2º (90..120) entra com fade; começo e fim ficam limpos
-        QVERIFY(g.contains("[0:V:0]setpts=PTS-STARTPTS,fade=t=out:st=19.8:d=0.2[v0]"));
-        QVERIFY(g.contains("[1:V:0]setpts=PTS-STARTPTS,fade=t=in:st=0:d=0.2[v1]"));
-        QVERIFY(g.contains("afade=t=out:st=19.8:d=0.2"));
-        QVERIFY(g.contains("afade=t=in:st=0:d=0.2"));
+        // vídeo: fade só na emenda (o 1º pedaço sai com fade, o 2º entra com fade; começo e fim limpos)
+        QVERIFY(g.contains("[0:V:0]trim=duration=20,setpts=PTS-STARTPTS,fade=t=out:st=19.8:d=0.2[v0]"));
+        QVERIFY(g.contains("[1:V:0]trim=duration=30,setpts=PTS-STARTPTS,fade=t=in:st=0:d=0.2[v1]"));
         QVERIFY(!g.contains("fade=t=in:st=0:d=0.2[v0]"));
-        QVERIFY(g.contains("concat=n=2:v=1:a=1[vout][aout]"));
+        // áudio: crossfade (não "fade out + fade in")
+        QVERIFY(g.contains("[a0][a1]acrossfade=d=0.2:c1=tri:c2=tri[aout]"));
+        QVERIFY(!g.contains("afade"));
+        QVERIFY(g.contains("concat=n=2:v=1:a=0[vout]"));
         QVERIFY(args.contains("aac"));
+        // sem fade, com áudio: tudo no concat, sem sobra de áudio
+        r.fadeSec = 0;
+        const auto a1 = buildFfmpegArgs(r, planCut(r));
+        QCOMPARE(a1[a1.indexOf("-ss") + 3], QString("20.000"));
+        QVERIFY(a1[a1.indexOf("-filter_complex") + 1].contains("concat=n=2:v=1:a=1[vout][aout]"));
         // sem fade e sem áudio
         r.fadeSec = 0;
         r.audio = {{false, 0.0}};

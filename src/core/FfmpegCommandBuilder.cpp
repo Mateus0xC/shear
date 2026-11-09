@@ -70,45 +70,65 @@ static void videoEncodeArgs(QStringList &a, const ExportRequest &r)
         a << "-c:v" << "libx264" << "-preset" << "veryfast" << "-crf" << "18";
 }
 
-// Vários pedaços (trechos do meio apagados) e/ou fade: cada pedaço é um `-ss/-t -i` (o ffmpeg pula direto, sem decodificar
-// o que foi apagado) e um filter_complex emenda tudo com `concat`. Recodifica o vídeo e o áudio (AAC).
+// Vários pedaços (trechos do meio apagados): cada pedaço é um `-ss/-t -i` (o ffmpeg pula direto, sem decodificar o que
+// foi apagado) e um filter_complex emenda tudo. Recodifica o vídeo e o áudio (AAC).
+//  - Vídeo: concat; com fade, o pedaço antes da emenda sai com fade e o depois entra com fade (começo e fim do vídeo não).
+//  - Áudio com fade: CROSSFADE nas emendas (acrossfade). Para a duração total continuar igual à do vídeo, o áudio de cada
+//    pedaço que vem antes de uma emenda é lido um pouco além do fim (a mesma duração do crossfade): a sobreposição consome
+//    esse trecho extra e os dois ficam em sincronia.
 static QStringList buildAssembledArgs(const ExportRequest &r)
 {
     const std::vector<Range> segs = keptSegments(r);
+    const size_t n = segs.size();
+    std::vector<double> len(n), join(n, 0.0); // join[k] = duração do fade na emenda entre os pedaços k e k+1
+    for (size_t k = 0; k < n; ++k)
+        len[k] = segs[k].second - segs[k].first;
+    for (size_t k = 0; k + 1 < n; ++k)
+        join[k] = r.fadeSec > 0.001 ? std::min({r.fadeSec, len[k] / 2, len[k + 1] / 2}) : 0.0;
+    const bool crossfade = std::any_of(join.begin(), join.end(), [](double d) { return d > 0.001; });
+    const bool hasAudio = enabledTrackCount(r.audio) > 0;
+
     QStringList a;
     a << "-hide_banner" << "-n" << "-nostats" << "-progress" << "pipe:1";
-    for (const Range &s : segs)
-        a << "-ss" << fmtSeconds(s.first) << "-t" << fmtSeconds(s.second - s.first) << "-i" << r.inputPath;
+    for (size_t k = 0; k < n; ++k) {
+        const double ext = (hasAudio && crossfade && k + 1 < n) ? join[k] : 0.0; // áudio lido além do fim, para o crossfade
+        a << "-ss" << fmtSeconds(segs[k].first) << "-t" << fmtSeconds(len[k] + ext) << "-i" << r.inputPath;
+    }
 
-    const bool hasAudio = enabledTrackCount(r.audio) > 0;
-    QStringList graph, concatIn;
-    for (size_t k = 0; k < segs.size(); ++k) {
-        const double len = segs[k].second - segs[k].first;
-        const double f = std::min(r.fadeSec, len / 2); // o fade nunca passa da metade do pedaço
-        // Fade só nas EMENDAS: o pedaço que vem depois de um corte entra com fade, o que vem antes de um corte sai com
-        // fade. O começo e o fim do vídeo ficam como estão.
-        const bool fadeIn = k > 0, fadeOut = k + 1 < segs.size();
-        QStringList vf, af;
-        if (f > 0.001) {
-            if (fadeIn) { vf << QString("fade=t=in:st=0:d=%1").arg(num(f)); af << QString("afade=t=in:st=0:d=%1").arg(num(f)); }
-            if (fadeOut) { vf << QString("fade=t=out:st=%1:d=%2").arg(num(len - f), num(f)); af << QString("afade=t=out:st=%1:d=%2").arg(num(len - f), num(f)); }
-        }
-        QString v = QString("[%1:V:0]setpts=PTS-STARTPTS").arg(k);
-        if (!vf.isEmpty())
-            v += "," + vf.join(',');
+    QStringList graph, vIn, aIn;
+    for (size_t k = 0; k < n; ++k) {
+        QString v = QString("[%1:V:0]trim=duration=%2,setpts=PTS-STARTPTS").arg(k).arg(num(len[k]));
+        if (k > 0 && join[k - 1] > 0.001)
+            v += QString(",fade=t=in:st=0:d=%1").arg(num(join[k - 1]));
+        if (k + 1 < n && join[k] > 0.001)
+            v += QString(",fade=t=out:st=%1:d=%2").arg(num(len[k] - join[k]), num(join[k]));
         graph << v + QString("[v%1]").arg(k);
-        concatIn << QString("[v%1]").arg(k);
+        vIn << QString("[v%1]").arg(k);
         if (hasAudio) {
             graph << buildAudioMixGraph(r.audio, false, QString("m%1").arg(k), int(k));
-            QString au = QString("[m%1]asetpts=PTS-STARTPTS").arg(k);
-            if (!af.isEmpty())
-                au += "," + af.join(',');
-            graph << au + QString("[a%1]").arg(k);
-            concatIn << QString("[a%1]").arg(k);
+            graph << QString("[m%1]asetpts=PTS-STARTPTS[a%1]").arg(k);
+            aIn << QString("[a%1]").arg(k);
         }
     }
-    graph << QString("%1concat=n=%2:v=1:a=%3[vout]%4")
-                 .arg(concatIn.join(QString())).arg(segs.size()).arg(hasAudio ? 1 : 0).arg(hasAudio ? "[aout]" : "");
+    if (hasAudio && !crossfade) { // sem fade: vídeo e áudio entram juntos no concat
+        QString both;
+        for (size_t k = 0; k < n; ++k)
+            both += vIn[int(k)] + aIn[int(k)];
+        graph << QString("%1concat=n=%2:v=1:a=1[vout][aout]").arg(both).arg(n);
+    } else {
+        graph << QString("%1concat=n=%2:v=1:a=0[vout]").arg(vIn.join(QString())).arg(n);
+        if (hasAudio) { // crossfade encadeado: ((a0 x a1) x a2) ...
+            QString cur = "[a0]";
+            for (size_t k = 1; k < n; ++k) {
+                const QString out = k + 1 == n ? "[aout]" : QString("[x%1]").arg(k);
+                if (join[k - 1] > 0.001)
+                    graph << QString("%1[a%2]acrossfade=d=%3:c1=tri:c2=tri%4").arg(cur).arg(k).arg(num(join[k - 1])).arg(out);
+                else
+                    graph << QString("%1[a%2]concat=n=2:v=0:a=1%3").arg(cur).arg(k).arg(out);
+                cur = out;
+            }
+        }
+    }
     a << "-filter_complex" << graph.join(';') << "-map" << "[vout]";
     if (hasAudio)
         a << "-map" << "[aout]";

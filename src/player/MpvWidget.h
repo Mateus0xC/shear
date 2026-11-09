@@ -27,6 +27,7 @@ public:
     void setHold(bool hold)
     {
         m_hold = hold;
+        m_needRender = true;
         if (hold) { m_holdClock.restart(); QTimer::singleShot(600, this, [this] { if (m_hold) update(); }); }
         update();
     }
@@ -108,6 +109,7 @@ private:
     double m_panPxX = 1, m_panPxY = 1;           // px de tela por unidade de pan
     bool m_applyPending = false; // posição enviada ao mpv, esperando ele redesenhar (só com o vídeo parado)
     QElapsedTimer m_pumpClock;
+    bool m_needRender = true;    // o mpv avisou que tem quadro novo para desenhar
     QPoint m_pressPos, m_lastPos;
     bool m_pressed = false, m_panning = false;
     // animação sobre o vídeo

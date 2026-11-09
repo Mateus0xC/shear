@@ -372,13 +372,7 @@ QWidget *MainWindow::buildEditor()
     m_exportBtn = new QPushButton("Exportar (Enter)");
     m_exportBtn->setFixedSize(150, 30);
     m_exportBtn->setFocusPolicy(Qt::NoFocus);
-    m_fadeCheck = new QCheckBox("Fade");
-    m_fadeCheck->setToolTip("Esmaece rapidinho (0,2 s) nas emendas dos trechos apagados com X; o começo e o fim do vídeo ficam como estão. Só vale quando há trecho apagado.");
-    m_fadeCheck->setEnabled(false);
-    m_fadeCheck->setFocusPolicy(Qt::NoFocus);
-    connect(m_fadeCheck, &QCheckBox::toggled, this, [this] { updateInfo(); });
     opts->addWidget(seg);
-    opts->addWidget(m_fadeCheck);
     opts->addWidget(m_warning, 1);
     opts->addWidget(m_eta);
     opts->addWidget(m_exportBtn);
@@ -1055,7 +1049,7 @@ ExportRequest MainWindow::currentRequest() const
     r.mode = m_exactBtn->isChecked() ? CutMode::Exact : CutMode::Fast;
     r.hasNvenc = m_hasNvenc;
     r.gaps = m_timeline->gaps();
-    r.fadeSec = (m_fadeCheck && m_fadeCheck->isChecked()) ? kJoinFadeSec : 0.0;
+    r.fadeSec = m_cfg.fadeJoins ? kJoinFadeSec : 0.0; // opção das Configurações (ligada por padrão)
     r.audio = currentAudio();
     if (auto k = m_timeline->keyframeAtOrBefore(r.startSec))
         r.keyframeBeforeStart = *k;
@@ -1082,7 +1076,6 @@ void MainWindow::updateInfo()
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w);
-    m_fadeCheck->setEnabled(!r.gaps.empty()); // fade só existe nas emendas
     if (plan.assembled)
         msg << "Com trechos apagados, o vídeo é recodificado (corte exato; exporta um pouco mais devagar).";
     else

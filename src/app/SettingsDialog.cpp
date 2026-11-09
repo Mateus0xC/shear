@@ -55,6 +55,12 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     m_scrub->setToolTip("Toca um trecho do áudio a cada posição, com o vídeo parado. Quanto maior o zoom, mais curto o trecho.");
     form->addRow("Som ao arrastar:", m_scrub);
 
+    m_fade = new QCheckBox("Suavizar as emendas ao apagar trechos do meio");
+    m_fade->setChecked(c.fadeJoins);
+    m_fade->setToolTip("Nas emendas o vídeo esmaece rapidinho (0,2 s) e o áudio faz crossfade. "
+                       "O começo e o fim do vídeo ficam como estão.");
+    form->addRow("Emendas:", m_fade);
+
     m_ctx = new QCheckBox("Mostrar “Cortar com shear” ao clicar com o botão direito em um vídeo");
     m_ctx->setChecked(contextMenuInstalled());
     m_ctx->setToolTip("Adiciona a opção ao menu do Windows (não precisa de administrador). No Windows 11 ela fica em “Mostrar mais opções”.");
@@ -89,6 +95,7 @@ Config SettingsDialog::config() const
     c.mode = m_mode->currentIndex() == 1 ? CutMode::Exact : CutMode::Fast;
     c.gpuDecode = m_gpu->isChecked();
     c.scrubAudio = m_scrub->isChecked();
+    c.fadeJoins = m_fade->isChecked();
     c.outputDir = m_out->text().trimmed();
     c.shadowPlayDir = m_sp->text().trimmed();
     return c;

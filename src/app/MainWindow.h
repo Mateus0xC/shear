@@ -71,7 +71,6 @@ private:
     bool m_syncingMode = false, m_fastBeforeGaps = false;
     void toggleGap();                       // X: marca o início / o fim de um trecho do meio a apagar
     void removeGapAt(double sec);           // botão direito num trecho apagado
-    QCheckBox *m_fadeCheck = nullptr;       // fade opcional no início, no fim e nas emendas
     EditState currentState() const;
     void pushUndo(const EditState &s); // guarda o estado ANTES de uma alteração
     void undo();

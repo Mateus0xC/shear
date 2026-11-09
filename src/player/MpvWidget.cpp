@@ -84,6 +84,10 @@ void MpvWidget::paintEvent(QPaintEvent *)
     QPainter p(this);
     if (m_hold) {
         p.fillRect(rect(), Qt::black);
+        if (m_holdClock.isValid() && m_holdClock.elapsed() > 500) { // só se demorar: vídeos normais nem chegam a ver
+            p.setPen(QColor(170, 170, 170));
+            p.drawText(rect(), Qt::AlignCenter, "Verificando o início do vídeo…");
+        }
         return;
     }
     const qreal dpr = devicePixelRatioF();

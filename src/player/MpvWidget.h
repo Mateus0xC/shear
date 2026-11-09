@@ -1,5 +1,7 @@
 #pragma once
+#include <QElapsedTimer>
 #include <QImage>
+#include <QTimer>
 #include <QWidget>
 
 struct mpv_handle;
@@ -22,7 +24,12 @@ public:
     void seek(double sec);
     void seekBy(double sec);
     // Segura a imagem (tela preta) enquanto o app descobre se o começo do vídeo é utilizável: nada de quadro quebrado.
-    void setHold(bool hold) { m_hold = hold; update(); }
+    void setHold(bool hold)
+    {
+        m_hold = hold;
+        if (hold) { m_holdClock.restart(); QTimer::singleShot(600, this, [this] { if (m_hold) update(); }); }
+        update();
+    }
     void setMinPosition(double sec) { m_minPos = sec; } // trecho anterior (corrompido) não é alcançável // relativo (negativo = para trás)
     void setPaused(bool p);
     void togglePause();
@@ -65,6 +72,7 @@ private:
     QImage m_frame;
     double m_pos = 0, m_dur = 0;
     bool m_hold = false;
+    QElapsedTimer m_holdClock;
     double m_minPos = 0; // início utilizável (vídeo com começo corrompido)
     bool m_paused = false;
     int m_volume = 100;

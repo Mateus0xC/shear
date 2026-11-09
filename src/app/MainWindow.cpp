@@ -24,6 +24,7 @@
 #include <QSlider>
 #include <QToolButton>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QClipboard>
 #include <QDir>
@@ -675,6 +676,7 @@ void MainWindow::openFile(const QString &path)
     });
     connect(m_scanner, &KeyframeScanner::keyframes, this, [this](QVector<double> b) {
         m_timeline->addKeyframes(b);
+        if (m_damageT > 0) applyDamageFloor();
         updateInfo();
     });
     connect(m_scanner, &QThread::finished, this, [this] {
@@ -692,21 +694,46 @@ void MainWindow::openFile(const QString &path)
         m_damage->requestInterruption();
         connect(m_damage, &QThread::finished, m_damage, &QObject::deleteLater);
     }
-    m_damage = new DamageScanner(path);
     m_damageT = 0;
-    m_holdVideo = true; // tela preta até saber se o começo presta (senão o 1º quadro quebrado aparece por um instante)
     m_holdUntilPos = 0;
-    m_mpv->setHold(true);
-    QTimer::singleShot(4000, this, [this] { releaseVideoHold(); }); // segurança: nunca fica preto para sempre
-    connect(m_damage, &DamageScanner::damaged, this, [this](double t) {
-        m_damageT = t;
-        applyDamageFloor();
-        m_holdUntilPos = m_damageT; // o player só aparece quando passar daqui
-    });
-    connect(m_damage, &QThread::finished, this, [this] {
-        if (m_holdUntilPos <= 0) releaseVideoHold(); // sem dano
-    });
-    QTimer::singleShot(0, m_damage, [s = m_damage] { s->start(QThread::NormalPriority); });
+    // A análise leva alguns segundos num vídeo com dano: o resultado fica guardado (por arquivo, tamanho e data).
+    const QFileInfo fi(path);
+    const QString cacheKey = "damage/" + QString::fromLatin1(QCryptographicHash::hash(
+        (fi.absoluteFilePath() + "|" + QString::number(fi.size()) + "|" + QString::number(fi.lastModified().toSecsSinceEpoch())).toUtf8(),
+        QCryptographicHash::Md5).toHex());
+    const QVariant cached = QSettings().value(cacheKey);
+    if (cached.isValid()) {
+        m_damage = nullptr;
+        m_damageT = cached.toDouble();
+        if (m_damageT > 0) { // dano conhecido: segura a imagem só até o seek para o trecho bom
+            m_holdVideo = true;
+            m_holdUntilPos = m_damageT;
+            m_mpv->setHold(true);
+            QTimer::singleShot(10000, this, [this, path] { if (m_file == path) releaseVideoHold(); });
+            // com a lista de keyframes completa (fim do scanner) o início utilizável é aplicado
+        } else {
+            m_holdVideo = false;
+            m_mpv->setHold(false);
+        }
+    } else {
+        m_damage = new DamageScanner(path);
+        m_holdVideo = true; // tela preta até saber se o começo presta (senão o 1º quadro quebrado aparece por um instante)
+        m_mpv->setHold(true);
+        QTimer::singleShot(10000, this, [this, path] { if (m_file == path) releaseVideoHold(); }); // segurança
+        connect(m_damage, &DamageScanner::damaged, this, [this, cacheKey](double t) {
+            QSettings().setValue(cacheKey, t);
+            m_damageT = t;
+            applyDamageFloor();
+            m_holdUntilPos = m_damageT; // o player só aparece quando passar daqui
+        });
+        connect(m_damage, &QThread::finished, this, [this, cacheKey] {
+            if (m_damageT <= 0) { // sem dano
+                QSettings().setValue(cacheKey, 0.0);
+                releaseVideoHold();
+            }
+        });
+        QTimer::singleShot(0, m_damage, [s = m_damage] { s->start(QThread::NormalPriority); });
+    }
     raise();
     activateWindow();
     updateInfo();
@@ -729,13 +756,18 @@ void MainWindow::releaseVideoHold()
 void MainWindow::applyDamageFloor()
 {
     if (m_damageT <= 0 || m_file.isEmpty()) return;
-    // Só decide com a lista de keyframes completa: pular para um quadro que não é keyframe de verdade faria o player
-    // decodificar a partir do trecho corrompido e mostrar lixo.
-    if (!m_timeline->scanDone()) return;
-    m_timeline->setDamagedUntil(m_damageT); // descarta os keyframes do trecho corrompido
-    double floor = m_damageT;
-    if (auto k = m_timeline->firstKeyframeAtOrAfter(m_damageT))
-        floor = *k; // o corte rápido só começa em keyframe: o início utilizável é o primeiro depois do dano
+    // Só decide com um keyframe de verdade: pular para um quadro que não é keyframe faria o player decodificar a
+    // partir do trecho corrompido e mostrar lixo. (O scanner lê os pacotes em ordem: o primeiro keyframe depois do
+    // dano já basta, não precisa esperar o arquivo inteiro.)
+    const double base = std::max(m_damageT, m_timeline->damagedUntil());
+    m_timeline->setDamagedUntil(base); // descarta os keyframes do trecho corrompido (antes de procurar o primeiro bom)
+    const auto kf = m_timeline->firstKeyframeAtOrAfter(base);
+    if (!kf && !m_timeline->scanDone()) return;
+    if (kf && std::abs(*kf - m_timeline->damagedUntil()) < 1e-6 && m_timeline->damagedUntil() > m_damageT + 1e-6)
+        return; // já aplicado
+    double floor = base;
+    if (kf)
+        floor = *kf; // o corte rápido só começa em keyframe: o início utilizável é o primeiro depois do dano
     m_timeline->setDamagedUntil(floor);
     m_mpv->setMinPosition(floor);
     if (m_mpv->position() < floor)

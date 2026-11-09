@@ -21,6 +21,8 @@ public:
     void unload() { command({"stop"}); } // solta o arquivo (ex.: antes de apagá-lo)
     void seek(double sec);
     void seekBy(double sec);
+    // Segura a imagem (tela preta) enquanto o app descobre se o começo do vídeo é utilizável: nada de quadro quebrado.
+    void setHold(bool hold) { m_hold = hold; update(); }
     void setMinPosition(double sec) { m_minPos = sec; } // trecho anterior (corrompido) não é alcançável // relativo (negativo = para trás)
     void setPaused(bool p);
     void togglePause();
@@ -42,6 +44,7 @@ signals:
     void fpsChanged(double fps); // taxa de quadros do arquivo (0 se desconhecida)
     void volumeWheel(int delta); // roda do mouse sobre o vídeo: +5 / -5 por "clique"
     void firstFrame();
+    void playbackRestarted(); // seek concluído
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -61,6 +64,7 @@ private:
     mpv_render_context *m_ctx = nullptr;
     QImage m_frame;
     double m_pos = 0, m_dur = 0;
+    bool m_hold = false;
     double m_minPos = 0; // início utilizável (vídeo com começo corrompido)
     bool m_paused = false;
     int m_volume = 100;

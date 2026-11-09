@@ -431,6 +431,12 @@ QWidget *MainWindow::buildEditor()
     connect(m_mpv, &MpvWidget::fileLoaded, this, &MainWindow::applyPreviewAudio);
 
     connect(m_mpv, &MpvWidget::positionChanged, m_timeline, &TimelineWidget::setPosition);
+    // Vídeo com começo corrompido: só mostra a imagem quando o seek para o trecho bom TERMINAR (a posição do mpv
+    // já muda no início do seek, e o quadro que aparece antes ainda é o do trecho quebrado).
+    connect(m_mpv, &MpvWidget::playbackRestarted, this, [this] {
+        if (m_holdVideo && m_holdUntilPos > 0 && m_mpv->position() >= m_holdUntilPos - 0.05)
+            QTimer::singleShot(40, this, [this] { releaseVideoHold(); });
+    });
     connect(m_mpv, &MpvWidget::durationChanged, this, [this](double d) {
         m_timeline->setDuration(d);
         updateInfo();
@@ -688,11 +694,19 @@ void MainWindow::openFile(const QString &path)
     }
     m_damage = new DamageScanner(path);
     m_damageT = 0;
+    m_holdVideo = true; // tela preta até saber se o começo presta (senão o 1º quadro quebrado aparece por um instante)
+    m_holdUntilPos = 0;
+    m_mpv->setHold(true);
+    QTimer::singleShot(4000, this, [this] { releaseVideoHold(); }); // segurança: nunca fica preto para sempre
     connect(m_damage, &DamageScanner::damaged, this, [this](double t) {
         m_damageT = t;
         applyDamageFloor();
+        m_holdUntilPos = m_damageT; // o player só aparece quando passar daqui
     });
-    QTimer::singleShot(0, m_damage, [s = m_damage] { s->start(QThread::LowPriority); });
+    connect(m_damage, &QThread::finished, this, [this] {
+        if (m_holdUntilPos <= 0) releaseVideoHold(); // sem dano
+    });
+    QTimer::singleShot(0, m_damage, [s = m_damage] { s->start(QThread::NormalPriority); });
     raise();
     activateWindow();
     updateInfo();
@@ -705,9 +719,19 @@ QString MainWindow::fmt(double s)
     return QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s - m * 60, 4, 'f', 1, QChar('0')).replace('.', ',');
 }
 
+void MainWindow::releaseVideoHold()
+{
+    if (!m_holdVideo) return;
+    m_holdVideo = false;
+    if (m_mpv) m_mpv->setHold(false);
+}
+
 void MainWindow::applyDamageFloor()
 {
     if (m_damageT <= 0 || m_file.isEmpty()) return;
+    // Só decide com a lista de keyframes completa: pular para um quadro que não é keyframe de verdade faria o player
+    // decodificar a partir do trecho corrompido e mostrar lixo.
+    if (!m_timeline->scanDone()) return;
     m_timeline->setDamagedUntil(m_damageT); // descarta os keyframes do trecho corrompido
     double floor = m_damageT;
     if (auto k = m_timeline->firstKeyframeAtOrAfter(m_damageT))

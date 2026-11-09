@@ -82,6 +82,10 @@ MpvWidget::~MpvWidget()
 void MpvWidget::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
+    if (m_hold) {
+        p.fillRect(rect(), Qt::black);
+        return;
+    }
     const qreal dpr = devicePixelRatioF();
     const QSize px(int(width() * dpr), int(height() * dpr));
     if (px.isEmpty())
@@ -254,6 +258,8 @@ void MpvWidget::handleEvents()
         mpv_event *e = mpv_wait_event(m_mpv, 0);
         if (e->event_id == MPV_EVENT_NONE)
             break;
+        if (e->event_id == MPV_EVENT_PLAYBACK_RESTART)
+            emit playbackRestarted(); // um seek (ou o carregamento) terminou: o quadro novo já está pronto
         if (e->event_id == MPV_EVENT_PROPERTY_CHANGE) {
             auto *p = static_cast<mpv_event_property *>(e->data);
             const QByteArray n = p->name;

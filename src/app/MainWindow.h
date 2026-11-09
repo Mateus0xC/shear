@@ -137,7 +137,10 @@ private:
     KeyframeScanner *m_scanner = nullptr;
     DamageScanner *m_damage = nullptr; // detecta começo corrompido e manda pular
     double m_damageT = 0;              // fim do trecho corrompido segundo o decodificador (0 = vídeo sadio)
-    void applyDamageFloor();           // o início utilizável vira o primeiro keyframe depois do trecho corrompido
+    void applyDamageFloor();
+    void releaseVideoHold();           // mostra o vídeo depois da checagem do começo
+    bool m_holdVideo = false;
+    double m_holdUntilPos = 0;         // com dano: segura a imagem até o playback chegar aqui           // o início utilizável vira o primeiro keyframe depois do trecho corrompido
     ExportJob *m_job = nullptr;
     QElapsedTimer m_openClock;
 };

@@ -3,7 +3,7 @@
 
 namespace shear {
 
-// Detecta vídeo com o começo corrompido. Primeiro decodifica só os 3 primeiros segundos (rápido): se saírem quadros
+// Detecta vídeo com o começo corrompido. Primeiro decodifica só o primeiro meio segundo (rápido): se saírem quadros
 // suficientes, termina sem fazer nada. Se não, decodifica o resto e descobre a partir de quando o vídeo está sadio.
 class DamageScanner : public QThread {
     Q_OBJECT

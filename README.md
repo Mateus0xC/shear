@@ -39,7 +39,7 @@ vídeos (mp4, mkv, mov, webm, avi). Não precisa de administrador. No Windows 11
 a menos que você use o menu clássico do Windows. Quem instalou o menu numa versão antiga é migrado sozinho ao abrir o app.
 
 ### Clipes recém-salvos
-- **Começo corrompido:** se o vídeo tem o início quebrado (quadros que não decodificam, como em alguns clipes do ShadowPlay), o shear detecta ao abrir, pula esse trecho (hachurado em vermelho na timeline) e começa no primeiro keyframe sadio. O trecho não pode ser marcado nem exportado. A checagem olha os 3 primeiros segundos; só se houver problema decodifica o resto, em segundo plano.
+- **Começo corrompido:** se o vídeo tem o início quebrado (quadros que não decodificam, como em alguns clipes do ShadowPlay), o shear detecta ao abrir, pula esse trecho (hachurado em vermelho na timeline) e começa no primeiro keyframe sadio. O trecho não pode ser marcado nem exportado. A checagem olha só os primeiros 0,5 s (rápido, não atrasa o primeiro quadro); só se houver problema decodifica o resto, em segundo plano.
 - Se você salvou um clipe há **até 10 s** (conta desde a **criação do arquivo**, não a duração do vídeo, na pasta do ShadowPlay) e abre o shear sem
   indicar um arquivo, ele **já abre direto nesse clipe**. Se o shear já estiver aberto e for chamado de novo, também.
 - O **clipe mais recente**, se o arquivo foi criado há **até 5 minutos**, fica no topo da lista de recentes, destacado (cor de fundo, negrito e

@@ -49,7 +49,7 @@ void DamageScanner::run()
     std::vector<double> ok;      // quadros que decodificaram bem
     std::vector<double> okKeys;  // keyframes que decodificaram bem
     bool checked = false;        // o teste rápido dos 3 primeiros segundos já foi feito
-    constexpr double kProbeSec = 3.0;
+    constexpr double kProbeSec = 0.5;
 
     auto drain = [&] {
         while (avcodec_receive_frame(ctx, frame) == 0) {
@@ -73,7 +73,7 @@ void DamageScanner::run()
                                   : 0;
             avcodec_send_packet(ctx, pkt);
             drain();
-            if (!checked && pt > kProbeSec + 0.5) {
+            if (!checked && pt > kProbeSec + 0.25) {
                 checked = true;
                 const double expected = kProbeSec * fps;
                 const long good = std::count_if(ok.begin(), ok.end(), [](double t) { return t < kProbeSec; });

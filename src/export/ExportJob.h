@@ -28,6 +28,7 @@ private:
     QByteArray m_buf, m_err;
     QElapsedTimer m_clock;
     bool m_cancelled = false;
+    bool m_retriedStart = false; // já tentou iniciar o ffmpeg de novo depois de uma falha (arquivo preso por antivírus)
 };
 
 } // namespace shear

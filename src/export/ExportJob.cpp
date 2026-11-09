@@ -1,5 +1,8 @@
 #include "ExportJob.h"
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QTimer>
 #include <algorithm>
 #include <windows.h>
 
@@ -20,8 +23,20 @@ ExportJob::ExportJob(QString ffmpeg, QStringList args, double durationSec, QStri
     });
     connect(&m_proc, &QProcess::finished, this, &ExportJob::onFinished);
     connect(&m_proc, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
-        if (e == QProcess::FailedToStart)
-            emit finished(false, m_output, "Não foi possível iniciar o ffmpeg: " + m_ffmpeg, 0);
+        if (e != QProcess::FailedToStart)
+            return;
+        // Logo depois de instalar, antivírus e o próprio Windows costumam segurar o ffmpeg.exe por alguns segundos
+        // (verificação do arquivo): espera um pouco e tenta de novo uma vez antes de desistir.
+        if (!m_retriedStart && !m_cancelled && QFileInfo::exists(m_ffmpeg)) {
+            m_retriedStart = true;
+            QTimer::singleShot(2000, this, [this] { if (!m_cancelled) m_proc.start(m_ffmpeg, m_args); });
+            return;
+        }
+        const QString path = QDir::toNativeSeparators(m_ffmpeg);
+        const QString why = !QFileInfo::exists(m_ffmpeg)
+            ? "o arquivo não existe (um antivírus pode ter removido o ffmpeg.exe da pasta do shear)"
+            : m_proc.errorString();
+        emit finished(false, m_output, "Não foi possível iniciar o ffmpeg: " + path + " — " + why, 0);
     });
 }
 

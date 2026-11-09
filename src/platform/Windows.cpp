@@ -6,6 +6,8 @@
 #include <QProcess>
 #include <QSettings>
 #include <QUrl>
+#include <windows.h>
+#include <shlobj.h>
 
 namespace shear {
 
@@ -53,6 +55,7 @@ bool installContextMenu(const QString &exePath)
     QSettings legacy(kLegacyKey, QSettings::NativeFormat); // tira o registro antigo, que não funcionava
     legacy.remove("shell/Shear");
     legacy.sync();
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr); // o Explorer recarrega ícones e menus
     return ok;
 }
 
@@ -74,8 +77,17 @@ bool removeContextMenu()
 void migrateLegacyContextMenu(const QString &exePath)
 {
     QSettings legacy(kLegacyKey, QSettings::NativeFormat);
-    if (legacy.contains("shell/Shear/command/Default"))
+    if (legacy.contains("shell/Shear/command/Default")) {
         installContextMenu(exePath); // instala nos locais novos e remove o antigo
+        return;
+    }
+    // Menu já instalado, mas apontando para outro exe ou sem o ícone atual (ex.: o exe mudou de pasta): atualiza.
+    if (contextMenuInstalled()) {
+        QSettings s(extKey(kVideoExts.first()), QSettings::NativeFormat);
+        const QString exe = QDir::toNativeSeparators(exePath);
+        if (s.value("shell/Shear/Icon").toString() != QString("\"%1\",0").arg(exe))
+            installContextMenu(exePath);
+    }
 }
 
 } // namespace shear

@@ -554,6 +554,15 @@ void MainWindow::showHome()
     refreshRecent(false); // um clipe novo pode ter sido salvo enquanto você editava
 }
 
+// Chave do resultado guardado da análise de começo corrompido: arquivo + tamanho + data (se o arquivo mudar, refaz).
+static QString damageCacheKey(const QString &path)
+{
+    const QFileInfo fi(path);
+    return "damage/" + QString::fromLatin1(QCryptographicHash::hash(
+        (fi.absoluteFilePath() + "|" + QString::number(fi.size()) + "|" + QString::number(fi.lastModified().toSecsSinceEpoch())).toUtf8(),
+        QCryptographicHash::Md5).toHex());
+}
+
 void MainWindow::refreshRecent(bool autoOpen)
 {
     const QString dir = m_cfg.effectiveShadowPlayDir();
@@ -595,6 +604,26 @@ void MainWindow::refreshRecent(bool autoOpen)
                 m_recent->addItem("Nenhum clipe encontrado em " + m_cfg.effectiveShadowPlayDir());
             else if (autoOpen && !m_job && v.front().created.secsTo(now) <= kFreshOpenSec && v.front().path != m_file)
                 openFile(v.front().path); // clipado há segundos: já abre nele
+
+            // Adianta, em segundo plano, a checagem de começo corrompido dos clipes mais recentes (até 8): quando você
+            // abrir um deles, o resultado já está guardado e o vídeo aparece sem esperar a análise.
+            if (!m_prefetch) {
+                QStringList todo;
+                for (size_t k = 0; k < v.size() && todo.size() < 8; ++k)
+                    if (!QSettings().contains(damageCacheKey(v[k].path)) && v[k].path != m_file)
+                        todo << v[k].path;
+                if (!todo.isEmpty()) {
+                    m_prefetch = new DamagePrefetch(todo);
+                    connect(m_prefetch, &DamagePrefetch::analyzed, this, [](const QString &p, double clean) {
+                        QSettings().setValue(damageCacheKey(p), clean);
+                    });
+                    connect(m_prefetch, &QThread::finished, this, [this] {
+                        m_prefetch->deleteLater();
+                        m_prefetch = nullptr;
+                    });
+                    QTimer::singleShot(2000, m_prefetch, [p = m_prefetch] { p->start(QThread::LowestPriority); }); // depois da abertura
+                }
+            }
         }, Qt::QueuedConnection);
     });
     connect(t, &QThread::finished, t, &QObject::deleteLater);
@@ -697,10 +726,7 @@ void MainWindow::openFile(const QString &path)
     m_damageT = 0;
     m_holdUntilPos = 0;
     // A análise leva alguns segundos num vídeo com dano: o resultado fica guardado (por arquivo, tamanho e data).
-    const QFileInfo fi(path);
-    const QString cacheKey = "damage/" + QString::fromLatin1(QCryptographicHash::hash(
-        (fi.absoluteFilePath() + "|" + QString::number(fi.size()) + "|" + QString::number(fi.lastModified().toSecsSinceEpoch())).toUtf8(),
-        QCryptographicHash::Md5).toHex());
+    const QString cacheKey = damageCacheKey(path);
     const QVariant cached = QSettings().value(cacheKey);
     if (cached.isValid()) {
         m_damage = nullptr;
@@ -774,7 +800,8 @@ void MainWindow::applyDamageFloor()
         m_mpv->seek(floor);
     m_status->setText(QString("O início do vídeo está corrompido: os primeiros %1 s foram pulados.")
                           .arg(QString::number(floor, 'f', 1).replace('.', ',')));
-    metrics::log(QString("início corrompido: pulando os primeiros %1 s").arg(floor, 0, 'f', 2));
+    metrics::log(QString("início corrompido: pulando os primeiros %1 s (%2 ms após abrir o arquivo)")
+                     .arg(floor, 0, 'f', 2).arg(m_openClock.elapsed()));
     updateInfo();
 }
 
@@ -1151,6 +1178,11 @@ void MainWindow::closeEvent(QCloseEvent *e)
         m_damage->disconnect(this);
         m_damage->requestInterruption();
         m_damage->wait(2000);
+    }
+    if (m_prefetch) {
+        m_prefetch->disconnect(this);
+        m_prefetch->requestInterruption();
+        m_prefetch->wait(3000);
     }
     QMainWindow::closeEvent(e);
 }

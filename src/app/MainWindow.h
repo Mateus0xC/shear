@@ -24,6 +24,7 @@ class QStackedWidget;
 namespace shear {
 
 class ExportJob;
+class DamagePrefetch;
 class DamageScanner;
 class KeyframeScanner;
 class AudioScrubber;
@@ -136,6 +137,7 @@ private:
     bool m_autoOpenFresh = false;
     KeyframeScanner *m_scanner = nullptr;
     DamageScanner *m_damage = nullptr; // detecta começo corrompido e manda pular
+    DamagePrefetch *m_prefetch = nullptr; // adianta essa checagem para os clipes recentes, em segundo plano
     double m_damageT = 0;              // fim do trecho corrompido segundo o decodificador (0 = vídeo sadio)
     void applyDamageFloor();
     void releaseVideoHold();           // mostra o vídeo depois da checagem do começo

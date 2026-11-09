@@ -7,3 +7,4 @@ CMakeUserPresets.json
 testdata/
 aqtinstall.log
 CLAUD*.md
+dist/

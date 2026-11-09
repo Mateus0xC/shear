@@ -115,6 +115,10 @@ Se o Qt estiver em outro lugar, ajuste `CMAKE_PREFIX_PATH` em `CMakePresets.json
 O build já copia Qt, `libmpv-2.dll`, as DLLs do ffmpeg e o `ffmpeg.exe` para `build\src\app\`;
 essa pasta é portátil (copie-a inteira ou compacte em .zip).
 
+### Instalador
+
+`winget install JRSoftware.InnoSetup` (uma vez) e depois, com o projeto compilado, `scripts\make-installer.ps1` gera `dist\shear-setup.exe` (~140 MB, já inclui o runtime do Visual C++). Instala só para o usuário (sem administrador) em `%LOCALAPPDATA%\Programs\shear`, com atalho no menu Iniciar (e na área de trabalho, se marcado) e desinstalador, que também remove o item do botão direito.
+
 ### Dependências
 | Dependência | Origem |
 |---|---|

@@ -272,7 +272,9 @@ QWidget *MainWindow::buildEditor()
     // Velocidade do preview: botão com menu (também as teclas - e +, Backspace volta a 1×)
     m_speedBtn = new QToolButton;
     m_speedBtn->setText("1×");
-    m_speedBtn->setToolTip("Velocidade do preview (teclas - e +; Backspace volta a 1×). Não muda o arquivo exportado.");
+    m_speedBtn->setToolTip("Velocidade do preview. Botão direito volta a 1×.");
+    m_speedBtn->setContextMenuPolicy(Qt::CustomContextMenu); // botão direito = velocidade normal
+    connect(m_speedBtn, &QWidget::customContextMenuRequested, this, [this] { setSpeed(1.0); });
     m_speedBtn->setPopupMode(QToolButton::InstantPopup);
     m_speedBtn->setStyleSheet("QToolButton::menu-indicator { image: none; }");
     m_speedBtn->setFocusPolicy(Qt::NoFocus);
@@ -1072,12 +1074,8 @@ void MainWindow::setSpeed(double speed, bool osd)
 {
     m_mpv->setSpeed(speed);
     const QString txt = QString::number(speed, 'g', 3).replace('.', ',') + "×";
-    if (m_speedBtn) {
-        m_speedBtn->setText(txt);
-        QFont f = m_speedBtn->font();
-        f.setBold(speed != 1.0); // fora de 1× o botão fica em negrito
-        m_speedBtn->setFont(f);
-    }
+    if (m_speedBtn)
+        m_speedBtn->setText(txt); // mesma fonte em qualquer velocidade
     if (osd)
         m_mpv->showText("Velocidade " + txt, 800);
 }

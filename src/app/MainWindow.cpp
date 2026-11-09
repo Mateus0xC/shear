@@ -206,13 +206,9 @@ QWidget *MainWindow::buildHome()
     open->setMinimumHeight(34);
     connect(open, &QPushButton::clicked, this, &MainWindow::promptOpen);
     connect(settings, &QPushButton::clicked, this, &MainWindow::openSettings);
-    auto *help = new QPushButton("Atalhos (F1)");
-    help->setMinimumHeight(34);
-    connect(help, &QPushButton::clicked, this, &MainWindow::openHelp);
     auto *bar = new QHBoxLayout;
     bar->addWidget(open);
     bar->addWidget(settings);
-    bar->addWidget(help);
     bar->addStretch();
     m_recent = new QListWidget;
     m_recent->setAlternatingRowColors(true);
@@ -272,12 +268,6 @@ QWidget *MainWindow::buildEditor()
     }
     m_speedBtn->setMenu(speedMenu);
     top->addWidget(m_speedBtn);
-    auto *helpBtn = new QPushButton("?");
-    helpBtn->setToolTip("Atalhos e controles (F1)");
-    helpBtn->setFixedWidth(38);
-    helpBtn->setFocusPolicy(Qt::NoFocus);
-    connect(helpBtn, &QPushButton::clicked, this, &MainWindow::openHelp);
-    top->addWidget(helpBtn);
     top->addWidget(settingsBtn);
     l->addLayout(top);
 

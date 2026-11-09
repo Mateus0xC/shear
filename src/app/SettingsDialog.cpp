@@ -1,4 +1,5 @@
 #include "SettingsDialog.h"
+#include "HelpDialog.h"
 #include "platform/Windows.h"
 #include <QCheckBox>
 #include <QComboBox>
@@ -67,6 +68,10 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     form->addRow("Menu do Windows:", m_ctx);
 
     auto *bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    // Ajuda com todos os atalhos: fica aqui nas Configurações (e abre também com F1 em qualquer tela)
+    auto *help = bb->addButton("Atalhos e controles…", QDialogButtonBox::HelpRole);
+    help->setToolTip("Todas as teclas e gestos do mouse (F1)");
+    connect(help, &QPushButton::clicked, this, [this] { HelpDialog(this).exec(); });
     bb->button(QDialogButtonBox::Ok)->setText("Salvar");
     bb->button(QDialogButtonBox::Cancel)->setText("Cancelar");
     connect(bb, &QDialogButtonBox::accepted, this, &QDialog::accept);

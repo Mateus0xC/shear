@@ -21,6 +21,7 @@
 #include <QFrame>
 #include <QPainter>
 #include <QPalette>
+#include <QPixmap>
 #include <QScrollArea>
 #include <QSettings>
 #include <QSlider>
@@ -214,7 +215,22 @@ QWidget *MainWindow::buildHome()
     m_recent->setAlternatingRowColors(true);
     connect(m_recent, &QListWidget::itemActivated, this,
             [this](QListWidgetItem *i) { openFile(i->data(Qt::UserRole).toString()); });
-    l->addWidget(title);
+    // Cabeçalho: a logo ao lado do nome
+    auto *logo = new QLabel;
+    {
+        const qreal dpr = devicePixelRatioF();
+        const int px = int(40 * dpr);
+        QPixmap pm = QPixmap(":/logo.png").scaled(px, px, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        pm.setDevicePixelRatio(dpr);
+        logo->setPixmap(pm);
+        logo->setFixedSize(44, 40);
+    }
+    auto *head = new QHBoxLayout;
+    head->setSpacing(10);
+    head->addWidget(logo);
+    head->addWidget(title);
+    head->addStretch();
+    l->addLayout(head);
     l->addWidget(hint);
     l->addLayout(bar);
     l->addWidget(m_recent, 1);

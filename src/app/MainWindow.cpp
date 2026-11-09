@@ -711,7 +711,11 @@ void MainWindow::openHelp()
 void MainWindow::openSettings()
 {
     SettingsDialog d(m_cfg, this);
-    if (d.exec() != QDialog::Accepted) return;
+    if (d.exec() != QDialog::Accepted) {
+        if (d.wantsHelp())
+            openHelp(); // clicou em "Atalhos e controles…": as Configurações já fecharam; só a ajuda abre
+        return;
+    }
     const CutMode oldDefault = m_cfg.mode;
     m_cfg = d.config();
     m_cfg.save();

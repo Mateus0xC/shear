@@ -71,13 +71,11 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     // Ajuda com todos os atalhos: fica aqui nas Configurações (e abre também com F1 em qualquer tela)
     auto *help = bb->addButton("Atalhos e controles…", QDialogButtonBox::HelpRole);
     help->setToolTip("Todas as teclas e gestos do mouse (F1)");
+    // Abrir a ajuda FECHA as Configurações (sem salvar) e abre só a ajuda; ao sair dela não se volta às Configurações.
+    // Quem abriu o diálogo (MainWindow) abre a ajuda depois que ele fecha.
     connect(help, &QPushButton::clicked, this, [this] {
-        HelpDialog(this).exec();
-        // Ao fechar a ajuda, as Configurações voltam para a frente e ativas (sem isso o Windows pode ativar outra janela
-        // e as Configurações ficam escondidas atrás).
-        raise();
-        activateWindow();
-        setFocus();
+        m_wantsHelp = true;
+        reject();
     });
     bb->button(QDialogButtonBox::Ok)->setText("Salvar");
     bb->button(QDialogButtonBox::Cancel)->setText("Cancelar");

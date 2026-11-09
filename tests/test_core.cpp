@@ -62,16 +62,14 @@ private slots:
         QCOMPARE(p.actualStartSec, 60.0); // corte exato, sem "começa antes"
         QCOMPARE(p.earlyBySec, 0.0);
         r.gaps.clear();
-        r.fadeSec = 0.5;
-        QVERIFY(planCut(r).assembled);
-        r.fadeSec = 0;
+        r.fadeSec = kJoinFadeSec; // fade só vale nas emendas: sem trecho apagado não há emenda, então nada muda
         QVERIFY(!planCut(r).assembled);
     }
     void assembled_args_join_segments_with_concat_and_fades()
     {
         auto r = base();
         r.gaps = {{80, 90}};
-        r.fadeSec = 0.5;
+        r.fadeSec = 0.2;
         r.audio = {{true, 0.0}};
         const auto args = buildFfmpegArgs(r, planCut(r));
         QCOMPARE(args.count("-i"), 2); // um -i por pedaço (o que foi apagado nem é lido)
@@ -82,9 +80,12 @@ private slots:
         QVERIFY(g.contains("[0:V:0]"));
         QVERIFY(g.contains("[1:V:0]"));
         QVERIFY(g.contains("[1:a:0]"));                       // o áudio de cada pedaço vem do seu -i
-        QVERIFY(g.contains("fade=t=in:st=0:d=0.5"));
-        QVERIFY(g.contains("fade=t=out:st=19.5:d=0.5"));       // pedaço de 20 s: o fade de saída começa em 19,5
-        QVERIFY(g.contains("afade=t=out:st=19.5:d=0.5"));
+        // fade só na emenda: o 1º pedaço (60..80) sai com fade, o 2º (90..120) entra com fade; começo e fim ficam limpos
+        QVERIFY(g.contains("[0:V:0]setpts=PTS-STARTPTS,fade=t=out:st=19.8:d=0.2[v0]"));
+        QVERIFY(g.contains("[1:V:0]setpts=PTS-STARTPTS,fade=t=in:st=0:d=0.2[v1]"));
+        QVERIFY(g.contains("afade=t=out:st=19.8:d=0.2"));
+        QVERIFY(g.contains("afade=t=in:st=0:d=0.2"));
+        QVERIFY(!g.contains("fade=t=in:st=0:d=0.2[v0]"));
         QVERIFY(g.contains("concat=n=2:v=1:a=1[vout][aout]"));
         QVERIFY(args.contains("aac"));
         // sem fade e sem áudio

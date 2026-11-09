@@ -176,13 +176,11 @@ MainWindow::MainWindow()
     sc(QKeySequence::Redo, [=, this] { if (inEditor()) redo(); }); // Ctrl+Y e Ctrl+Shift+Z
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Enter, [=, this] { if (inEditor()) startExport(); });
+    // Esc só cancela o trecho que está sendo marcado com X (não volta mais para a lista de clipes: use o botão "← Clipes").
     sc(Qt::Key_Escape, [=, this] {
-        if (!inEditor() || m_job) return;
-        if (m_timeline->pendingGap()) { // cancela o trecho que estava sendo marcado
-            m_timeline->setPendingGap(std::nullopt);
-            return;
-        }
-        showHome();
+        if (!inEditor() || m_job || !m_timeline->pendingGap()) return;
+        pushUndo(currentState());
+        m_timeline->setPendingGap(std::nullopt);
     });
 }
 
@@ -375,7 +373,8 @@ QWidget *MainWindow::buildEditor()
     m_exportBtn->setFixedSize(150, 30);
     m_exportBtn->setFocusPolicy(Qt::NoFocus);
     m_fadeCheck = new QCheckBox("Fade");
-    m_fadeCheck->setToolTip("Esmaece o início, o fim e as emendas (0,5 s). Recodifica o vídeo, então exporta um pouco mais devagar que o corte rápido.");
+    m_fadeCheck->setToolTip("Esmaece rapidinho (0,2 s) nas emendas dos trechos apagados com X; o começo e o fim do vídeo ficam como estão. Só vale quando há trecho apagado.");
+    m_fadeCheck->setEnabled(false);
     m_fadeCheck->setFocusPolicy(Qt::NoFocus);
     connect(m_fadeCheck, &QCheckBox::toggled, this, [this] { updateInfo(); });
     opts->addWidget(seg);
@@ -878,16 +877,18 @@ void MainWindow::toggleGap()
     const double pos = std::clamp(m_mpv->position(), m_timeline->start(), m_timeline->end());
     if (const auto p = m_timeline->pendingGap()) {
         const double a = std::min(*p, pos), b = std::max(*p, pos);
-        m_timeline->setPendingGap(std::nullopt);
         if (b - a < 0.05) {
             m_mpv->showText("Trecho curto demais", 900);
             return;
         }
+        // Desfazer volta só o 2º X: o estado guardado ainda tem o início marcado (pendente).
         pushUndo(currentState());
+        m_timeline->setPendingGap(std::nullopt);
         m_timeline->addGap(a, b);
         m_mpv->showText(QString("Trecho de %1 s apagado do meio").arg(QString::number(b - a, 'f', 1).replace('.', ',')), 1400);
         updateInfo();
     } else {
+        pushUndo(currentState());
         m_timeline->setPendingGap(pos);
         m_mpv->showText("Apagar trecho: vá até onde ele termina e aperte X de novo (Esc cancela)", 2800);
     }
@@ -917,7 +918,8 @@ void MainWindow::markEnd(double t)
 
 MainWindow::EditState MainWindow::currentState() const
 {
-    return {m_timeline->start(), m_timeline->end(), m_micFader ? m_micFader->value() : 0, m_timeline->gaps()};
+    return {m_timeline->start(), m_timeline->end(), m_micFader ? m_micFader->value() : 0, m_timeline->gaps(),
+            m_timeline->pendingGap().value_or(-1.0)};
 }
 
 void MainWindow::pushUndo(const EditState &s)
@@ -927,7 +929,7 @@ void MainWindow::pushUndo(const EditState &s)
     m_redo.clear(); // uma alteração nova depois de desfazer invalida o "refazer"
     if (!m_undo.empty()) {
         const EditState &b = m_undo.back();
-        if (b.start == s.start && b.end == s.end && b.micGain == s.micGain && b.gaps == s.gaps)
+        if (b.start == s.start && b.end == s.end && b.micGain == s.micGain && b.gaps == s.gaps && b.pending == s.pending)
             return;
     }
     m_undo.push_back(s);
@@ -941,6 +943,7 @@ void MainWindow::applyState(const EditState &s)
     m_restoring = true;
     m_timeline->setRange(s.start, s.end);
     m_timeline->setGaps(s.gaps);
+    m_timeline->setPendingGap(s.pending >= 0 ? std::optional<double>(s.pending) : std::nullopt);
     if (m_micFader)
         m_micFader->setValue(s.micGain);
     m_restoring = false;
@@ -1030,7 +1033,7 @@ ExportRequest MainWindow::currentRequest() const
     r.mode = m_exactBtn->isChecked() ? CutMode::Exact : CutMode::Fast;
     r.hasNvenc = m_hasNvenc;
     r.gaps = m_timeline->gaps();
-    r.fadeSec = (m_fadeCheck && m_fadeCheck->isChecked()) ? 0.5 : 0.0;
+    r.fadeSec = (m_fadeCheck && m_fadeCheck->isChecked()) ? kJoinFadeSec : 0.0;
     r.audio = currentAudio();
     if (auto k = m_timeline->keyframeAtOrBefore(r.startSec))
         r.keyframeBeforeStart = *k;
@@ -1056,8 +1059,9 @@ void MainWindow::updateInfo()
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w);
+    m_fadeCheck->setEnabled(!r.gaps.empty()); // fade só existe nas emendas
     if (plan.assembled)
-        msg << "Com trechos apagados ou fade, o vídeo é recodificado (corte exato; exporta um pouco mais devagar).";
+        msg << "Com trechos apagados, o vídeo é recodificado (corte exato; exporta um pouco mais devagar).";
     else
         msg << (r.mode == CutMode::Fast
                     ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."

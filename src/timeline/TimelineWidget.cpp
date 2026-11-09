@@ -549,7 +549,8 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
     // ao espaço que sobra até a borda da tela (de 55 px por nível até ~4 px, mas sempre os 4 níveis).
     const double room = roomBelow();
     const double enterBeyond = std::min(kEnterBeyond, std::max(2.0, room / 6));
-    const double levelH = std::clamp((room - enterBeyond - 4.0) / (kLevels - 1), 4.0, kLevelHeight);
+    // O último nível começa em ~65% do espaço disponível (não no último pixel da tela): sempre dá para chegar nele.
+    const double levelH = std::clamp((room * 0.65 - enterBeyond) / (kLevels - 1), 4.0, kLevelHeight);
     const double hysteresis = std::min(kHysteresis, levelH / 3);
 
     // Entra no zoom ao passar de enterBeyond e só sai ao voltar para dentro da timeline (histerese).

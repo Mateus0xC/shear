@@ -39,8 +39,14 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
         if (m_ovActive) update(); else m_ovTimer.stop();
     });
 
+    m_viewTimer.setSingleShot(true);
+    connect(&m_viewTimer, &QTimer::timeout, this, [this] { applyPan(); });
+
     m_mpv = mpv_create();
     mpv_set_option_string(m_mpv, "config", "no");
+    // Render por software: o redimensionamento da imagem é feito na CPU. "bilinear" é bem mais leve que o padrão
+    // (bicúbico) e na prática não se nota; com zoom isso pesa a cada quadro.
+    mpv_set_option_string(m_mpv, "sws-scaler", "bilinear");
     mpv_set_option_string(m_mpv, "load-scripts", "no");
     mpv_set_option_string(m_mpv, "ytdl", "no");
     mpv_set_option_string(m_mpv, "osc", "no");
@@ -372,9 +378,26 @@ void MpvWidget::mouseMoveEvent(QMouseEvent *e)
     const double dispH = std::min<double>(height(), width() / aspect) * z;
     const QPoint d = e->pos() - m_lastPos;
     m_lastPos = e->pos();
-    m_panX += d.x() / dispW;
-    m_panY += d.y() / dispH;
-    applyView();
+    const double maxPan = (z - 1.0) / (2.0 * z);
+    m_panX = std::clamp(m_panX + d.x() / dispW, -maxPan, maxPan);
+    m_panY = std::clamp(m_panY + d.y() / dispH, -maxPan, maxPan);
+    setFastScaling(true);
+    if (!m_viewTimer.isActive())
+        m_viewTimer.start(8); // junta vários movimentos do mouse numa só atualização do mpv
+}
+
+void MpvWidget::applyPan()
+{
+    if (!m_mpv) return;
+    mpv_set_property_async(m_mpv, 0, "video-pan-x", MPV_FORMAT_DOUBLE, &m_panX);
+    mpv_set_property_async(m_mpv, 0, "video-pan-y", MPV_FORMAT_DOUBLE, &m_panY);
+}
+
+void MpvWidget::setFastScaling(bool fast)
+{
+    if (fast == m_fastScale) return;
+    m_fastScale = fast;
+    command({"set", "sws-scaler", fast ? "fast-bilinear" : "bilinear"});
 }
 
 void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
@@ -383,6 +406,10 @@ void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
     m_pressed = false;
     if (m_panning) {
         m_panning = false;
+        m_viewTimer.stop();
+        applyPan();               // posição final exata
+        setFastScaling(false);    // volta à escala normal
+
         setCursor(m_zoomLog > 1e-9 ? Qt::OpenHandCursor : Qt::ArrowCursor);
         return; // era um arrasto, não um clique
     }

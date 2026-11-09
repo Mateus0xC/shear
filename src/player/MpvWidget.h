@@ -81,6 +81,8 @@ private slots:
 private:
     void command(const QStringList &args);
     void applyView();                      // zoom e posição da imagem no mpv
+    void applyPan();                       // só a posição (arrastando): 2 propriedades, no máximo uma vez por ~8 ms
+    void setFastScaling(bool fast);        // escala mais barata enquanto a imagem é arrastada com zoom
     void paintOverlay(QPainter &p, double t) const; // t = 0..1 do progresso da animação
     void finishRestore(quint64 gen);
     static void wakeup(void *ctx);
@@ -98,6 +100,8 @@ private:
     double m_speed = 1.0;
     // zoom / posição da imagem
     double m_zoomLog = 0, m_panX = 0, m_panY = 0;
+    QTimer m_viewTimer;
+    bool m_fastScale = false;
     QPoint m_pressPos, m_lastPos;
     bool m_pressed = false, m_panning = false;
     // animação sobre o vídeo

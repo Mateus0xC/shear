@@ -30,7 +30,7 @@ double keptSeconds(const ExportRequest &r)
 CutPlan planCut(const ExportRequest &r)
 {
     CutPlan p;
-    if (!r.gaps.empty() || r.fadeSec > 0) { // emendas e fades pedem recodificar: o corte já sai exato no quadro
+    if (!r.gaps.empty()) { // trechos apagados (e o fade das emendas) pedem recodificar: o corte já sai exato no quadro
         p.assembled = true;
         p.copyVideo = false;
         p.actualStartSec = r.startSec;

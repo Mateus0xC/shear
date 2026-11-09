@@ -27,7 +27,9 @@ struct ExportRequest {
     std::vector<AudioTrack> audio; // uma entrada por faixa do arquivo (a:0, a:1, ...)
     bool hasNvenc = true;
     std::vector<Range> gaps;      // trechos do MEIO a apagar (o que sobra é emendado); dentro de [startSec, endSec]
-    double fadeSec = 0;           // > 0: esmaece o início, o fim e cada emenda (recodifica o vídeo)
+    double fadeSec = 0;           // > 0: esmaece cada EMENDA entre pedaços (o começo e o fim do vídeo não)
 };
+
+inline constexpr double kJoinFadeSec = 0.2; // duração do fade nas emendas: rápido, só para não "dar tranco"
 
 } // namespace shear

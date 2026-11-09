@@ -61,7 +61,12 @@ private:
     void markStart(double t);
     void markEnd(double t);
     // Desfazer (Ctrl+Z): marcadores de início/fim e volume do mic
-    struct EditState { double start = 0, end = 0; int micGain = 0; std::vector<std::pair<double, double>> gaps; };
+    struct EditState {
+        double start = 0, end = 0;
+        int micGain = 0;
+        std::vector<std::pair<double, double>> gaps;
+        double pending = -1; // início de um trecho do meio ainda sem fim (X apertado uma vez); < 0 = nenhum
+    };
     void toggleGap();                       // X: marca o início / o fim de um trecho do meio a apagar
     void removeGapAt(double sec);           // botão direito num trecho apagado
     QCheckBox *m_fadeCheck = nullptr;       // fade opcional no início, no fim e nas emendas

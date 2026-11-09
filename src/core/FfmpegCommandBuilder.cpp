@@ -85,16 +85,24 @@ static QStringList buildAssembledArgs(const ExportRequest &r)
     for (size_t k = 0; k < segs.size(); ++k) {
         const double len = segs[k].second - segs[k].first;
         const double f = std::min(r.fadeSec, len / 2); // o fade nunca passa da metade do pedaço
+        // Fade só nas EMENDAS: o pedaço que vem depois de um corte entra com fade, o que vem antes de um corte sai com
+        // fade. O começo e o fim do vídeo ficam como estão.
+        const bool fadeIn = k > 0, fadeOut = k + 1 < segs.size();
+        QStringList vf, af;
+        if (f > 0.001) {
+            if (fadeIn) { vf << QString("fade=t=in:st=0:d=%1").arg(num(f)); af << QString("afade=t=in:st=0:d=%1").arg(num(f)); }
+            if (fadeOut) { vf << QString("fade=t=out:st=%1:d=%2").arg(num(len - f), num(f)); af << QString("afade=t=out:st=%1:d=%2").arg(num(len - f), num(f)); }
+        }
         QString v = QString("[%1:V:0]setpts=PTS-STARTPTS").arg(k);
-        if (f > 0.001)
-            v += QString(",fade=t=in:st=0:d=%1,fade=t=out:st=%2:d=%1").arg(num(f), num(len - f));
+        if (!vf.isEmpty())
+            v += "," + vf.join(',');
         graph << v + QString("[v%1]").arg(k);
         concatIn << QString("[v%1]").arg(k);
         if (hasAudio) {
             graph << buildAudioMixGraph(r.audio, false, QString("m%1").arg(k), int(k));
             QString au = QString("[m%1]asetpts=PTS-STARTPTS").arg(k);
-            if (f > 0.001)
-                au += QString(",afade=t=in:st=0:d=%1,afade=t=out:st=%2:d=%1").arg(num(f), num(len - f));
+            if (!af.isEmpty())
+                au += "," + af.join(',');
             graph << au + QString("[a%1]").arg(k);
             concatIn << QString("[a%1]").arg(k);
         }

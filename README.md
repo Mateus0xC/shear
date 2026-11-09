@@ -26,15 +26,15 @@ marcar início e fim, exportar e colar no Discord.
 | `Alt` + `←` `→` / `A` `D` (ou `,` `.`) | 1 frame (pausa o vídeo para mostrar o quadro) |
 | `Home` / `End` | início / fim do vídeo |
 | `J` / `L` | −5 s / +5 s |
-| `X` | apaga um trecho do **meio**: o 1º `X` marca onde ele começa, o 2º onde termina (`Esc` cancela). O trecho fica hachurado em laranja na timeline, o preview pula por cima dele, e na exportação o que sobra é emendado. Botão direito num trecho apagado traz ele de volta; `Ctrl+Z` desfaz |
-| caixa **Fade** | esmaece (0,5 s) o início, o fim e cada emenda; opcional |
+| `X` | apaga um trecho do **meio**: o 1º `X` marca onde ele começa, o 2º onde termina (`Esc` cancela). O trecho fica hachurado em laranja na timeline, o preview pula por cima dele, e na exportação o que sobra é emendado. Botão direito num trecho apagado traz ele de volta; `Ctrl+Z` desfaz um passo de cada vez (o 2º `X` sai, o início continua marcado) |
+| caixa **Fade** | esmaece rapidinho (0,2 s) nas **emendas** dos trechos apagados; o começo e o fim do vídeo ficam como estão. Só vale quando há trecho apagado |
 | `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`) |
 | `0` a `9` | pula para 0% a 90% do vídeo (como no YouTube) |
 | `↑` / `↓` ou `W` / `S` ou roda do mouse sobre o vídeo | volume do preview (estilo VLC; não muda o arquivo) |
 | `Ctrl` + `Z` | desfaz: marcadores de início/fim e volume do mic |
 | `Ctrl` + `Y` (ou `Ctrl` + `Shift` + `Z`) | refaz o que foi desfeito |
 | `Enter` | exporta |
-| `Esc` | volta à lista de clipes |
+| `Esc` | cancela o trecho do `X` que está sendo marcado (para voltar à lista de clipes use o botão **← Clipes**) |
 | puxar o mouse para baixo ao arrastar na timeline | régua ampliada (zoom de precisão); em tela cheia, quando falta espaço até a borda da tela, as faixas de zoom ficam mais estreitas e a régua aparece acima da timeline |
 | roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 0,5 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro); para cima avança |
 

@@ -48,14 +48,14 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     form->addRow("Pasta do ShadowPlay:", folderRow(m_sp, this));
     m_gpu = new QCheckBox("Usar a placa de vídeo no preview");
     m_gpu->setChecked(c.gpuDecode);
-    m_gpu->setToolTip("Deixa o preview mais leve para o processador. Vale ao reabrir o Shear.");
+    m_gpu->setToolTip("Deixa o preview mais leve para o processador. Vale ao reabrir o shear.");
     form->addRow("Preview:", m_gpu);
     m_scrub = new QCheckBox("Ouvir o som enquanto arrasto na timeline");
     m_scrub->setChecked(c.scrubAudio);
     m_scrub->setToolTip("Toca um trecho do áudio a cada posição, com o vídeo parado. Quanto maior o zoom, mais curto o trecho.");
     form->addRow("Som ao arrastar:", m_scrub);
 
-    m_ctx = new QCheckBox("Mostrar “Cortar com Shear” ao clicar com o botão direito em um vídeo");
+    m_ctx = new QCheckBox("Mostrar “Cortar com shear” ao clicar com o botão direito em um vídeo");
     m_ctx->setChecked(contextMenuInstalled());
     m_ctx->setToolTip("Adiciona a opção ao menu do Windows (não precisa de administrador). No Windows 11 ela fica em “Mostrar mais opções”.");
     form->addRow("Menu do Windows:", m_ctx);

@@ -1,4 +1,4 @@
-# Shear
+# shear
 
 Cortador de clipes de vídeo para Windows, feito para ser rápido: abrir o clipe do ShadowPlay,
 marcar início e fim, exportar e colar no Discord.
@@ -9,7 +9,7 @@ marcar início e fim, exportar e colar no Discord.
    ou a lista de clipes recentes da pasta do ShadowPlay.
 2. Marque o trecho e exporte com `Enter`. O arquivo exportado já fica na área de transferência
    (Ctrl+V no Discord).
-3. **Os clipes exportados são temporários**: ficam em `%TEMP%\Shear-exports` e são apagados ao fechar o Shear
+3. **Os clipes exportados são temporários**: ficam em `%TEMP%\Shear-exports` e são apagados ao fechar o shear
    (e as sobras de uma sessão que travou são apagadas na próxima abertura). Para guardar um clipe, clique em
    **Manter clipe**: ele é movido para a pasta configurada (ou a do vídeo original) e aparece o botão **Apagar original** (manda só o vídeo de origem para a Lixeira, com confirmação). **Apagar original e clipe** apaga os dois (confirma antes). Segurando **Shift**, o Manter vira "Manter e apagar original" (mantém o clipe e manda o original para a Lixeira, com confirmação). O ícone de cópia ao lado copia o clipe de novo para a área de transferência; clicar no nome do arquivo abre a pasta. Ao voltar para a lista de clipes ou fechar, o clipe não mantido é apagado.
 
@@ -34,13 +34,13 @@ marcar início e fim, exportar e colar no Discord.
 | roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 5 s, Ctrl 15 s, Ctrl+Shift 1 min, Alt 1 quadro); para cima avança |
 
 ### Menu de contexto do Explorer
-Em **Configurações → Menu do Windows** (caixa de seleção) o item “Cortar com Shear” passa a aparecer ao clicar com o botão direito em
+Em **Configurações → Menu do Windows** (caixa de seleção) o item “Cortar com shear” passa a aparecer ao clicar com o botão direito em
 vídeos (mp4, mkv, mov, webm, avi). Não precisa de administrador. No Windows 11 o item fica em **Mostrar mais opções** (Shift+F10),
 a menos que você use o menu clássico do Windows. Quem instalou o menu numa versão antiga é migrado sozinho ao abrir o app.
 
 ### Clipes recém-salvos
-- Se você salvou um clipe há **até 10 s** (conta desde a **criação do arquivo**, não a duração do vídeo, na pasta do ShadowPlay) e abre o Shear sem
-  indicar um arquivo, ele **já abre direto nesse clipe**. Se o Shear já estiver aberto e for chamado de novo, também.
+- Se você salvou um clipe há **até 10 s** (conta desde a **criação do arquivo**, não a duração do vídeo, na pasta do ShadowPlay) e abre o shear sem
+  indicar um arquivo, ele **já abre direto nesse clipe**. Se o shear já estiver aberto e for chamado de novo, também.
 - O **clipe mais recente**, se o arquivo foi criado há **até 5 minutos**, fica no topo da lista de recentes, destacado (cor de fundo, negrito e
   "NOVO · há N min"). Só ele é destacado, não todos os dos últimos 5 minutos.
 
@@ -86,7 +86,7 @@ Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para bai
   ou subir e descer para trocar o nível de zoom, não dispara som. Dá para desligar em **Configurações → Som ao arrastar**.
 
 ### Overlay da NVIDIA
-O Shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não
+O shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não
 aciona o aviso "pressione ... para abrir" do overlay da NVIDIA, enquanto `d3d11va`/`dxva2` acionam. Em Configurações dá para
 desligar o NVDEC e usar só a CPU.
 
@@ -124,7 +124,7 @@ essa pasta é portátil (copie-a inteira ou compacte em .zip).
 
 ## Medições
 
-O app grava em `%LOCALAPPDATA%\Shear\Shear\metrics.log` o tempo até a janela aparecer, até o primeiro frame,
+O app grava em `%LOCALAPPDATA%\shear\shear\metrics.log` o tempo até a janela aparecer, até o primeiro frame,
 até os keyframes ficarem prontos e o tempo de cada exportação. Para medir as exportações:
 
 ```

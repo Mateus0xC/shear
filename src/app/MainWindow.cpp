@@ -107,7 +107,7 @@ static const char *kVideoGlobs[] = {"*.mp4", "*.mkv", "*.mov", "*.webm", "*.avi"
 
 MainWindow::MainWindow()
 {
-    setWindowTitle("Shear");
+    setWindowTitle("shear");
     resize(1100, 740);
     setAcceptDrops(true);
     m_cfg = Config::load();
@@ -168,7 +168,7 @@ QWidget *MainWindow::buildHome()
     auto *w = new QWidget;
     auto *l = new QVBoxLayout(w);
     l->setContentsMargins(32, 28, 32, 24);
-    auto *title = new QLabel("<h1>Shear</h1>");
+    auto *title = new QLabel("<h1>shear</h1>");
     auto *hint = new QLabel("Abra um vídeo, arraste-o para esta janela, ou escolha um clipe recente:");
     auto *open = new QPushButton("Abrir vídeo…");
     auto *settings = new QPushButton("Configurações");
@@ -541,7 +541,7 @@ void MainWindow::showHome()
         hideResultButtons();
     m_lastOutput.clear();
     m_file.clear(); // nenhum vídeo aberto (assim o clipe recém-salvo pode ser aberto de novo)
-    setWindowTitle("Shear");
+    setWindowTitle("shear");
     m_stack->setCurrentIndex(0);
     refreshRecent(false); // um clipe novo pode ter sido salvo enquanto você editava
 }
@@ -638,7 +638,7 @@ void MainWindow::openFile(const QString &path)
     }
     m_file = path;
     m_title->setText(QFileInfo(path).fileName());
-    setWindowTitle("Shear — " + QFileInfo(path).fileName());
+    setWindowTitle("shear — " + QFileInfo(path).fileName());
     m_timeline->reset(0);
     m_undo.clear();
     m_redo.clear();

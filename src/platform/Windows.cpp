@@ -46,7 +46,7 @@ bool installContextMenu(const QString &exePath)
     bool ok = true;
     for (const QString &ext : kVideoExts) {
         QSettings s(extKey(ext), QSettings::NativeFormat);
-        s.setValue("shell/Shear/Default", QStringLiteral("Cortar com Shear"));
+        s.setValue("shell/Shear/Default", QStringLiteral("Cortar com shear"));
         s.setValue("shell/Shear/Icon", QString("\"%1\",0").arg(exe));
         s.setValue("shell/Shear/command/Default", QString("\"%1\" \"%2\"").arg(exe, "%1"));
         s.sync();
@@ -85,7 +85,8 @@ void migrateLegacyContextMenu(const QString &exePath)
     if (contextMenuInstalled()) {
         QSettings s(extKey(kVideoExts.first()), QSettings::NativeFormat);
         const QString exe = QDir::toNativeSeparators(exePath);
-        if (s.value("shell/Shear/Icon").toString() != QString("\"%1\",0").arg(exe))
+        if (s.value("shell/Shear/Icon").toString() != QString("\"%1\",0").arg(exe) ||
+            s.value("shell/Shear/Default").toString() != QStringLiteral("Cortar com shear"))
             installContextMenu(exePath);
     }
 }

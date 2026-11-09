@@ -57,7 +57,6 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
     const std::vector<Section> playback = {
         {"Tocar", {
             {"Espaço · clique no vídeo", "Toca ou pausa"},
-            {"Espaço no fim do vídeo ou no O", "Toca de novo a partir do I"},
             {"[ · -", "Deixa o vídeo mais lento"},
             {"] · +", "Deixa o vídeo mais rápido"},
             {"Backspace", "Volta à velocidade normal"},
@@ -134,7 +133,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
         {"Configurações", {
             {"Modo de corte padrão", "Escolhe se o corte começa em Rápido ou em Exato"},
             {"Pasta dos clipes mantidos", "Onde os clipes guardados são salvos"},
-            {"Pasta do ShadowPlay", "Onde o shear procura seus clipes"},
+            {"Pasta dos vídeos", "Onde o shear procura seus clipes"},
             {"Placa de vídeo no preview", "Deixa a reprodução mais leve para o computador"},
             {"Som ao arrastar", "Você ouve o som enquanto arrasta na barra de tempo"},
             {"Suavizar as emendas", "Quando você tira um pedaço do meio, a junção fica suave (ligado por padrão)"},

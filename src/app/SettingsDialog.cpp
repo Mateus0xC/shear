@@ -46,7 +46,7 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     auto *form = new QFormLayout;
     form->addRow("Modo de corte padrão:", m_mode);
     form->addRow("Pasta dos clipes mantidos:", folderRow(m_out, this));
-    form->addRow("Pasta do ShadowPlay:", folderRow(m_sp, this));
+    form->addRow("Pasta dos vídeos:", folderRow(m_sp, this));
     m_gpu = new QCheckBox("Usar a placa de vídeo no preview");
     m_gpu->setChecked(c.gpuDecode);
     m_gpu->setToolTip("Deixa o preview mais leve para o processador. Vale ao reabrir o shear.");

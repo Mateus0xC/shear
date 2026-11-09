@@ -25,9 +25,9 @@ private slots:
             // 1 s
             {Qt::Key_Right, none, Kind::JumpSeconds, +1, 0}, {Qt::Key_Left, none, Kind::JumpSeconds, -1, 0},
             {Qt::Key_D, none, Kind::JumpSeconds, +1, 0},     {Qt::Key_A, none, Kind::JumpSeconds, -1, 0},
-            // Shift = 0,5 s
-            {Qt::Key_Right, sh, Kind::JumpSeconds, +0.5, 0}, {Qt::Key_Left, sh, Kind::JumpSeconds, -0.5, 0},
-            {Qt::Key_D, sh, Kind::JumpSeconds, +0.5, 0},     {Qt::Key_A, sh, Kind::JumpSeconds, -0.5, 0},
+            // Shift = 0,3 s
+            {Qt::Key_Right, sh, Kind::JumpSeconds, +0.3, 0}, {Qt::Key_Left, sh, Kind::JumpSeconds, -0.3, 0},
+            {Qt::Key_D, sh, Kind::JumpSeconds, +0.3, 0},     {Qt::Key_A, sh, Kind::JumpSeconds, -0.3, 0},
             // Ctrl = 5 s
             {Qt::Key_Right, ct, Kind::JumpSeconds, +5, 0},   {Qt::Key_Left, ct, Kind::JumpSeconds, -5, 0},
             {Qt::Key_D, ct, Kind::JumpSeconds, +5, 0},       {Qt::Key_A, ct, Kind::JumpSeconds, -5, 0},

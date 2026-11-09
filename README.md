@@ -20,7 +20,7 @@ marcar início e fim, exportar e colar no Discord.
 | `-` / `+` (ou o botão **1×** no topo) | velocidade do preview: 0,25× a 3× (não muda o arquivo exportado); `Backspace` volta a 1× |
 | `I` / `O` ou `Z` / `C` | marca início / fim (no modo Rápido o `I`/`Z` encaixa no keyframe e o playback vai para lá) |
 | `←` `→` ou `A` `D` | pula 1 s para trás / frente, sem pausar o vídeo (segurando, repete) |
-| `Shift` + `←` `→` / `A` `D` | 0,5 s (passo fino) |
+| `Shift` + `←` `→` / `A` `D` | 0,3 s (passo fino) |
 | `Ctrl` + `←` `→` / `A` `D` | 5 s |
 | `Ctrl` + `Shift` + `←` `→` / `A` `D` | 15 s |
 | `Alt` + `←` `→` / `A` `D` (ou `,` `.`) | 1 frame (pausa o vídeo para mostrar o quadro) |
@@ -36,7 +36,7 @@ marcar início e fim, exportar e colar no Discord.
 | `Enter` | exporta |
 | `Esc` | cancela o trecho do `X` que está sendo marcado (para voltar à lista de clipes use o botão **← Clipes**) |
 | puxar o mouse para baixo ao arrastar na timeline | régua ampliada (zoom de precisão); em tela cheia, quando falta espaço até a borda da tela, as faixas de zoom ficam mais estreitas e a régua aparece acima da timeline |
-| roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 0,5 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro); para cima avança |
+| roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 0,3 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro); para cima avança |
 
 ### Menu de contexto do Explorer
 Em **Configurações → Menu do Windows** (caixa de seleção) o item “Cortar com shear” passa a aparecer ao clicar com o botão direito em

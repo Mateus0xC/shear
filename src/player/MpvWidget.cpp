@@ -46,6 +46,11 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
     // Render por software: o redimensionamento da imagem é feito na CPU. "bilinear" é bem mais leve que o padrão
     // (bicúbico) e na prática não se nota; com zoom isso pesa a cada quadro.
     mpv_set_option_string(m_mpv, "sws-scaler", "bilinear");
+    // Textos sobre o vídeo (volume, zoom, velocidade, avisos): canto inferior direito, fora do caminho da imagem.
+    mpv_set_option_string(m_mpv, "osd-align-x", "right");
+    mpv_set_option_string(m_mpv, "osd-align-y", "bottom");
+    mpv_set_option_string(m_mpv, "osd-margin-x", "16");
+    mpv_set_option_string(m_mpv, "osd-margin-y", "14");
     mpv_set_option_string(m_mpv, "load-scripts", "no");
     mpv_set_option_string(m_mpv, "ytdl", "no");
     mpv_set_option_string(m_mpv, "osc", "no");
@@ -297,7 +302,8 @@ void MpvWidget::paintOverlay(QPainter &p, double t) const
         const double pad = fpx * 0.8, gap = fpx * 0.55;
         const double textW = fm.horizontalAdvance(m_ovText);
         const double pillW = pad + iconW + gap + textW + pad, pillH = fpx * 2.1;
-        const QPointF ctr(width() * (fwd ? 0.82 : 0.18), height() / 2.0);
+        const double margin = std::max(10.0, width() * 0.012); // bem perto da borda do vídeo
+        const QPointF ctr(fwd ? width() - margin - pillW / 2 : margin + pillW / 2, height() / 2.0);
         const QRectF pill(ctr.x() - pillW / 2, ctr.y() - pillH / 2, pillW, pillH);
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(0, 0, 0, int(150 * alpha)));

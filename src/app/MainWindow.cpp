@@ -145,7 +145,7 @@ MainWindow::MainWindow()
     // Z e C = I e O (mão esquerda no teclado, junto de A/D e W/S)
     sc(Qt::Key_Z, [=, this] { if (inEditor()) markStart(m_mpv->position()); });
     sc(Qt::Key_C, [=, this] { if (inEditor()) markEnd(m_mpv->position()); });
-    // Pular com o teclado (não pausa o vídeo): setas ou A/D = 1 s; Shift = 0,5 s; Ctrl = 5 s; Ctrl+Shift = 15 s.
+    // Pular com o teclado (não pausa o vídeo): setas ou A/D = 1 s; Shift = 0,3 s; Ctrl = 5 s; Ctrl+Shift = 15 s.
     // Alt (ou , e .) = 1 quadro. O mapa de teclas fica em NavKeys.cpp (testado em tests/test_navkeys.cpp).
     registerNavShortcuts(this, [this](const NavAction &a) {
         if (a.kind == NavAction::Kind::JumpSeconds)
@@ -505,7 +505,7 @@ QWidget *MainWindow::buildEditor()
     connect(m_timeline, &TimelineWidget::endChanged, this, [this] { updateInfo(); });
     // Enquanto o mouse está pressionado na timeline o vídeo fica pausado (a timeline pede o seek a cada movimento,
     // então você vê o quadro sob o mouse). Ao soltar, volta a tocar se estava tocando.
-    // Roda do mouse na timeline = setas: 1 s por clique (Shift 0,5 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro).
+    // Roda do mouse na timeline = setas: 1 s por clique (Shift 0,3 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro).
     // Para cima avança, para baixo volta (como W/S e as setas ↑/↓ aumentam).
     connect(m_timeline, &TimelineWidget::scrolled, this, [this](int notches, Qt::KeyboardModifiers m) {
         if (m & Qt::AltModifier) {

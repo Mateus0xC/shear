@@ -39,7 +39,13 @@ MpvWidget::MpvWidget(bool gpuDecode, QWidget *parent) : QWidget(parent)
         if (m_ovActive) update(); else m_ovTimer.stop();
     });
 
-    connect(&m_viewTimer, &QTimer::timeout, this, [this] { if (m_panning) applyPan(); else m_viewTimer.stop(); });
+    // Segurança do arrasto: se o mpv não avisar que redesenhou, não fica esperando para sempre.
+    m_viewTimer.setSingleShot(true);
+    connect(&m_viewTimer, &QTimer::timeout, this, [this] {
+        m_applyPending = false;
+        pumpPan();
+        update();
+    });
 
     m_mpv = mpv_create();
     mpv_set_option_string(m_mpv, "config", "no");
@@ -106,7 +112,9 @@ void MpvWidget::paintEvent(QPaintEvent *)
         }
         return;
     }
-    if (m_panning && !m_useRender && !m_frame.isNull()) { // arrastando: só desloca o quadro que já está pronto
+    // Arrastando e o mpv ainda está redesenhando na posição nova: mostra o último quadro deslocado (acompanha o mouse
+    // na hora). O vídeo não congela: assim que o mpv responde, volta a desenhar de verdade.
+    if (m_panning && m_applyPending && !m_frame.isNull()) {
         p.fillRect(rect(), Qt::black);
         p.drawImage(QPointF((m_panX - m_framePanX) * m_panPxX, (m_panY - m_framePanY) * m_panPxY), m_frame);
         return;
@@ -131,7 +139,6 @@ void MpvWidget::paintEvent(QPaintEvent *)
         mpv_render_context_render(m_ctx, params);
         m_framePanX = m_appliedPanX; // o quadro pronto foi desenhado com esta posição
         m_framePanY = m_appliedPanY;
-        m_useRender = false;
     }
     m_frame.setDevicePixelRatio(dpr);
     p.drawImage(0, 0, m_frame);
@@ -167,6 +174,11 @@ void MpvWidget::loadFile(const QString &path)
     m_pos = m_dur = 0;
     if (m_zoomLog != 0 || m_panX != 0 || m_panY != 0) { // vídeo novo começa sem zoom
         m_zoomLog = m_panX = m_panY = 0;
+        applyView();
+    }
+    // Diagnóstico: SHEAR_ZOOM=<passos log2> abre o vídeo já com zoom (para testar o arrastar sem usar Ctrl+roda).
+    if (const QByteArray z = qgetenv("SHEAR_ZOOM"); !z.isEmpty()) {
+        m_zoomLog = std::clamp(z.toDouble(), 0.0, 3.0);
         applyView();
     }
     command({"loadfile", path});
@@ -408,21 +420,24 @@ void MpvWidget::mouseMoveEvent(QMouseEvent *e)
     m_panY = std::clamp(m_panY + d.y() / dispH, -maxPan, maxPan);
     m_panPxX = dispW;
     m_panPxY = dispH;
-    // Enquanto arrasta, a imagem só é DESLOCADA na tela (copiar o quadro já pronto custa quase nada, então segue o
-    // mouse sem atraso). O mpv só recebe a posição de tempos em tempos e redesenha; ao soltar, a posição exata.
-    if (!m_viewTimer.isActive())
-        m_viewTimer.start(120);
+    // Enquanto o mpv redesenha na posição nova, a imagem é DESLOCADA na tela (copiar o quadro pronto custa quase nada,
+    // então segue o mouse sem atraso). A próxima posição só vai para o mpv quando ele terminar a anterior: nunca
+    // forma fila (a fila era o que travava) e quase não sobra faixa preta.
+    pumpPan();
     update();
 }
 
-void MpvWidget::applyPan()
+// Manda a posição desejada da imagem ao mpv, se ele não estiver ocupado com uma anterior.
+void MpvWidget::pumpPan()
 {
-    if (!m_mpv) return;
+    if (!m_mpv || m_applyPending) return;
+    if (std::abs(m_panX - m_appliedPanX) < 1e-7 && std::abs(m_panY - m_appliedPanY) < 1e-7) return;
     m_appliedPanX = m_panX;
     m_appliedPanY = m_panY;
-    mpv_set_property(m_mpv, "video-pan-x", MPV_FORMAT_DOUBLE, &m_panX); // síncrono: o próximo quadro já vem com ela
+    mpv_set_property(m_mpv, "video-pan-x", MPV_FORMAT_DOUBLE, &m_panX); // síncrono: o quadro seguinte já vem com ela
     mpv_set_property(m_mpv, "video-pan-y", MPV_FORMAT_DOUBLE, &m_panY);
-    m_applyPending = true; // o próximo "quadro novo" do mpv já reflete essa posição
+    m_applyPending = true; // até o mpv avisar que redesenhou
+    m_viewTimer.start(100); // segurança: se ele não avisar, não fica esperando para sempre
 }
 
 void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
@@ -432,7 +447,8 @@ void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
     if (m_panning) {
         m_panning = false;
         m_viewTimer.stop();
-        applyPan();               // posição final exata
+        m_applyPending = false;
+        pumpPan();                // posição final exata
         update();
         setCursor(m_zoomLog > 1e-9 ? Qt::OpenHandCursor : Qt::ArrowCursor);
         return; // era um arrasto, não um clique
@@ -453,9 +469,10 @@ void MpvWidget::onRenderUpdate()
 {
     if (m_ctx)
         mpv_render_context_update(m_ctx);
-    if (m_applyPending) { // chegou o quadro que já tem a posição nova: pode desenhar de verdade
+    if (m_applyPending) { // o mpv redesenhou na posição enviada: pode desenhar de verdade e já manda a próxima
         m_applyPending = false;
-        m_useRender = true;
+        m_viewTimer.stop();
+        pumpPan();
     }
     update();
 }

@@ -81,7 +81,7 @@ private slots:
 private:
     void command(const QStringList &args);
     void applyView();                      // zoom e posição da imagem no mpv
-    void applyPan();                       // manda a posição da imagem para o mpv (durante o arrasto, a cada ~120 ms)
+    void pumpPan();                        // manda a posição desejada da imagem ao mpv quando ele não está ocupado
     void paintOverlay(QPainter &p, double t) const; // t = 0..1 do progresso da animação
     void finishRestore(quint64 gen);
     static void wakeup(void *ctx);
@@ -104,7 +104,7 @@ private:
     double m_appliedPanX = 0, m_appliedPanY = 0; // o que o mpv tem agora
     double m_framePanX = 0, m_framePanY = 0;     // com que posição o quadro guardado (m_frame) foi desenhado
     double m_panPxX = 1, m_panPxY = 1;           // px de tela por unidade de pan
-    bool m_applyPending = false, m_useRender = true;
+    bool m_applyPending = false; // posição enviada ao mpv, esperando ele redesenhar
     QPoint m_pressPos, m_lastPos;
     bool m_pressed = false, m_panning = false;
     // animação sobre o vídeo

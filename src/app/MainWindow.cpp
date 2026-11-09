@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "NavKeys.h"
+#include "HelpDialog.h"
 #include "SettingsDialog.h"
 #include "core/CutPlanner.h"
 #include "core/FfmpegCommandBuilder.h"
@@ -131,6 +132,7 @@ MainWindow::MainWindow()
         connect(s, &QShortcut::activated, this, fn);
     };
     auto inEditor = [this] { return m_stack->currentIndex() == 1; };
+    sc(Qt::Key_F1, [=, this] { openHelp(); }); // ajuda com todos os atalhos (vale na lista de clipes e no editor)
     sc(Qt::Key_Space, [=, this] { if (inEditor()) userTogglePause(); });
     // X: apaga um trecho do MEIO (1º X = onde começa, 2º X = onde termina); o que sobra é emendado na exportação.
     sc(Qt::Key_X, [=, this] { if (inEditor()) toggleGap(); });
@@ -204,9 +206,13 @@ QWidget *MainWindow::buildHome()
     open->setMinimumHeight(34);
     connect(open, &QPushButton::clicked, this, &MainWindow::promptOpen);
     connect(settings, &QPushButton::clicked, this, &MainWindow::openSettings);
+    auto *help = new QPushButton("Atalhos (F1)");
+    help->setMinimumHeight(34);
+    connect(help, &QPushButton::clicked, this, &MainWindow::openHelp);
     auto *bar = new QHBoxLayout;
     bar->addWidget(open);
     bar->addWidget(settings);
+    bar->addWidget(help);
     bar->addStretch();
     m_recent = new QListWidget;
     m_recent->setAlternatingRowColors(true);
@@ -266,6 +272,12 @@ QWidget *MainWindow::buildEditor()
     }
     m_speedBtn->setMenu(speedMenu);
     top->addWidget(m_speedBtn);
+    auto *helpBtn = new QPushButton("?");
+    helpBtn->setToolTip("Atalhos e controles (F1)");
+    helpBtn->setFixedWidth(38);
+    helpBtn->setFocusPolicy(Qt::NoFocus);
+    connect(helpBtn, &QPushButton::clicked, this, &MainWindow::openHelp);
+    top->addWidget(helpBtn);
     top->addWidget(settingsBtn);
     l->addLayout(top);
 
@@ -698,6 +710,12 @@ void MainWindow::promptOpen()
     const QString f = QFileDialog::getOpenFileName(this, "Abrir vídeo", m_cfg.effectiveShadowPlayDir(),
                                                    "Vídeos (*.mp4 *.mkv *.mov *.webm *.avi);;Todos (*.*)");
     if (!f.isEmpty()) openFile(f);
+}
+
+void MainWindow::openHelp()
+{
+    HelpDialog d(this);
+    d.exec();
 }
 
 void MainWindow::openSettings()

@@ -53,6 +53,7 @@ private:
     QWidget *buildEditor();
     void promptOpen();
     void openSettings();
+    void openHelp();                    // "Atalhos e controles" (F1)
     void refreshRecent(bool autoOpen = false);
     void showHome();
     void detectNvenc();

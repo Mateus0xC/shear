@@ -12,7 +12,7 @@ COLOR = (0, 128, 250)
 # pouco diferentes deixam o conjunto mais orgânico.
 ANGLE = 26.0          # inclinação do corte em relação à vertical (graus)
 K = math.tan(math.radians(ANGLE))
-GAP = 96              # vão entre as peças, medido na horizontal
+GAP = 108             # vão entre as peças, medido na horizontal
 OUTER = 40            # raio dos cantos de fora (os do corte ficam vivos)
 
 # peça de cima (esquerda): borda esquerda x=TOP_X0, topo y=TOP_Y0, altura TOP_H, largura do topo TOP_W

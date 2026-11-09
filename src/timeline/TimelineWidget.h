@@ -25,6 +25,14 @@ public:
     void setSnapStart(bool snap) { m_snapStart = snap; }
     double snapToKeyframe(double t) const; // keyframe mais próximo (ou t, se ainda não foi lido)
     void setGhostStart(std::optional<double> g);
+    // Trechos do meio marcados para apagar (desenhados hachurados); `pending` = início de um trecho ainda não fechado.
+    using Gap = std::pair<double, double>;
+    const std::vector<Gap> &gaps() const { return m_gaps; }
+    void setGaps(std::vector<Gap> g);
+    void addGap(double a, double b);        // junta com os que se sobrepõem
+    bool removeGapAt(double t);             // tira o trecho que contém t; false se não havia
+    void setPendingGap(std::optional<double> p);
+    std::optional<double> pendingGap() const { return m_pendingGap; }
     // Começo do vídeo corrompido: nada antes de t pode ser marcado nem exportado (desenhado hachurado em vermelho).
     void setDamagedUntil(double t);
     double damagedUntil() const { return m_floor; }
@@ -47,6 +55,7 @@ signals:
     void dragStarted();  // botão do mouse pressionado na timeline (o vídeo deve pausar)
     void dragFinished(); // soltou o botão
     void scrolled(int notches, Qt::KeyboardModifiers mods); // roda do mouse: >0 = para cima
+    void gapRightClicked(double sec);                        // botão direito na timeline (apaga o trecho que está ali)
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -72,6 +81,8 @@ private:
 
     double m_dur = 0, m_pos = 0, m_start = 0, m_end = 0;
     double m_floor = 0; // início utilizável (0 = vídeo sadio)
+    std::vector<Gap> m_gaps;
+    std::optional<double> m_pendingGap;
     std::vector<double> m_kf;
     std::optional<double> m_ghost;
     bool m_scanDone = false;

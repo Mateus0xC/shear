@@ -2,6 +2,7 @@
 #include <QString>
 #include <QStringList>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace shear {
@@ -14,6 +15,8 @@ struct AudioTrack {
     double gainDb = 0.0; // ajuste de volume; com 2+ faixas ligadas soma-se ao ganho-base da receita de mixagem
 };
 
+using Range = std::pair<double, double>; // [início, fim] em segundos
+
 struct ExportRequest {
     QString inputPath;
     QString outputPath;
@@ -23,6 +26,8 @@ struct ExportRequest {
     CutMode mode = CutMode::Fast;
     std::vector<AudioTrack> audio; // uma entrada por faixa do arquivo (a:0, a:1, ...)
     bool hasNvenc = true;
+    std::vector<Range> gaps;      // trechos do MEIO a apagar (o que sobra é emendado); dentro de [startSec, endSec]
+    double fadeSec = 0;           // > 0: esmaece o início, o fim e cada emenda (recodifica o vídeo)
 };
 
 } // namespace shear

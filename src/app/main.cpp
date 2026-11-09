@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "SingleInstance.h"
+#include "util/CrashLog.h"
 #include "util/Metrics.h"
 #include <QApplication>
 #include <QFileInfo>
@@ -10,6 +11,7 @@ int main(int argc, char **argv)
 {
     using shear::metrics::processAgeMs;
     const double tMain = processAgeMs();
+    shear::crashlog::install(); // se quebrar, grava onde em crash.log
     QApplication app(argc, argv);
     const double tApp = processAgeMs();
     QApplication::setOrganizationName("Shear");

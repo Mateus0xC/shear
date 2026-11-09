@@ -8,7 +8,7 @@ add_executable(shear WIN32
   ${S}/timeline/TimelineWidget.cpp ${S}/timeline/KeyframeScanner.cpp ${S}/timeline/DamageScanner.cpp
   ${S}/export/ExportJob.cpp
   ${S}/platform/Windows.cpp
-  ${S}/util/Settings.cpp ${S}/util/Metrics.cpp
+  ${S}/util/Settings.cpp ${S}/util/Metrics.cpp ${S}/util/CrashLog.cpp
   ${CMAKE_SOURCE_DIR}/resources/shear.rc ${CMAKE_SOURCE_DIR}/resources/shear.qrc) # ícone do exe (logo)
 
 target_include_directories(shear PRIVATE ${S} ${MPV_DIR}/include ${FF_DIR}/include)
@@ -20,7 +20,7 @@ target_link_options(shear PRIVATE /ENTRY:mainCRTStartup)
 # Abertura rápida: libmpv (100 MB) e as DLLs do ffmpeg só são carregadas quando usadas.
 file(GLOB DELAY_DLLS RELATIVE ${FF_DIR}/bin ${FF_DIR}/bin/avformat-*.dll ${FF_DIR}/bin/avcodec-*.dll
      ${FF_DIR}/bin/avutil-*.dll)
-target_link_libraries(shear PRIVATE delayimp)
+target_link_libraries(shear PRIVATE delayimp dbghelp)
 target_link_options(shear PRIVATE /DELAYLOAD:libmpv-2.dll)
 foreach(d ${DELAY_DLLS})
   target_link_options(shear PRIVATE /DELAYLOAD:${d})

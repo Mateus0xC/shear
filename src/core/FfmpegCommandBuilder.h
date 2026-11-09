@@ -14,7 +14,9 @@ QStringList buildFfmpegArgs(const ExportRequest &r, const CutPlan &plan);
 // forMpv=true usa as entradas [aidN] do mpv (lavfi-complex); false usa [0:a:N] do ffmpeg.
 // Com 2+ faixas ligadas aplica a receita: faixa 0 = desktop (nível original), faixa 1 = mic (highpass/lowpass/
 // gate + 20 dB), amix sem normalização + limitador; o volume de cada faixa soma-se a esses ganhos.
-QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, const QString &outLabel);
+// inputIndex: qual -i do ffmpeg tem as faixas ([N:a:i]); só para a exportação com vários pedaços.
+QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, const QString &outLabel,
+                           int inputIndex = 0);
 
 int enabledTrackCount(const std::vector<AudioTrack> &tracks);
 

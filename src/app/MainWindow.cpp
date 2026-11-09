@@ -15,6 +15,7 @@
 #include "util/Metrics.h"
 
 #include <QButtonGroup>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QFrame>
 #include <QPainter>
@@ -131,6 +132,8 @@ MainWindow::MainWindow()
     };
     auto inEditor = [this] { return m_stack->currentIndex() == 1; };
     sc(Qt::Key_Space, [=, this] { if (inEditor()) userTogglePause(); });
+    // X: apaga um trecho do MEIO (1º X = onde começa, 2º X = onde termina); o que sobra é emendado na exportação.
+    sc(Qt::Key_X, [=, this] { if (inEditor()) toggleGap(); });
     // Velocidade do preview: - / + (ou =) mais lento / mais rápido; Backspace volta a 1×. Ctrl+0 tira o zoom do vídeo.
     sc(Qt::Key_Minus, [=, this] { if (inEditor()) stepSpeed(-1); });
     sc(Qt::Key_Plus, [=, this] { if (inEditor()) stepSpeed(+1); });
@@ -173,7 +176,14 @@ MainWindow::MainWindow()
     sc(QKeySequence::Redo, [=, this] { if (inEditor()) redo(); }); // Ctrl+Y e Ctrl+Shift+Z
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Enter, [=, this] { if (inEditor()) startExport(); });
-    sc(Qt::Key_Escape, [=, this] { if (inEditor() && !m_job) showHome(); });
+    sc(Qt::Key_Escape, [=, this] {
+        if (!inEditor() || m_job) return;
+        if (m_timeline->pendingGap()) { // cancela o trecho que estava sendo marcado
+            m_timeline->setPendingGap(std::nullopt);
+            return;
+        }
+        showHome();
+    });
 }
 
 QWidget *MainWindow::buildHome()
@@ -364,7 +374,12 @@ QWidget *MainWindow::buildEditor()
     m_exportBtn = new QPushButton("Exportar (Enter)");
     m_exportBtn->setFixedSize(150, 30);
     m_exportBtn->setFocusPolicy(Qt::NoFocus);
+    m_fadeCheck = new QCheckBox("Fade");
+    m_fadeCheck->setToolTip("Esmaece o início, o fim e as emendas (0,5 s). Recodifica o vídeo, então exporta um pouco mais devagar que o corte rápido.");
+    m_fadeCheck->setFocusPolicy(Qt::NoFocus);
+    connect(m_fadeCheck, &QCheckBox::toggled, this, [this] { updateInfo(); });
     opts->addWidget(seg);
+    opts->addWidget(m_fadeCheck);
     opts->addWidget(m_warning, 1);
     opts->addWidget(m_eta);
     opts->addWidget(m_exportBtn);
@@ -481,6 +496,16 @@ QWidget *MainWindow::buildEditor()
         }
     });
     connect(m_mpv, &MpvWidget::clicked, this, &MainWindow::userTogglePause); // clicar no vídeo = play/pause
+    connect(m_timeline, &TimelineWidget::gapRightClicked, this, &MainWindow::removeGapAt);
+    // Tocando e chegou num trecho apagado: pula para o fim dele (o preview mostra o que vai ficar no arquivo).
+    connect(m_mpv, &MpvWidget::positionChanged, this, [this](double p) {
+        if (m_mpv->paused()) return; // parado: dá para olhar dentro do trecho
+        for (const auto &g : m_timeline->gaps())
+            if (p >= g.first && p < g.second - 0.02 && p >= m_timeline->start() && p <= m_timeline->end()) {
+                m_mpv->seek(g.second);
+                break;
+            }
+    });
     connect(m_mpv, &MpvWidget::fpsChanged, m_timeline, &TimelineWidget::setFps);
     connect(m_mpv, &MpvWidget::fpsChanged, this, [this](double f) { m_fps = f; });
     connect(m_timeline, &TimelineWidget::startChanged, this, [this] { updateInfo(); });
@@ -847,6 +872,40 @@ void MainWindow::markStart(double t)
     updateInfo();
 }
 
+void MainWindow::toggleGap()
+{
+    if (m_job) return;
+    const double pos = std::clamp(m_mpv->position(), m_timeline->start(), m_timeline->end());
+    if (const auto p = m_timeline->pendingGap()) {
+        const double a = std::min(*p, pos), b = std::max(*p, pos);
+        m_timeline->setPendingGap(std::nullopt);
+        if (b - a < 0.05) {
+            m_mpv->showText("Trecho curto demais", 900);
+            return;
+        }
+        pushUndo(currentState());
+        m_timeline->addGap(a, b);
+        m_mpv->showText(QString("Trecho de %1 s apagado do meio").arg(QString::number(b - a, 'f', 1).replace('.', ',')), 1400);
+        updateInfo();
+    } else {
+        m_timeline->setPendingGap(pos);
+        m_mpv->showText("Apagar trecho: vá até onde ele termina e aperte X de novo (Esc cancela)", 2800);
+    }
+}
+
+void MainWindow::removeGapAt(double sec)
+{
+    if (m_job) return;
+    bool inside = false;
+    for (const auto &g : m_timeline->gaps())
+        inside = inside || (sec >= g.first && sec <= g.second);
+    if (!inside) return;
+    pushUndo(currentState());
+    m_timeline->removeGapAt(sec);
+    m_mpv->showText("Trecho de volta", 900);
+    updateInfo();
+}
+
 void MainWindow::markEnd(double t)
 {
     if (std::abs(t - m_timeline->end()) > 1e-6)
@@ -858,7 +917,7 @@ void MainWindow::markEnd(double t)
 
 MainWindow::EditState MainWindow::currentState() const
 {
-    return {m_timeline->start(), m_timeline->end(), m_micFader ? m_micFader->value() : 0};
+    return {m_timeline->start(), m_timeline->end(), m_micFader ? m_micFader->value() : 0, m_timeline->gaps()};
 }
 
 void MainWindow::pushUndo(const EditState &s)
@@ -868,7 +927,7 @@ void MainWindow::pushUndo(const EditState &s)
     m_redo.clear(); // uma alteração nova depois de desfazer invalida o "refazer"
     if (!m_undo.empty()) {
         const EditState &b = m_undo.back();
-        if (b.start == s.start && b.end == s.end && b.micGain == s.micGain)
+        if (b.start == s.start && b.end == s.end && b.micGain == s.micGain && b.gaps == s.gaps)
             return;
     }
     m_undo.push_back(s);
@@ -881,6 +940,7 @@ void MainWindow::applyState(const EditState &s)
     const double oldStart = m_timeline->start(), oldEnd = m_timeline->end();
     m_restoring = true;
     m_timeline->setRange(s.start, s.end);
+    m_timeline->setGaps(s.gaps);
     if (m_micFader)
         m_micFader->setValue(s.micGain);
     m_restoring = false;
@@ -969,6 +1029,8 @@ ExportRequest MainWindow::currentRequest() const
     r.endSec = m_timeline->end();
     r.mode = m_exactBtn->isChecked() ? CutMode::Exact : CutMode::Fast;
     r.hasNvenc = m_hasNvenc;
+    r.gaps = m_timeline->gaps();
+    r.fadeSec = (m_fadeCheck && m_fadeCheck->isChecked()) ? 0.5 : 0.0;
     r.audio = currentAudio();
     if (auto k = m_timeline->keyframeAtOrBefore(r.startSec))
         r.keyframeBeforeStart = *k;
@@ -985,7 +1047,7 @@ void MainWindow::updateInfo()
     const auto r = currentRequest();
     const auto plan = planCut(r);
     m_times->setText(QString("Início %1    Fim %2    Duração %3%4")
-                         .arg(fmt(r.startSec), fmt(r.endSec), fmt(r.endSec - r.startSec),
+                         .arg(fmt(r.startSec), fmt(r.endSec), fmt(keptSeconds(r)),
                               m_timeline->scanDone() ? "" : "    (lendo keyframes…)"));
     m_timeline->setGhostStart(plan.earlyBySec >= 0.05 ? std::optional<double>(plan.actualStartSec)
                                                       : std::nullopt);
@@ -994,14 +1056,17 @@ void MainWindow::updateInfo()
     const QString w = earlyStartWarning(plan.earlyBySec);
     m_early->setText(w.isEmpty() ? QStringLiteral(" ")
                                  : "⚠ " + w);
-    msg << (r.mode == CutMode::Fast
-                ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
-                : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
+    if (plan.assembled)
+        msg << "Com trechos apagados ou fade, o vídeo é recodificado (corte exato; exporta um pouco mais devagar).";
+    else
+        msg << (r.mode == CutMode::Fast
+                    ? "Rápido: corte instantâneo; o início encaixa nas marcas da timeline."
+                    : "Exato: corta no frame escolhido; a exportação demora um pouco mais.");
     m_warning->setText(msg.join("   ·   "));
 
     // previsão do tempo de exportação
     const ExportKind kind = exportKind(r, plan);
-    const double clipSec = std::max(0.0, r.endSec - plan.actualStartSec);
+    const double clipSec = plan.assembled ? keptSeconds(r) : std::max(0.0, r.endSec - plan.actualStartSec);
     const double total = m_timeline->duration();
     const double clipBytes = total > 0 ? double(m_fileSize) * clipSec / total : 0.0;
     m_eta->setText("Exportar: " + formatDuration(estimateSeconds(kind, r.hasNvenc, clipSec, clipBytes, m_rates)));
@@ -1011,8 +1076,8 @@ void MainWindow::startExport()
 {
     if (m_job || m_file.isEmpty()) return;
     auto r = currentRequest();
-    if (r.endSec - r.startSec < 0.1) {
-        m_status->setText("Selecione um trecho maior.");
+    if (keptSeconds(r) < 0.1) {
+        m_status->setText(r.gaps.empty() ? "Selecione um trecho maior." : "Os trechos apagados cobrem tudo: nada sobrou para exportar.");
         return;
     }
     const auto plan = planCut(r);
@@ -1024,7 +1089,7 @@ void MainWindow::startExport()
     metrics::log("ffmpeg " + args.join(' '));
 
     m_exportKind = exportKind(r, plan);
-    m_exportClipSec = r.endSec - plan.actualStartSec;
+    m_exportClipSec = plan.assembled ? keptSeconds(r) : r.endSec - plan.actualStartSec;
     const double total = m_timeline->duration();
     m_exportClipBytes = total > 0 ? double(m_fileSize) * m_exportClipSec / total : 0.0;
     m_exportEstimate = estimateSeconds(m_exportKind, r.hasNvenc, m_exportClipSec, m_exportClipBytes, m_rates);

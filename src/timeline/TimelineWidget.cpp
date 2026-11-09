@@ -218,6 +218,8 @@ void TimelineWidget::reset(double duration)
     m_end = duration;
     m_kf.clear();
     m_floor = 0;
+    m_gaps.clear();
+    m_pendingGap.reset();
     m_ghost.reset();
     m_scanDone = false;
     m_fps = 0;
@@ -268,6 +270,42 @@ void TimelineWidget::setDamagedUntil(double t)
     m_kf.erase(std::remove_if(m_kf.begin(), m_kf.end(), [this](double k) { return k < m_floor - 1e-6; }), m_kf.end());
     if (m_start < m_floor) m_start = std::min(m_floor, std::max(m_floor, m_end - 0.05));
     update();
+}
+
+void TimelineWidget::setGaps(std::vector<Gap> g)
+{
+    m_gaps = std::move(g);
+    update();
+}
+
+void TimelineWidget::addGap(double a, double b)
+{
+    if (b < a) std::swap(a, b);
+    std::vector<Gap> out;
+    for (const Gap &g : m_gaps) {
+        if (g.second < a || g.first > b) out.push_back(g); // não encosta: fica como está
+        else { a = std::min(a, g.first); b = std::max(b, g.second); } // encosta: vira um só
+    }
+    out.push_back({a, b});
+    std::sort(out.begin(), out.end());
+    m_gaps = std::move(out);
+    update();
+}
+
+bool TimelineWidget::removeGapAt(double t)
+{
+    for (auto it = m_gaps.begin(); it != m_gaps.end(); ++it)
+        if (t >= it->first && t <= it->second) {
+            m_gaps.erase(it);
+            update();
+            return true;
+        }
+    return false;
+}
+
+void TimelineWidget::setPendingGap(std::optional<double> p)
+{
+    if (p != m_pendingGap) { m_pendingGap = p; update(); }
 }
 
 void TimelineWidget::setGhostStart(std::optional<double> g)
@@ -338,6 +376,23 @@ void TimelineWidget::paintEvent(QPaintEvent *)
         p.fillRect(bad, QColor(200, 60, 60, 35));
     }
 
+    // Trechos a apagar: escuros e hachurados, com bordas laranja (só valem dentro do início..fim).
+    for (const Gap &g : m_gaps) {
+        const double a = std::clamp(g.first, m_start, m_end), b = std::clamp(g.second, m_start, m_end);
+        if (b <= a) continue;
+        const QRectF r(secToX(a), top, std::max(2.0, secToX(b) - secToX(a)), bottom - top);
+        p.fillRect(r, QColor(20, 20, 24, 215));
+        p.fillRect(r, QBrush(QColor(255, 150, 60, 150), Qt::BDiagPattern));
+        p.setPen(QPen(QColor(255, 150, 60), 2));
+        p.drawLine(QPointF(r.left(), top), QPointF(r.left(), bottom));
+        p.drawLine(QPointF(r.right(), top), QPointF(r.right(), bottom));
+    }
+    if (m_pendingGap) { // início de um trecho a apagar, esperando o fim
+        const double px = secToX(*m_pendingGap);
+        p.setPen(QPen(QColor(255, 150, 60), 2, Qt::DashLine));
+        p.drawLine(QPointF(px, top - 4), QPointF(px, bottom + 4));
+    }
+
     p.setPen(QPen(QColor(150, 150, 160), 1));
     for (double k : m_kf) {
         const double x = std::round(secToX(k)) + 0.5;
@@ -392,6 +447,10 @@ void TimelineWidget::mousePressEvent(QMouseEvent *e)
 {
     if (m_dur <= 0) return;
     const double x = e->position().x();
+    if (e->button() == Qt::RightButton) { // botão direito num trecho apagado = traz o trecho de volta
+        emit gapRightClicked(xToSec(x));
+        return;
+    }
     const double ds = std::abs(x - secToX(m_start)), de = std::abs(x - secToX(m_end));
     if (std::min(ds, de) <= 9) {
         m_drag = ds <= de ? Drag::Start : Drag::End;

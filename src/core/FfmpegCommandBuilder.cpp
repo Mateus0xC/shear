@@ -20,7 +20,7 @@ int enabledTrackCount(const std::vector<AudioTrack> &tracks)
     return int(std::count_if(tracks.begin(), tracks.end(), [](const AudioTrack &t) { return t.enabled; }));
 }
 
-QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, const QString &outLabel)
+QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, const QString &outLabel, int inputIndex)
 {
     const bool recipe = enabledTrackCount(tracks) >= 2; // junta: receita do usuário
     struct In { QString pad, chain, label; };
@@ -30,7 +30,7 @@ QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, c
             continue;
         const double g = tracks[i].gainDb;
         In in;
-        in.pad = forMpv ? QString("[aid%1]").arg(i + 1) : QString("[0:a:%1]").arg(i);
+        in.pad = forMpv ? QString("[aid%1]").arg(i + 1) : QString("[%1:a:%2]").arg(inputIndex).arg(i);
         if (recipe && i == 1) {
             in.chain = QString("highpass=f=100,lowpass=f=8000,volume=%1dB,agate=range=0:threshold=0.03:release=200")
                            .arg(num(20 + g));
@@ -70,8 +70,53 @@ static void videoEncodeArgs(QStringList &a, const ExportRequest &r)
         a << "-c:v" << "libx264" << "-preset" << "veryfast" << "-crf" << "18";
 }
 
+// Vários pedaços (trechos do meio apagados) e/ou fade: cada pedaço é um `-ss/-t -i` (o ffmpeg pula direto, sem decodificar
+// o que foi apagado) e um filter_complex emenda tudo com `concat`. Recodifica o vídeo e o áudio (AAC).
+static QStringList buildAssembledArgs(const ExportRequest &r)
+{
+    const std::vector<Range> segs = keptSegments(r);
+    QStringList a;
+    a << "-hide_banner" << "-n" << "-nostats" << "-progress" << "pipe:1";
+    for (const Range &s : segs)
+        a << "-ss" << fmtSeconds(s.first) << "-t" << fmtSeconds(s.second - s.first) << "-i" << r.inputPath;
+
+    const bool hasAudio = enabledTrackCount(r.audio) > 0;
+    QStringList graph, concatIn;
+    for (size_t k = 0; k < segs.size(); ++k) {
+        const double len = segs[k].second - segs[k].first;
+        const double f = std::min(r.fadeSec, len / 2); // o fade nunca passa da metade do pedaço
+        QString v = QString("[%1:V:0]setpts=PTS-STARTPTS").arg(k);
+        if (f > 0.001)
+            v += QString(",fade=t=in:st=0:d=%1,fade=t=out:st=%2:d=%1").arg(num(f), num(len - f));
+        graph << v + QString("[v%1]").arg(k);
+        concatIn << QString("[v%1]").arg(k);
+        if (hasAudio) {
+            graph << buildAudioMixGraph(r.audio, false, QString("m%1").arg(k), int(k));
+            QString au = QString("[m%1]asetpts=PTS-STARTPTS").arg(k);
+            if (f > 0.001)
+                au += QString(",afade=t=in:st=0:d=%1,afade=t=out:st=%2:d=%1").arg(num(f), num(len - f));
+            graph << au + QString("[a%1]").arg(k);
+            concatIn << QString("[a%1]").arg(k);
+        }
+    }
+    graph << QString("%1concat=n=%2:v=1:a=%3[vout]%4")
+                 .arg(concatIn.join(QString())).arg(segs.size()).arg(hasAudio ? 1 : 0).arg(hasAudio ? "[aout]" : "");
+    a << "-filter_complex" << graph.join(';') << "-map" << "[vout]";
+    if (hasAudio)
+        a << "-map" << "[aout]";
+    videoEncodeArgs(a, r);
+    if (hasAudio)
+        a << "-c:a" << "aac" << "-b:a" << "320k";
+    else
+        a << "-an";
+    a << "-movflags" << "+faststart" << r.outputPath;
+    return a;
+}
+
 QStringList buildFfmpegArgs(const ExportRequest &r, const CutPlan &plan)
 {
+    if (plan.assembled && !keptSegments(r).empty())
+        return buildAssembledArgs(r);
     QStringList a;
     a << "-hide_banner" << "-n" << "-nostats" << "-progress" << "pipe:1";
 

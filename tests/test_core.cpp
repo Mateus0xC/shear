@@ -32,6 +32,70 @@ private slots:
         QVERIFY(!p.copyVideo);
         QCOMPARE(p.actualStartSec, 60.0); // no frame pedido
     }
+    void kept_segments_remove_the_middle()
+    {
+        auto r = base(); // 60..120
+        r.gaps = {{80, 90}};
+        auto s = keptSegments(r);
+        QCOMPARE(int(s.size()), 2);
+        QVERIFY((s[0] == Range{60, 80}));
+        QVERIFY((s[1] == Range{90, 120}));
+        QCOMPARE(keptSeconds(r), 50.0);
+        // vários trechos, fora de ordem, sobrepostos, e um que sai do intervalo escolhido
+        r.gaps = {{100, 110}, {80, 90}, {85, 95}, {50, 65}, {118, 130}};
+        s = keptSegments(r);
+        QCOMPARE(int(s.size()), 3);
+        QVERIFY((s[0] == Range{65, 80}));
+        QVERIFY((s[1] == Range{95, 100}));
+        QVERIFY((s[2] == Range{110, 118}));
+        // apagar tudo não deixa pedaço nenhum
+        r.gaps = {{0, 500}};
+        QVERIFY(keptSegments(r).empty());
+    }
+    void gaps_and_fade_force_reencode_exactly()
+    {
+        auto r = base();
+        r.mode = CutMode::Fast;
+        r.gaps = {{80, 90}};
+        auto p = planCut(r);
+        QVERIFY(p.assembled && !p.copyVideo);
+        QCOMPARE(p.actualStartSec, 60.0); // corte exato, sem "começa antes"
+        QCOMPARE(p.earlyBySec, 0.0);
+        r.gaps.clear();
+        r.fadeSec = 0.5;
+        QVERIFY(planCut(r).assembled);
+        r.fadeSec = 0;
+        QVERIFY(!planCut(r).assembled);
+    }
+    void assembled_args_join_segments_with_concat_and_fades()
+    {
+        auto r = base();
+        r.gaps = {{80, 90}};
+        r.fadeSec = 0.5;
+        r.audio = {{true, 0.0}};
+        const auto args = buildFfmpegArgs(r, planCut(r));
+        QCOMPARE(args.count("-i"), 2); // um -i por pedaço (o que foi apagado nem é lido)
+        const int ss0 = args.indexOf("-ss");
+        QCOMPARE(args[ss0 + 1], QString("60.000"));
+        QCOMPARE(args[ss0 + 3], QString("20.000"));
+        const QString g = args[args.indexOf("-filter_complex") + 1];
+        QVERIFY(g.contains("[0:V:0]"));
+        QVERIFY(g.contains("[1:V:0]"));
+        QVERIFY(g.contains("[1:a:0]"));                       // o áudio de cada pedaço vem do seu -i
+        QVERIFY(g.contains("fade=t=in:st=0:d=0.5"));
+        QVERIFY(g.contains("fade=t=out:st=19.5:d=0.5"));       // pedaço de 20 s: o fade de saída começa em 19,5
+        QVERIFY(g.contains("afade=t=out:st=19.5:d=0.5"));
+        QVERIFY(g.contains("concat=n=2:v=1:a=1[vout][aout]"));
+        QVERIFY(args.contains("aac"));
+        // sem fade e sem áudio
+        r.fadeSec = 0;
+        r.audio = {{false, 0.0}};
+        const auto a2 = buildFfmpegArgs(r, planCut(r));
+        const QString g2 = a2[a2.indexOf("-filter_complex") + 1];
+        QVERIFY(!g2.contains("fade"));
+        QVERIFY(g2.contains("concat=n=2:v=1:a=0[vout]"));
+        QVERIFY(a2.contains("-an"));
+    }
     void fast_mode_warning()
     {
         auto r = base();

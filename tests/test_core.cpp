@@ -106,11 +106,11 @@ private slots:
     void compression_picks_bitrate_and_resolution_for_the_limit()
     {
         auto r = base(); // 60..120 = 60 s
-        r.maxBytes = 20LL * 1024 * 1024;
+        r.maxBytes = 20000000;
         r.audio = {{true, 0.0}};
         auto c = planCompression(r, 60);
         QCOMPARE(c.audioKbps, 96);
-        QVERIFY(c.videoKbps > 2300 && c.videoKbps < 2700); // 20 MiB * 0,94 / 60 s ~ 2,6 Mbps, menos o áudio
+        QVERIFY(c.videoKbps > 2300 && c.videoKbps < 2700); // 20 MB * 0,94 / 60 s ~ 2,5 Mbps, menos o áudio
         QCOMPARE(c.height, 720);
         QVERIFY(c.cap30fps == false || c.videoKbps < 2500);
         // vídeo longo: bitrate baixo, resolução menor, 30 fps
@@ -128,7 +128,7 @@ private slots:
     void compression_args_reencode_audio_and_video_with_fixed_bitrate()
     {
         auto r = base();
-        r.maxBytes = 20LL * 1024 * 1024;
+        r.maxBytes = 20000000;
         r.mode = CutMode::Fast;
         r.audio = {{true, 0.0}};
         const auto plan = planCut(r);

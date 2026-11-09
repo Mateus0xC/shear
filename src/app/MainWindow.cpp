@@ -95,8 +95,8 @@ static QString iconFontFamily()
     return family;
 }
 
-// Limite da opção "Até 20 MB" (20 MiB).
-static constexpr qint64 kLimitBytes = 20LL * 1024 * 1024;
+// Limite da opção "Até 20 MB": 20 MB de verdade (20.000.000 bytes), não 20 MiB.
+static constexpr qint64 kLimitBytes = 20000000;
 
 // Velocidades do preview (botão da barra de cima e teclas - / +).
 static const double kSpeeds[] = {0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0};
@@ -1376,7 +1376,7 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
         QFile::remove(path);
         m_limitScale *= std::max(0.35, double(m_exportMaxBytes) * 0.96 / double(size));
         ++m_limitTries;
-        m_status->setText(QString("Ajustando para caber em %1 MB…").arg(m_exportMaxBytes / (1024 * 1024)));
+        m_status->setText(QString("Ajustando para caber em %1 MB…").arg(m_exportMaxBytes / 1000000));
         metrics::log(QString("compressão: %1 bytes passou do limite; nova tentativa (escala %2)").arg(size).arg(m_limitScale, 0, 'f', 3));
         m_retrying = true;
         QTimer::singleShot(0, this, &MainWindow::startExport);
@@ -1395,8 +1395,8 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
     setResultLink(path);
     QString done = QString("· Pronto em %1 s").arg(QString::number(sec, 'f', 1).replace('.', ','));
     if (m_exportMaxBytes > 0) {
-        const QString mb = QString::number(double(size) / (1024.0 * 1024.0), 'f', 1).replace('.', ',') + " MB";
-        done += size > m_exportMaxBytes ? QString(" · ficou com %1 (não coube em %2 MB; use um trecho menor)").arg(mb).arg(m_exportMaxBytes / (1024 * 1024))
+        const QString mb = QString::number(double(size) / 1000000.0, 'f', 1).replace('.', ',') + " MB";
+        done += size > m_exportMaxBytes ? QString(" · ficou com %1 (não coube em %2 MB; use um trecho menor)").arg(mb).arg(m_exportMaxBytes / 1000000)
                                          : " · " + mb;
     }
     m_status->setText(done);

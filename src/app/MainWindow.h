@@ -182,6 +182,7 @@ private:
     QVector<qint64> m_roundStarts;                   // início de cada round da partida (ms absoluto)
     qint64 m_matchEndMs = 0;
     std::optional<std::pair<double, double>> m_autoRange; // I/O que o shear pôs sozinho (para refazer se recalibrar)
+    bool m_userPaused = false;                       // você pausou/despausou neste vídeo (o shear não mexe mais)
     void applyAutoRange(double dur, double offset);  // I/O = último round capturado
     void calibrateEvents();                          // K: a marca mais próxima do ponto atual passa a cair aqui
     QString m_matchId;

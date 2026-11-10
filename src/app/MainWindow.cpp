@@ -688,8 +688,11 @@ void MainWindow::applyAutoRange(double dur, double offset)
     // Ao entrar no vídeo ele começa no I (e não no começo do arquivo). Só se o ponto de reprodução ainda estiver antes do I e
     // você não tiver ido a outro lugar: na primeira aplicação, ou se ele ainda estava parado no I anterior (refino do encaixe).
     const double pos = m_mpv->position();
-    if (pos < m_timeline->start() - 0.001 && (!prev || pos >= prev->first - 0.05))
+    if (pos < m_timeline->start() - 0.001 && (!prev || pos >= prev->first - 0.05)) {
         m_mpv->seek(m_timeline->start());
+        if (!prev && !m_userPaused && m_mpv->paused())
+            m_mpv->setPaused(false); // entra tocando (a não ser que você mesmo tenha pausado)
+    }
     m_autoRange = std::make_pair(m_timeline->start(), m_timeline->end());
     metrics::log(QString("valorant: I/O automáticos no último round: %1 a %2 s").arg(m_timeline->start(), 0, 'f', 1)
                      .arg(m_timeline->end(), 0, 'f', 1));
@@ -965,6 +968,7 @@ void MainWindow::openFile(const QString &path)
     m_gameInfo->clear();
     m_gameText.clear();
     m_vTags.clear();
+    m_userPaused = false;
     m_roundStarts.clear();
     m_matchEndMs = 0;
     m_autoRange.reset();
@@ -1262,6 +1266,7 @@ void MainWindow::jumpBy(double sec)
 
 void MainWindow::userTogglePause()
 {
+    m_userPaused = true; // você mexeu no play/pause: o shear não despausa mais sozinho neste vídeo
     // Parado no fim do vídeo OU na marca de fim (O), play recomeça do início do clipe (a marca I; sem marca, o começo).
     const double dur = m_mpv->duration();
     const double pos = m_mpv->position(), eps = std::max(0.08, 1.5 / std::max(1.0, m_fps));

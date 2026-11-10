@@ -125,7 +125,7 @@ arquivo. **Botão direito** no nome do arquivo (editor) ou na linha da lista abr
 **Imagens:** o ícone do agente e uma faixa do mapa (do valorant-api.com) aparecem no topo do editor (a imagem do mapa ao fundo de toda a barra, bem apagada, e o ícone do agente ao lado do nome), nos menus
 de escolha e na lista de clipes (ícone do agente à esquerda da linha e a faixa do mapa esmaecendo à direita). Elas são baixadas uma vez,
 reduzidas e guardadas em `valorant/img/` (só as que você usa; ao abrir um menu, as que faltam são baixadas para a próxima vez).
-No menu de mapas ficam só os do modo bomba; os demais (treino, mata-mata etc.) ficam no submenu "Outros modos".
+No menu de mapas cada item é a imagem do mapa ao fundo com o nome por cima, e ficam só os do modo bomba; os demais (treino, mata-mata etc.) ficam no submenu "Outros modos".
 
 **Lista de clipes:** cada linha mostra o ícone do agente, o nome do arquivo, a data, a tag de kills (`5k`), o comentário e,
 à direita, o nome do mapa em cima da imagem dele (lido do `clips.json`, sem rede); um clipe só ganha esses dados depois de ser aberto uma vez com o Riot Client logado.

@@ -26,6 +26,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <functional>
 #include <QPalette>
 #include <QPixmap>
@@ -52,6 +53,7 @@
 #include <QAction>
 #include <QListWidget>
 #include <QMenu>
+#include <QWidgetAction>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProcess>
@@ -282,6 +284,73 @@ static void startFileDrag(QWidget *source, const QString &path)
     drag->setPixmap(source->grab());
     drag->exec(Qt::CopyAction);
 }
+
+// Item do menu de escolha de mapa: a imagem do mapa como fundo (escurecida), o nome por cima. Passar o mouse clareia e
+// põe uma borda; o mapa atual tem um traço na esquerda.
+class MapMenuItem : public QWidget {
+public:
+    MapMenuItem(const QString &name, const QString &image, bool current, std::function<void()> onPick, QWidget *parent = nullptr)
+        : QWidget(parent), m_name(name), m_image(image), m_current(current), m_onPick(std::move(onPick))
+    {
+        setMouseTracking(true);
+        setCursor(Qt::PointingHandCursor);
+    }
+    QSize sizeHint() const override { return {250, 40}; }
+
+protected:
+    void enterEvent(QEnterEvent *) override { m_hover = true; update(); }
+    void leaveEvent(QEvent *) override { m_hover = false; update(); }
+    void mouseReleaseEvent(QMouseEvent *e) override
+    {
+        if (e->button() != Qt::LeftButton || !rect().contains(e->pos()))
+            return;
+        if (m_onPick) m_onPick();
+        for (QWidget *w = parentWidget(); w; w = w->parentWidget()) // fecha o menu (e o menu-pai, se for o submenu)
+            if (auto *m = qobject_cast<QMenu *>(w)) m->close();
+    }
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+        const QRectF r = QRectF(rect()).adjusted(3, 2, -3, -2);
+        QPainterPath clip;
+        clip.addRoundedRect(r, 5, 5);
+        p.setClipPath(clip);
+        if (m_bg.isNull() || m_bg.size() != size()) {
+            const QPixmap src(m_image);
+            m_bg = QPixmap(size());
+            m_bg.fill(QColor(40, 40, 44));
+            if (!src.isNull()) {
+                const QPixmap big = src.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                QPainter q(&m_bg);
+                q.drawPixmap(0, 0, big, (big.width() - width()) / 2, (big.height() - height()) / 2, width(), height());
+            }
+        }
+        p.drawPixmap(0, 0, m_bg);
+        p.fillRect(rect(), QColor(0, 0, 0, m_hover ? 70 : 135)); // véu escuro: o nome lê bem; mais claro no hover
+        if (m_current)
+            p.fillRect(QRectF(r.left(), r.top(), 4, r.height()), palette().color(QPalette::Highlight));
+        p.setClipping(false);
+        if (m_hover) {
+            p.setPen(QPen(QColor(255, 255, 255, 190), 1.5));
+            p.drawRoundedRect(r, 5, 5);
+        }
+        QFont f = font();
+        f.setBold(true);
+        p.setFont(f);
+        const QRectF tr = r.adjusted(14, 0, -10, 0);
+        p.setPen(QColor(0, 0, 0, 190));
+        p.drawText(tr.translated(1, 1), Qt::AlignLeft | Qt::AlignVCenter, m_name); // sombra
+        p.setPen(QColor(250, 250, 250));
+        p.drawText(tr, Qt::AlignLeft | Qt::AlignVCenter, m_name);
+    }
+
+private:
+    QString m_name, m_image;
+    bool m_current, m_hover = false;
+    std::function<void()> m_onPick;
+    QPixmap m_bg;
+};
 
 class LinkLabel : public QLabel { // nome do arquivo: clicável (sublinha só ao passar o mouse), arrastável, com menu de contexto
 public:
@@ -1359,9 +1428,16 @@ void MainWindow::pickName(const QString &field)
     const QVector<NameEntry> names = cachedNames(valorant::store::readCache(isMap ? "maps.json" : "agents.json"), !isMap, isMap);
     QStringList missing;
     auto addEntry = [&](QMenu *m, const QString &n) {
-        auto *a = m->addAction(n);
         const QString img = svc->imageFile(kind, n);
-        if (!img.isEmpty()) a->setIcon(QIcon(img)); else missing << n;
+        if (img.isEmpty()) missing << n;
+        if (isMap && !img.isEmpty()) { // mapa com imagem: o item é a própria imagem, com o nome por cima
+            auto *wa = new QWidgetAction(m);
+            wa->setDefaultWidget(new MapMenuItem(n, img, n == current, [this, field, n] { m_manual.insert(field, n); commitManual(); }));
+            m->addAction(wa);
+            return;
+        }
+        auto *a = m->addAction(n);
+        if (!img.isEmpty()) a->setIcon(QIcon(img));
         a->setCheckable(true);
         a->setChecked(n == current);
         connect(a, &QAction::triggered, this, [this, field, n] { m_manual.insert(field, n); commitManual(); });

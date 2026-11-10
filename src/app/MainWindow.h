@@ -177,7 +177,8 @@ private:
     // Ao lado do título: "· Mapa · Agente · 3k". O que o jogo identificou é só texto; o que ele não sabe é clicável (menu).
     QToolButton *m_mapBtn = nullptr, *m_agentBtn = nullptr, *m_killsBtn = nullptr;
     QLabel *m_sep[3] = {nullptr, nullptr, nullptr};
-    QLineEdit *m_commentEdit = nullptr;              // comentário opcional, à direita
+    QToolButton *m_commentBtn = nullptr;             // "comentário" (mesmo estilo do mapa/agente/kills), à direita
+    QLineEdit *m_commentEdit = nullptr;              // aparece no lugar do botão enquanto você digita
     valorant::ValorantService *m_valorant = nullptr; // criado só na primeira consulta
     QVector<shear::valorant::MatchEvent> m_vEvents;  // meus kills/mortes da partida (horário absoluto)
     qint64 m_clipEndMs = 0, m_clipSize = 0;          // fim do clipe (data de criação) e tamanho, para alinhar e guardar

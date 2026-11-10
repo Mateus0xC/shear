@@ -112,8 +112,8 @@ vão direto para os pontos I e O.
 **Dados à mão:** o que o jogo identificou (mapa, agente, kills) aparece como texto e não dá para mudar. O que ele não sabe
 aparece como "mapa", "agente" ou "kills" em cinza e itálico ao lado do título, e é clicável: o clique abre um menu para escolher
 (mapas e agentes vêm da lista do valorant-api.com; "Outro…" aceita qualquer nome; kills de 2k a 10k). No canto direito há um
-campo de comentário opcional, para qualquer clipe (Enter ou Esc sai do campo; enquanto você digita, os atalhos do editor
-ficam desligados). Tudo isso fica em `clips.json` (campo `manual`), aparece na lista de clipes e a identificação automática
+"comentário" opcional no mesmo estilo (cinza, itálico enquanto vazio), para qualquer clipe: clique, digite e aperte Enter (Esc
+descarta; enquanto você digita, os atalhos do editor ficam desligados). Tudo isso fica em `clips.json` (campo `manual`), aparece na lista de clipes e a identificação automática
 nunca apaga.
 
 **Lista de clipes:** os clipes que o shear já identificou mostram "Mapa · Agente · 5k" no fim da linha (lido do `clips.json`,

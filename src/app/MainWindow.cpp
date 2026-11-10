@@ -311,21 +311,41 @@ QWidget *MainWindow::buildEditor()
     connect(m_agentBtn, &QToolButton::clicked, this, [this] { pickName("agent"); });
     connect(m_killsBtn, &QToolButton::clicked, this, [this] { pickKills(); });
     top->addStretch(1);
-    // Comentário opcional (qualquer clipe), à direita
+    // Comentário opcional (qualquer clipe), à direita, no mesmo estilo do mapa/agente/kills: texto cinza clicável; o clique
+    // troca o texto por um campo (Enter grava, Esc descarta).
+    m_commentBtn = new QToolButton;
+    m_commentBtn->setAutoRaise(true);
+    m_commentBtn->setFocusPolicy(Qt::NoFocus);
+    m_commentBtn->setCursor(Qt::PointingHandCursor);
+    {
+        QPalette pal = m_commentBtn->palette();
+        pal.setColor(QPalette::ButtonText, palette().color(QPalette::PlaceholderText));
+        m_commentBtn->setPalette(pal);
+    }
+    connect(m_commentBtn, &QToolButton::clicked, this, [this] {
+        m_commentBtn->hide();
+        m_commentEdit->setText(m_manual.value("comment").toString());
+        m_commentEdit->show();
+        m_commentEdit->setFocus();
+        m_commentEdit->selectAll();
+    });
     m_commentEdit = new QLineEdit;
-    m_commentEdit->setPlaceholderText("Comentário (opcional)");
+    m_commentEdit->setPlaceholderText("comentário");
     m_commentEdit->setMaxLength(300);
-    m_commentEdit->setClearButtonEnabled(true);
-    m_commentEdit->setMinimumWidth(180);
-    m_commentEdit->setMaximumWidth(360);
+    m_commentEdit->setFixedWidth(320);
+    m_commentEdit->setStyleSheet("QLineEdit { border: none; border-bottom: 1px solid palette(mid); background: transparent; }");
+    m_commentEdit->hide();
     m_commentEdit->installEventFilter(this); // Esc sai do campo
     connect(m_commentEdit, &QLineEdit::returnPressed, m_commentEdit, [this] { m_commentEdit->clearFocus(); });
     connect(m_commentEdit, &QLineEdit::editingFinished, this, [this] {
         const QString c = m_commentEdit->text().trimmed();
-        if (c == m_manual.value("comment").toString() || m_file.isEmpty()) return;
-        if (c.isEmpty()) m_manual.remove("comment"); else m_manual.insert("comment", c);
-        commitManual();
+        if (c != m_manual.value("comment").toString() && !m_file.isEmpty()) {
+            if (c.isEmpty()) m_manual.remove("comment"); else m_manual.insert("comment", c);
+            commitManual();
+        }
+        refreshInfoBar(); // volta o texto cinza no lugar do campo
     });
+    top->addWidget(m_commentBtn);
     top->addWidget(m_commentEdit);
     // Velocidade do preview: botão com menu (também as teclas - e +, Backspace volta a 1×)
     m_speedBtn = new QToolButton;
@@ -872,8 +892,18 @@ void MainWindow::refreshInfoBar()
         s.btn->setCursor(s.editable ? Qt::PointingHandCursor : Qt::ArrowCursor);
         s.btn->setToolTip(s.editable ? s.tip : QStringLiteral("Identificado pelo jogo"));
     }
-    if (!m_commentEdit->hasFocus() && m_commentEdit->text() != m_manual.value("comment").toString())
-        m_commentEdit->setText(m_manual.value("comment").toString());
+    // comentário: texto cinza clicável (itálico enquanto vazio); o campo só existe enquanto você digita
+    const QString comment = m_manual.value("comment").toString();
+    if (!m_commentEdit->hasFocus()) {
+        m_commentEdit->hide();
+        m_commentBtn->show();
+    }
+    QFont cf = m_commentBtn->font();
+    cf.setItalic(comment.isEmpty());
+    m_commentBtn->setFont(cf);
+    m_commentBtn->setText(comment.isEmpty() ? QStringLiteral("comentário")
+                                            : QFontMetrics(cf).elidedText(comment, Qt::ElideRight, 320));
+    m_commentBtn->setToolTip(comment.isEmpty() ? QStringLiteral("Clique para adicionar um comentário") : comment);
 }
 
 static QStringList cachedNames(const QByteArray &json, bool onlyPlayable)
@@ -1148,6 +1178,7 @@ void MainWindow::openFile(const QString &path)
     m_gameText.clear();
     m_autoTags.clear();
     m_commentEdit->clear();
+    m_commentEdit->hide();
     m_apiMap.clear();
     m_apiAgent.clear();
     m_manual = QJsonObject();
@@ -1801,7 +1832,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *e)
 {
     if (obj == m_commentEdit && e->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(e)->key() == Qt::Key_Escape) {
         m_commentEdit->setText(m_manual.value("comment").toString()); // descarta o que foi digitado
-        m_commentEdit->clearFocus();
+        m_commentEdit->clearFocus(); // (editingFinished volta o texto cinza)
         return true;
     }
     if (obj == m_speedBtn && e->type() == QEvent::Wheel) {

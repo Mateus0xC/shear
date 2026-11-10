@@ -21,9 +21,9 @@ QString valorantStem(const QDate &date, const QString &map, const QString &agent
     return QString("Valorant %1 - %2").arg(date.toString("yyyy.MM.dd"), parts.join('_'));
 }
 
-QString fallbackStem(const QString &original, const QDateTime &now)
+QString fallbackStem(const QString &original)
 {
-    return QString("%1_%2").arg(original, now.toString("yyyy-MM-dd_HH-mm"));
+    return original + "_shear";
 }
 
 QString uniquePath(const QString &dir, const QString &stem, const std::function<bool(const QString &)> &exists)

@@ -477,7 +477,9 @@ private slots:
         QCOMPARE(valorantStem(d, "", ""), QString());
         QCOMPARE(valorantStem(d, "Skirmish A", "KAY/O"), QString("Valorant 2026.11.10 - Skirmish A_KAYO"));
         QCOMPARE(valorantStem(d, "A:B*C", ""), QString("Valorant 2026.11.10 - ABC"));
-        QCOMPARE(fallbackStem("clip", QDateTime(d, QTime(21, 4, 33))), QString("clip_2026-11-10_21-04"));
+        QCOMPARE(fallbackStem("clip"), QString("clip_shear"));
+        QCOMPARE(uniquePath("D:/c", fallbackStem("clip"), [](const QString &p) { return p == "D:/c/clip_shear.mp4"; }),
+                 QString("D:/c/clip_shear_2.mp4"));
         QCOMPARE(uniquePath("D:/c", valorantStem(d, "Ascent", "Jett"), [](const QString &) { return false; }),
                  QString("D:/c/Valorant 2026.11.10 - Ascent_Jett.mp4"));
     }

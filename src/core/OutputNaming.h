@@ -10,8 +10,8 @@ namespace shear {
 // em nome de arquivo saem. Sem mapa e sem agente devolve "" (aí vale `fallbackStem`).
 QString valorantStem(const QDate &date, const QString &map, const QString &agent);
 
-// Nome (sem extensão) quando não há dados do Valorant: "<original>_aaaa-mm-dd_hh-mm".
-QString fallbackStem(const QString &original, const QDateTime &now);
+// Nome (sem extensão) quando não há dados do Valorant (outro jogo): "<original>_shear".
+QString fallbackStem(const QString &original);
 
 // <dir>/<stem>.mp4; se já existir um com esse nome, acrescenta _2, _3, _4...
 // `exists` é injetável para testes.

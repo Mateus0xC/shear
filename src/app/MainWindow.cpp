@@ -2202,11 +2202,11 @@ void MainWindow::startExport()
     if (m_exportMeta.tag.isEmpty()) // sem kills achadas: vale o que foi escolhido à mão
         if (const int k = m_manual.value("kills").toInt(0); k >= 1)
             m_exportMeta.tag = QString("%1k").arg(k);
-    // Nome: "Valorant aaaa.mm.dd - Mapa_Agente" (a data é a do clipe original); sem mapa e agente, "<original>_aaaa-mm-dd_hh-mm".
+    // Nome: "Valorant aaaa.mm.dd - Mapa_Agente" (a data é a do clipe original); sem mapa e agente (outro jogo), "<original>_shear".
     const QDate clipDate = m_clipEndMs > 0 ? QDateTime::fromMSecsSinceEpoch(m_clipEndMs).date() : QDate::currentDate();
     m_exportStem = valorantStem(clipDate, m_exportMeta.map, m_exportMeta.agent);
     if (m_exportStem.isEmpty())
-        m_exportStem = fallbackStem(QFileInfo(m_file).completeBaseName(), QDateTime::currentDateTime());
+        m_exportStem = fallbackStem(QFileInfo(m_file).completeBaseName());
     r.outputPath = uniquePath(dir, m_exportStem, [](const QString &p) { return QFileInfo::exists(p); });
     const auto args = buildFfmpegArgs(r, plan);
     metrics::log("ffmpeg " + args.join(' '));

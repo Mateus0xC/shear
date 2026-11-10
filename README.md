@@ -129,8 +129,8 @@ No menu de mapas cada item é a imagem do mapa ao fundo com o nome por cima, e f
 
 **Nome do clipe exportado:** com dados do Valorant o arquivo se chama `Valorant aaaa.mm.dd - Mapa_Agente.mp4`, por exemplo
 `Valorant 2026.11.08 - Ascent_Jett.mp4` (a data é a do clipe original; se só o mapa ou só o agente for conhecido, só ele
-entra). Se já existir um arquivo com esse nome na pasta, acrescenta `_2`, `_3`, `_4`... Sem mapa nem agente, o nome é
-`<original>_aaaa-mm-dd_hh-mm.mp4`. Ao clicar em **Manter**, o clipe novo entra no `clips.json` com mapa, agente, tag,
+entra). Se já existir um arquivo com esse nome na pasta, acrescenta `_2`, `_3`, `_4`... Sem mapa nem agente (outro jogo), o nome é
+`<original>_shear.mp4` (também com `_2`, `_3`... se repetir). Ao clicar em **Manter**, o clipe novo entra no `clips.json` com mapa, agente, tag,
 comentário, o que você digitou à mão e os kills/mortes já no tempo dele: ao reabri-lo, tudo aparece de novo (inclusive as marcas
 na timeline) sem consultar a Riot, e a lista de clipes também mostra.
 

@@ -1141,6 +1141,23 @@ valorant::ValorantService *MainWindow::ensureValorant()
             });
         }
     });
+    connect(m_valorant, &valorant::ValorantService::keptLoaded, this,
+            [this](const QString &path, const QJsonObject &entry) {
+                if (path != m_file) return;
+                m_keptEvents.clear();
+                for (const auto &v : entry.value("events").toArray()) {
+                    const QJsonObject o = v.toObject();
+                    valorant::ClipEvent e;
+                    e.kind = o.value("k").toString() == "kill" ? valorant::MatchEvent::Kill : valorant::MatchEvent::Death;
+                    e.t = o.value("t").toDouble();
+                    e.round = o.value("round").toInt();
+                    e.weaponId = o.value("weapon").toString();
+                    m_keptEvents.push_back(e);
+                }
+                m_keptTags.clear();
+                for (const auto &t : entry.value("tags").toArray()) m_keptTags << t.toString();
+                applyValorantEvents();
+            });
     connect(m_valorant, &valorant::ValorantService::manualLoaded, this,
             [this](const QString &path, const QJsonObject &manual) {
                 if (path != m_file) return;
@@ -1299,6 +1316,13 @@ void MainWindow::applyValorantEvents()
             m_vTags = tags;
             m_valorant->saveTags(m_file, m_clipSize, tags);
         }
+    }
+    if (m_vEvents.isEmpty() && !m_keptEvents.isEmpty()) { // clipe mantido: eventos e tags já no tempo/nome dele
+        marks.clear();
+        for (const auto &e : m_keptEvents)
+            if (e.t >= 0 && (dur <= 0 || e.t <= dur))
+                marks.push_back({e.t, e.kind == valorant::MatchEvent::Kill});
+        tags = m_keptTags;
     }
     m_timeline->setEvents(std::move(marks));
     applyAutoRange(dur, currentOffset());
@@ -1720,6 +1744,8 @@ void MainWindow::openFile(const QString &path)
     m_title->setText(QFileInfo(path).fileName());
     m_gameText.clear();
     m_autoTags.clear();
+    m_keptEvents.clear();
+    m_keptTags.clear();
     m_commentEdit->clear();
     m_commentEdit->hide();
     m_apiMap.clear();
@@ -2155,8 +2181,31 @@ void MainWindow::startExport()
     const auto plan = planCut(r);
     const QString dir = tempDir(); // exports são temporários até o usuário clicar em Manter
     QDir().mkpath(dir);
-    r.outputPath = uniqueOutputPath(dir, QFileInfo(m_file).completeBaseName(), QTime::currentTime(),
-                                    [](const QString &p) { return QFileInfo::exists(p); });
+    // Dados do Valorant: o nome vira "Mapa_Agente_Nk_aaaa-mm-dd_hh-mm" e os eventos viram os do arquivo exportado
+    m_exportMeta = {};
+    m_exportMeta.map = m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap;
+    m_exportMeta.agent = m_apiAgent.isEmpty() ? m_manual.value("agent").toString() : m_apiAgent;
+    if (!m_vEvents.isEmpty() && m_timeline->duration() > 0 && m_clipEndMs > 0) {
+        const auto aligned = valorant::alignToClip(m_vEvents, m_clipEndMs, m_timeline->duration(), currentOffset());
+        QVector<std::pair<double, double>> gaps;
+        for (const auto &g : r.gaps) gaps.push_back(g);
+        m_exportMeta.events = valorant::toExported(aligned, plan.actualStartSec, r.endSec, gaps); // modo Rápido: começa no keyframe
+        if (const auto tags = valorant::makeTags(m_exportMeta.events); !tags.isEmpty())
+            m_exportMeta.tag = tags.first();
+    } else if (!m_keptEvents.isEmpty()) { // reexportando um clipe mantido: os eventos dele, recortados de novo
+        QVector<std::pair<double, double>> gaps;
+        for (const auto &g : r.gaps) gaps.push_back(g);
+        m_exportMeta.events = valorant::toExported(m_keptEvents, plan.actualStartSec, r.endSec, gaps);
+        if (const auto tags = valorant::makeTags(m_exportMeta.events); !tags.isEmpty())
+            m_exportMeta.tag = tags.first();
+    }
+    if (m_exportMeta.tag.isEmpty()) // sem kills achadas: vale o que foi escolhido à mão
+        if (const int k = m_manual.value("kills").toInt(0); k >= 1)
+            m_exportMeta.tag = QString("%1k").arg(k);
+    r.outputPath = uniqueOutputPath(dir,
+                                    clipBaseName(QFileInfo(m_file).completeBaseName(), m_exportMeta.map, m_exportMeta.agent,
+                                                 m_exportMeta.tag),
+                                    QDateTime::currentDateTime(), [](const QString &p) { return QFileInfo::exists(p); });
     const auto args = buildFfmpegArgs(r, plan);
     metrics::log("ffmpeg " + args.join(' '));
 
@@ -2353,6 +2402,20 @@ void MainWindow::keepLastOutput(bool deleteOriginalToo)
     }
     m_tempFiles.removeAll(m_lastOutput);
     m_lastOutput = dest;
+    // clips.json: o clipe mantido guarda mapa, agente, tags, comentário e os eventos já no tempo dele
+    if (!m_exportMeta.map.isEmpty() || !m_exportMeta.agent.isEmpty() || !m_exportMeta.tag.isEmpty() ||
+        !m_manual.isEmpty()) {
+        QJsonArray evs;
+        for (const auto &e : m_exportMeta.events)
+            evs.push_back(QJsonObject{{"k", e.kind == valorant::MatchEvent::Kill ? "kill" : "death"}, {"t", e.t},
+                                      {"round", e.round}, {"weapon", e.weaponId}});
+        QJsonObject entry{{"kept", true}, {"map", m_exportMeta.map}, {"agent", m_exportMeta.agent},
+                          {"date", QDateTime::currentDateTime().toString(Qt::ISODate)},
+                          {"tags", m_exportMeta.tag.isEmpty() || m_exportMeta.events.isEmpty() ? QJsonArray() : QJsonArray{m_exportMeta.tag}},
+                          {"events", evs}};
+        if (!m_manual.isEmpty()) entry.insert("manual", m_manual);
+        ensureValorant()->saveKept(dest, QFileInfo(dest).size(), entry);
+    }
     copyFileToClipboard(dest); // o Ctrl+V passa a apontar para o arquivo mantido
     m_keepBtn->hide();
     m_deleteBothBtn->hide(); // já é um arquivo mantido: nada de apagar por engano

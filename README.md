@@ -127,6 +127,13 @@ de escolha e na lista de clipes (ícone do agente à esquerda da linha e a faixa
 reduzidas e guardadas em `valorant/img/` (só as que você usa; ao abrir um menu, as que faltam são baixadas para a próxima vez).
 No menu de mapas cada item é a imagem do mapa ao fundo com o nome por cima, e ficam só os do modo bomba; os demais (treino, mata-mata etc.) ficam no submenu "Outros modos".
 
+**Nome do clipe exportado:** com dados do Valorant o arquivo se chama `Mapa_Agente_Nk_aaaa-mm-dd_hh-mm.mp4`, por exemplo
+`Ascent_Jett_3k_2026-11-10_21-04.mp4` (o `Nk` conta as kills só do trecho exportado, no mesmo round; sem kills, sem mapa ou sem
+agente, essa parte some). Sem nenhum dado, vale o nome do vídeo original no lugar de `Mapa_Agente_Nk`. Se já existir um arquivo
+com esse nome, acrescenta `_2`, `_3`... Ao clicar em **Manter**, o clipe novo entra no `clips.json` com mapa, agente, tag,
+comentário, o que você digitou à mão e os kills/mortes já no tempo dele: ao reabri-lo, tudo aparece de novo (inclusive as marcas
+na timeline) sem consultar a Riot, e a lista de clipes também mostra.
+
 **Lista de clipes:** cada linha mostra o ícone do agente, o nome do arquivo, a data, a tag de kills (`5k`), o comentário e,
 à direita, o nome do mapa em cima da imagem dele (lido do `clips.json`, sem rede); um clipe só ganha esses dados depois de ser aberto uma vez com o Riot Client logado.
 

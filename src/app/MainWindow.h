@@ -189,6 +189,13 @@ private:
     QString m_apiMap, m_apiAgent;                    // mapa e agente que vieram do jogo
     QJsonObject m_manual;                            // o que foi digitado à mão: {map, agent, kills, comment}
     bool m_imgRefreshQueued = false;
+    // Dados do clipe que está sendo exportado (calculados ao exportar, usados no nome e ao manter)
+    struct ExportMeta {
+        QString map, agent, tag;
+        QVector<valorant::ClipEvent> events; // já no tempo do arquivo exportado (descontando início e trechos apagados)
+    } m_exportMeta;
+    QVector<valorant::ClipEvent> m_keptEvents; // eventos de um clipe MANTIDO que foi reaberto (já no tempo dele)
+    QStringList m_keptTags;
     QStringList m_autoTags;                          // tag de kills achada sozinha (ex.: "3k")
     void refreshInfoBar();                           // atualiza os textos do topo
     void pickName(const QString &field);             // menu para escolher "map" ou "agent"

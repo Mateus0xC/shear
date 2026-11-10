@@ -140,6 +140,13 @@ void ValorantService::identify(const QString &clipPath, const QDateTime &created
             return;
         // dados digitados à mão valem para qualquer clipe (também os de outros jogos)
         emit manualLoaded(c->clipPath, known.value("manual").toObject());
+        if (known.value("kept").toBool()) { // clipe mantido pelo shear: tem tudo guardado; não consulta a API nem a partida
+            const QString map = known.value("map").toString(), agent = known.value("agent").toString();
+            if (!map.isEmpty() || !agent.isEmpty())
+                emit identified(c->clipPath, map, agent);
+            emit keptLoaded(c->clipPath, known);
+            return finish(c, "clipe mantido (dados guardados)");
+        }
         if (!looksLikeValorantClip(c->clipPath)) { // clipe de outro jogo: nem toca na rede
             metrics::log("valorant: ignorado (o caminho do clipe não contém \"valorant\")");
             return;
@@ -464,6 +471,12 @@ void ValorantService::requestImages(const QString &kind, const QStringList &name
                 });
         }, 30000);
     }
+}
+
+void ValorantService::saveKept(const QString &clipPath, qint64 size, const QJsonObject &entry)
+{
+    const QString key = clipKey(QFileInfo(clipPath).fileName(), size);
+    runAsync(this, [key, entry] { return store::saveClip(key, entry); }, [](bool) {});
 }
 
 void ValorantService::saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual, bool wait)

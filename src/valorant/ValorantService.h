@@ -27,6 +27,8 @@ public:
     void backfill();
     // Guarda as tags (2k, 3k, 4k...) do clipe no clips.json.
     void saveTags(const QString &clipPath, qint64 size, const QStringList &tags);
+    // Guarda a entrada de um clipe mantido (arquivo novo, com os dados do original e os eventos no tempo do clipe).
+    void saveKept(const QString &clipPath, qint64 size, const QJsonObject &entry);
     // Imagens do valorant-api.com: ícone do agente ("agent") e faixa do mapa ("map"). São baixadas uma vez, reduzidas e
     // guardadas em valorant/img/. `imageFile` devolve o caminho se já está guardada (senão ""); `requestImages` baixa as que
     // faltam em segundo plano e avisa com `imageReady`.
@@ -42,6 +44,8 @@ public:
 
 signals:
     void identified(const QString &clipPath, const QString &map, const QString &agent);
+    // Clipe MANTIDO (cortado pelo shear): mapa, agente, tags e eventos já no tempo dele, guardados quando ele foi mantido.
+    void keptLoaded(const QString &clipPath, const QJsonObject &entry);
     void imageReady(const QString &kind, const QString &name, const QString &path);
     // Dados digitados à mão que já estavam guardados para o clipe (objeto vazio se não há).
     void manualLoaded(const QString &clipPath, const QJsonObject &manual);

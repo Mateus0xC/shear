@@ -193,7 +193,7 @@ private:
     void pickName(const QString &field);             // menu para escolher "map" ou "agent"
     void pickKills();                                // menu para escolher o número de kills
     void showListMenu(const QPoint &pos);            // botão direito numa linha da lista de clipes
-    void showTitleMenu(const QPoint &global, bool exported); // botão direito no nome do arquivo (editor) ou do clipe exportado
+    void showTitleMenu(const QPoint &global);        // botão direito no nome do arquivo do editor
     void trashFromList(const QString &path);         // manda um vídeo da lista para a Lixeira
     void commitManual(bool wait = false);
     void commitComment(bool wait = false);           // grava o comentário em edição (Enter, voltar, trocar de clipe, sair)                             // guarda o que foi digitado/escolhido à mão

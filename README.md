@@ -119,8 +119,8 @@ nunca apaga.
 
 **Nome do arquivo no topo:** clicar nele abre a pasta do arquivo no Explorer (sublinha só ao passar o mouse). Também dá para
 **arrastar** o nome (no editor, no clipe exportado ou a linha na lista de clipes) para o Discord, o Explorer ou o próprio shear: vai o
-arquivo. **Botão direito** no nome ou na linha abre um menu: *Abrir no shear* e *Abrir local do arquivo* (na lista) e *Apagar
-original* (em todos; vai para a Lixeira, com confirmação).
+arquivo. **Botão direito** no nome do arquivo (editor) ou na linha da lista abre um menu: *Abrir local do arquivo* (só na lista) e
+*Apagar original* (vai para a Lixeira, com confirmação).
 
 **Imagens:** o ícone do agente e uma faixa do mapa (do valorant-api.com) aparecem no topo do editor (a imagem do mapa ao fundo de toda a barra, bem apagada, e o ícone do agente ao lado do nome), nos menus
 de escolha e na lista de clipes (ícone do agente à esquerda da linha e a faixa do mapa esmaecendo à direita). Elas são baixadas uma vez,

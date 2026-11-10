@@ -617,7 +617,7 @@ QWidget *MainWindow::buildEditor()
     titleLink->setToolTip("Abrir a pasta do arquivo");
     titleLink->onClick = [this] { if (!m_file.isEmpty()) revealInExplorer(m_file); };
     titleLink->dragFile = [this] { return m_file; };
-    titleLink->onContext = [this](const QPoint &g) { showTitleMenu(g, false); };
+    titleLink->onContext = [this](const QPoint &g) { showTitleMenu(g); };
     m_title->setForegroundRole(QPalette::PlaceholderText); // o nome do arquivo fica em cinza; o mapa/agente/kills é que ficam claros
     // Engrenagem (glifo E713 da fonte de ícones do Windows; sem ela, o emoji ⚙)
     auto *settingsBtn = new QPushButton;
@@ -890,7 +890,6 @@ QWidget *MainWindow::buildEditor()
     m_fileLink->setToolTip("Abrir a pasta do clipe");
     m_fileLink->setStyleSheet("QPushButton { border: none; padding: 0 2px; } QPushButton:hover { text-decoration: underline; }");
     fileLink->dragFile = [this] { return m_lastOutput; };
-    fileLink->onContext = [this](const QPoint &g) { showTitleMenu(g, true); };
     m_fileLink->hide();
     connect(m_fileLink, &QPushButton::clicked, this, [this] { revealInExplorer(m_lastOutput); });
     connect(m_deleteBothBtn, &QPushButton::clicked, this, &MainWindow::deleteBoth);
@@ -2157,12 +2156,10 @@ void MainWindow::showListMenu(const QPoint &pos)
         return;
     m_recent->setCurrentItem(it);
     QMenu menu(this);
-    auto *open = menu.addAction("Abrir no shear");
     auto *reveal = menu.addAction("Abrir local do arquivo");
     menu.addSeparator();
     auto *del = menu.addAction("Apagar original");
     del->setEnabled(!m_job);
-    connect(open, &QAction::triggered, this, [this, path] { openFile(path); });
     connect(reveal, &QAction::triggered, this, [path] { revealInExplorer(path); });
     connect(del, &QAction::triggered, this, [this, path] { trashFromList(path); });
     menu.exec(m_recent->viewport()->mapToGlobal(pos));
@@ -2184,19 +2181,13 @@ void MainWindow::trashFromList(const QString &path)
     refreshRecent(false);
 }
 
-// Botão direito no nome do arquivo do editor (`exported` = false) ou no do clipe exportado (`exported` = true).
-// "Abrir local do arquivo" só existe na lista de clipes (aqui, clicar no nome já abre a pasta).
-void MainWindow::showTitleMenu(const QPoint &global, bool exported)
+// Botão direito no nome do arquivo do editor. "Abrir local do arquivo" só existe na lista de clipes (aqui, clicar no nome
+// já abre a pasta).
+void MainWindow::showTitleMenu(const QPoint &global)
 {
     if (m_file.isEmpty())
         return;
     QMenu menu(this);
-    if (exported && !m_lastOutput.isEmpty()) {
-        auto *open = menu.addAction("Abrir no shear");
-        open->setEnabled(!m_job);
-        connect(open, &QAction::triggered, this, [this] { if (!m_job && !m_lastOutput.isEmpty()) openFile(m_lastOutput); });
-        menu.addSeparator();
-    }
     const bool temp = m_tempFiles.contains(m_lastOutput); // clipe ainda não mantido: apagar o original leva o clipe junto
     auto *del = menu.addAction(temp ? "Apagar original e clipe" : "Apagar original");
     del->setEnabled(!m_job);

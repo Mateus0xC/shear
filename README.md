@@ -120,15 +120,16 @@ nunca apaga.
 **Nome do arquivo no topo:** clicar nele abre a pasta do arquivo no Explorer (sublinha só ao passar o mouse). Também dá para
 **arrastar** o nome (no editor, no clipe exportado ou a linha na lista de clipes) para o Discord, o Explorer ou o próprio shear: vai o
 arquivo. **Botão direito** no nome do arquivo (editor) ou na linha da lista abre um menu: *Abrir local do arquivo* (só na lista) e
-*Apagar original* (vai para a Lixeira, com confirmação).
+*Excluir* na lista (no editor, *Apagar original*); vai para a Lixeira, com confirmação.
 
 **Imagens:** o ícone do agente e uma faixa do mapa (do valorant-api.com) aparecem no topo do editor (a imagem do mapa ao fundo de toda a barra, bem apagada, e o ícone do agente ao lado do nome), nos menus
 de escolha e na lista de clipes (ícone do agente à esquerda da linha e a faixa do mapa esmaecendo à direita). Elas são baixadas uma vez,
 reduzidas e guardadas em `valorant/img/` (só as que você usa; ao abrir um menu, as que faltam são baixadas para a próxima vez).
 No menu de mapas cada item é a imagem do mapa ao fundo com o nome por cima, e ficam só os do modo bomba; os demais (treino, mata-mata etc.) ficam no submenu "Outros modos".
 
-**Nome do clipe exportado:** com dados do Valorant o arquivo se chama `Valorant aaaa.mm.dd - Mapa_Agente.mp4`, por exemplo
-`Valorant 2026.11.08 - Ascent_Jett.mp4` (a data é a do clipe original; se só o mapa ou só o agente for conhecido, só ele
+**Nome do clipe exportado:** com dados do Valorant o arquivo se chama `Valorant aaaa.mm.dd - Mapa_Agente_Nk.mp4`, por exemplo
+`Valorant 2026.11.08 - Ascent_Jett_4k.mp4` (o `Nk`, logo depois do agente, é o maior número de kills num mesmo round no trecho
+exportado e some se não houver; a data é a do clipe original; se só o mapa ou só o agente for conhecido, só ele
 entra). Se já existir um arquivo com esse nome na pasta, acrescenta `_2`, `_3`, `_4`... Sem mapa nem agente (outro jogo), o nome é
 `<original>_shear.mp4` (também com `_2`, `_3`... se repetir). Ao clicar em **Manter**, o clipe novo entra no `clips.json` com mapa, agente, tag,
 comentário, o que você digitou à mão e os kills/mortes já no tempo dele: ao reabri-lo, tudo aparece de novo (inclusive as marcas

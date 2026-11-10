@@ -10,7 +10,7 @@ static QString fileSafe(QString s)
     return s.simplified();
 }
 
-QString valorantStem(const QDate &date, const QString &map, const QString &agent)
+QString valorantStem(const QDate &date, const QString &map, const QString &agent, const QString &tag)
 {
     QStringList parts;
     for (const QString &p : {map, agent})
@@ -18,6 +18,8 @@ QString valorantStem(const QDate &date, const QString &map, const QString &agent
             parts << s;
     if (parts.isEmpty())
         return {};
+    if (const QString t = fileSafe(tag); !t.isEmpty())
+        parts << t;
     return QString("Valorant %1 - %2").arg(date.toString("yyyy.MM.dd"), parts.join('_'));
 }
 

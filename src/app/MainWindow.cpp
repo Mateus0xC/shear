@@ -2202,9 +2202,9 @@ void MainWindow::startExport()
     if (m_exportMeta.tag.isEmpty()) // sem kills achadas: vale o que foi escolhido à mão
         if (const int k = m_manual.value("kills").toInt(0); k >= 1)
             m_exportMeta.tag = QString("%1k").arg(k);
-    // Nome: "Valorant aaaa.mm.dd - Mapa_Agente" (a data é a do clipe original); sem mapa e agente (outro jogo), "<original>_shear".
+    // Nome: "Valorant aaaa.mm.dd - Mapa_Agente_Nk" (a data é a do clipe original); sem mapa e agente (outro jogo), "<original>_shear".
     const QDate clipDate = m_clipEndMs > 0 ? QDateTime::fromMSecsSinceEpoch(m_clipEndMs).date() : QDate::currentDate();
-    m_exportStem = valorantStem(clipDate, m_exportMeta.map, m_exportMeta.agent);
+    m_exportStem = valorantStem(clipDate, m_exportMeta.map, m_exportMeta.agent, m_exportMeta.tag);
     if (m_exportStem.isEmpty())
         m_exportStem = fallbackStem(QFileInfo(m_file).completeBaseName());
     r.outputPath = uniquePath(dir, m_exportStem, [](const QString &p) { return QFileInfo::exists(p); });
@@ -2316,7 +2316,7 @@ void MainWindow::showListMenu(const QPoint &pos)
     QMenu menu(this);
     auto *reveal = menu.addAction("Abrir local do arquivo");
     menu.addSeparator();
-    auto *del = menu.addAction("Apagar original");
+    auto *del = menu.addAction("Excluir");
     del->setEnabled(!m_job);
     connect(reveal, &QAction::triggered, this, [path] { revealInExplorer(path); });
     connect(del, &QAction::triggered, this, [this, path] { trashFromList(path); });
@@ -2328,14 +2328,13 @@ void MainWindow::trashFromList(const QString &path)
 {
     if (m_job || path.isEmpty() || path == m_file)
         return;
-    if (!confirmDestructive(this, "Apagar o original",
-                            "Mandar para a Lixeira o vídeo?\n\n" + QDir::toNativeSeparators(path), "Apagar original",
-                            "Cancelar"))
+    if (!confirmDestructive(this, "Excluir", "Mandar para a Lixeira o vídeo?\n\n" + QDir::toNativeSeparators(path),
+                            "Excluir", "Cancelar"))
         return;
     if (QFile::moveToTrash(path))
         metrics::log("original enviado para a Lixeira: " + path);
     else
-        QMessageBox::warning(this, "Apagar o original", "Não foi possível mandar o arquivo para a Lixeira.");
+        QMessageBox::warning(this, "Excluir", "Não foi possível mandar o arquivo para a Lixeira.");
     refreshRecent(false);
 }
 

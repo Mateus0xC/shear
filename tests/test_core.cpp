@@ -475,6 +475,9 @@ private slots:
         QCOMPARE(valorantStem(d, "Ascent", ""), QString("Valorant 2026.11.10 - Ascent"));
         QCOMPARE(valorantStem(d, "", "Jett"), QString("Valorant 2026.11.10 - Jett"));
         QCOMPARE(valorantStem(d, "", ""), QString());
+        QCOMPARE(valorantStem(d, "Ascent", "Jett", "4k"), QString("Valorant 2026.11.10 - Ascent_Jett_4k"));
+        QCOMPARE(valorantStem(d, "Ascent", "", "3k"), QString("Valorant 2026.11.10 - Ascent_3k"));
+        QCOMPARE(valorantStem(d, "", "", "5k"), QString()); // só a tag não basta: sem mapa e agente vale o nome do original
         QCOMPARE(valorantStem(d, "Skirmish A", "KAY/O"), QString("Valorant 2026.11.10 - Skirmish A_KAYO"));
         QCOMPARE(valorantStem(d, "A:B*C", ""), QString("Valorant 2026.11.10 - ABC"));
         QCOMPARE(fallbackStem("clip"), QString("clip_shear"));

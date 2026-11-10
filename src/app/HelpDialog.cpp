@@ -132,7 +132,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"F5 · Ctrl + R", "Atualiza a lista de clipes (na tela inicial)"},
             {"← Clipes", "Volta para a lista de clipes (o clipe que você não guardou é apagado)"},
             {"Engrenagem", "Abre as Configurações"},
-            {"Botão direito no nome do arquivo (editor) ou na linha da lista", "Menu: abrir local do arquivo (só na lista) e apagar original (vai para a Lixeira)"},
+            {"Botão direito no nome do arquivo (editor) ou na linha da lista", "Menu: abrir local do arquivo e excluir (na lista); apagar original (no editor). Tudo vai para a Lixeira"},
             {"Arrastar o nome do arquivo ou a linha da lista", "Leva o arquivo: solte no Discord, no Explorer ou no próprio shear"},
             {"Mapa · Agente · kills (ao lado do título)", "O que o jogo não identificou fica clicável: clique para escolher à mão"},
             {"✎ (depois do mapa/agente/kills)", "Comentário opcional do clipe: clique, digite e aperte Enter. Também grava ao voltar para a lista ou sair (Esc descarta)"},

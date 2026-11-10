@@ -55,10 +55,11 @@
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
-#include "ClipInfoDialog.h"
+#include <QLineEdit>
 #include "valorant/ValorantService.h"
 #include "valorant/ValorantStore.h"
 #include "core/ValorantParse.h"
+#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -143,8 +144,7 @@ MainWindow::MainWindow()
         auto *s = new QShortcut(k, this);
         connect(s, &QShortcut::activated, this, fn);
     };
-    auto inEditor = [this] { return m_stack->currentIndex() == 1; };
-    sc(Qt::Key_F2, [=, this] { if (inEditor()) editClipInfo(); }); // mapa, agente, kills e comentário à mão
+    auto inEditor = [this] { return m_stack->currentIndex() == 1 && !(m_commentEdit && m_commentEdit->hasFocus()); };
     sc(Qt::Key_F1, [=, this] { openHelp(); }); // ajuda com todos os atalhos (vale na lista de clipes e no editor)
     sc(Qt::Key_Space, [=, this] { if (inEditor()) userTogglePause(); });
     // X: apaga um trecho do MEIO (1º X = onde começa, 2º X = onde termina); o que sobra é emendado na exportação.
@@ -165,6 +165,7 @@ MainWindow::MainWindow()
     // Pular com o teclado (não pausa o vídeo): setas ou A/D = 1 s; Shift = 0,3 s; Ctrl = 5 s; Ctrl+Shift = 15 s.
     // Alt (ou , e .) = 1 quadro. O mapa de teclas fica em NavKeys.cpp (testado em tests/test_navkeys.cpp).
     registerNavShortcuts(this, [this](const NavAction &a) {
+        if (m_commentEdit && m_commentEdit->hasFocus()) return; // digitando o comentário
         if (a.kind == NavAction::Kind::JumpSeconds)
             jumpBy(a.seconds);
         else
@@ -288,14 +289,44 @@ QWidget *MainWindow::buildEditor()
     connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::openSettings);
     top->addWidget(back);
     top->addWidget(m_title);
-    m_gameInfo = new QLabel;
-    m_gameInfo->setForegroundRole(QPalette::PlaceholderText); // discreto
-    top->addWidget(m_gameInfo, 1);
-    auto *infoBtn = new QPushButton("✎ Dados");
-    infoBtn->setToolTip("Mapa, agente, kills e comentário do clipe, à mão (F2)");
-    infoBtn->setFocusPolicy(Qt::NoFocus);
-    connect(infoBtn, &QPushButton::clicked, this, &MainWindow::editClipInfo);
-    top->addWidget(infoBtn);
+    // "· Mapa · Agente · 3k": discreto; cada parte que o jogo não informou é clicável (abre um menu para escolher)
+    auto makeInfoBtn = [this, top](QToolButton *&btn, QLabel *&sep) {
+        sep = new QLabel("·");
+        sep->setForegroundRole(QPalette::PlaceholderText);
+        btn = new QToolButton;
+        btn->setAutoRaise(true);
+        btn->setFocusPolicy(Qt::NoFocus);
+        QPalette pal = btn->palette();
+        pal.setColor(QPalette::ButtonText, palette().color(QPalette::PlaceholderText));
+        btn->setPalette(pal);
+        top->addWidget(sep);
+        top->addWidget(btn);
+        sep->hide();
+        btn->hide();
+    };
+    makeInfoBtn(m_mapBtn, m_sep[0]);
+    makeInfoBtn(m_agentBtn, m_sep[1]);
+    makeInfoBtn(m_killsBtn, m_sep[2]);
+    connect(m_mapBtn, &QToolButton::clicked, this, [this] { pickName("map"); });
+    connect(m_agentBtn, &QToolButton::clicked, this, [this] { pickName("agent"); });
+    connect(m_killsBtn, &QToolButton::clicked, this, [this] { pickKills(); });
+    top->addStretch(1);
+    // Comentário opcional (qualquer clipe), à direita
+    m_commentEdit = new QLineEdit;
+    m_commentEdit->setPlaceholderText("Comentário (opcional)");
+    m_commentEdit->setMaxLength(300);
+    m_commentEdit->setClearButtonEnabled(true);
+    m_commentEdit->setMinimumWidth(180);
+    m_commentEdit->setMaximumWidth(360);
+    m_commentEdit->installEventFilter(this); // Esc sai do campo
+    connect(m_commentEdit, &QLineEdit::returnPressed, m_commentEdit, [this] { m_commentEdit->clearFocus(); });
+    connect(m_commentEdit, &QLineEdit::editingFinished, this, [this] {
+        const QString c = m_commentEdit->text().trimmed();
+        if (c == m_manual.value("comment").toString() || m_file.isEmpty()) return;
+        if (c.isEmpty()) m_manual.remove("comment"); else m_manual.insert("comment", c);
+        commitManual();
+    });
+    top->addWidget(m_commentEdit);
     // Velocidade do preview: botão com menu (também as teclas - e +, Backspace volta a 1×)
     m_speedBtn = new QToolButton;
     m_speedBtn->setText("1×");
@@ -553,6 +584,7 @@ QWidget *MainWindow::buildEditor()
             ensureValorant()->identify(m_file, created, fi.size());
         });
     });
+    connect(m_timeline, &TimelineWidget::dragStarted, this, [this] { m_commentEdit->clearFocus(); }); // sai do campo de comentário
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
         m_mpv->seek(t);
         // Arrastando (vídeo parado): o som sai de um player só de áudio, que segue o mouse em qualquer velocidade.
@@ -805,46 +837,112 @@ void MainWindow::applyValorantEvents()
     }
     m_timeline->setEvents(std::move(marks));
     applyAutoRange(dur, currentOffset());
-    m_autoKills = 0;
-    if (!tags.isEmpty()) m_autoKills = tags.first().chopped(1).toInt();
-    // O que foi digitado à mão vale no lugar do que veio do jogo.
-    const QString map = m_manual.value("map").toString().isEmpty() ? m_apiMap : m_manual.value("map").toString();
-    const QString agent = m_manual.value("agent").toString().isEmpty() ? m_apiAgent : m_manual.value("agent").toString();
-    QStringList parts;
-    if (!map.isEmpty()) parts << map;
-    if (!agent.isEmpty()) parts << agent;
-    if (const int k = m_manual.value("kills").toInt(0); k > 0)
-        tags = k >= 2 ? QStringList{QString("%1k").arg(k)} : QStringList{};
-    parts << tags;
-    const QString comment = m_manual.value("comment").toString();
-    m_gameInfo->setText(parts.isEmpty() && comment.isEmpty() ? QString() : "·  " + parts.join(" · "));
-    m_gameInfo->setToolTip(comment.isEmpty() ? QString() : "Comentário: " + comment);
-    if (!comment.isEmpty() && parts.isEmpty())
-        m_gameInfo->setText("·  " + comment);
+    m_autoTags = tags;
+    refreshInfoBar();
 }
 
-// F2: dados do clipe à mão (vale para qualquer clipe; sem Riot, sem jogo).
-void MainWindow::editClipInfo()
+// Textos do topo: o que o jogo informou aparece como texto; o que ele não sabe fica clicável e vale o que você escolher.
+void MainWindow::refreshInfoBar()
 {
-    if (m_file.isEmpty() || m_stack->currentIndex() != 1)
-        return;
-    auto names = [](const QByteArray &json, bool onlyPlayable) {
-        QStringList out;
-        for (const auto &v : QJsonDocument::fromJson(json).object().value("data").toArray()) {
-            const QJsonObject o = v.toObject();
-            if (onlyPlayable && !o.value("isPlayableCharacter").toBool(true)) continue;
-            if (const QString n = o.value("displayName").toString(); !n.isEmpty() && !out.contains(n)) out << n;
-        }
-        out.sort(Qt::CaseInsensitive);
-        return out;
-    };
-    ClipInfoDialog d(names(valorant::store::readCache("maps.json"), false),
-                     names(valorant::store::readCache("agents.json"), true), m_manual, m_apiMap, m_apiAgent, m_autoKills, this);
-    if (d.exec() != QDialog::Accepted)
-        return;
-    m_manual = d.result();
+    if (!m_mapBtn) return;
+    const bool vclip = valorant::looksLikeValorantClip(m_file);
+    const bool killsEditable = m_vEvents.isEmpty(); // com kills vindas do jogo, não dá para mudar
+    QString killsText;
+    if (!killsEditable)
+        killsText = m_autoTags.isEmpty() ? QString() : m_autoTags.first();
+    else if (const int k = m_manual.value("kills").toInt(0); k >= 2)
+        killsText = QString("%1k").arg(k);
+    struct Slot { QToolButton *btn; QLabel *sep; QString value; bool editable; QString hint; QString tip; };
+    const Slot items[] = {
+        {m_mapBtn, m_sep[0], m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap, m_apiMap.isEmpty(), "mapa",
+         "Clique para escolher o mapa"},
+        {m_agentBtn, m_sep[1], m_apiAgent.isEmpty() ? m_manual.value("agent").toString() : m_apiAgent, m_apiAgent.isEmpty(),
+         "agente", "Clique para escolher o agente"},
+        {m_killsBtn, m_sep[2], killsText, killsEditable, "kills", "Clique para dizer quantas kills (no mesmo round)"}};
+    for (const Slot &s : items) {
+        const bool show = !s.value.isEmpty() || (s.editable && vclip);
+        s.btn->setVisible(show);
+        s.sep->setVisible(show);
+        if (!show) continue;
+        s.btn->setText(s.value.isEmpty() ? s.hint : s.value);
+        QFont f = s.btn->font();
+        f.setItalic(s.value.isEmpty()); // "mapa" / "agente" / "kills" ainda sem valor
+        s.btn->setFont(f);
+        s.btn->setAttribute(Qt::WA_TransparentForMouseEvents, !s.editable);
+        s.btn->setCursor(s.editable ? Qt::PointingHandCursor : Qt::ArrowCursor);
+        s.btn->setToolTip(s.editable ? s.tip : QStringLiteral("Identificado pelo jogo"));
+    }
+    if (!m_commentEdit->hasFocus() && m_commentEdit->text() != m_manual.value("comment").toString())
+        m_commentEdit->setText(m_manual.value("comment").toString());
+}
+
+static QStringList cachedNames(const QByteArray &json, bool onlyPlayable)
+{
+    QStringList out;
+    for (const auto &v : QJsonDocument::fromJson(json).object().value("data").toArray()) {
+        const QJsonObject o = v.toObject();
+        if (onlyPlayable && !o.value("isPlayableCharacter").toBool(true)) continue;
+        if (const QString n = o.value("displayName").toString(); !n.isEmpty() && !out.contains(n)) out << n;
+    }
+    out.sort(Qt::CaseInsensitive);
+    return out;
+}
+
+void MainWindow::pickName(const QString &field)
+{
+    const bool isMap = field == "map";
+    QToolButton *btn = isMap ? m_mapBtn : m_agentBtn;
+    const QString current = m_manual.value(field).toString();
+    QMenu menu(this);
+    if (!current.isEmpty()) {
+        auto *clear = menu.addAction(isMap ? "Limpar o mapa" : "Limpar o agente");
+        connect(clear, &QAction::triggered, this, [this, field] { m_manual.remove(field); commitManual(); });
+        menu.addSeparator();
+    }
+    const QStringList names = cachedNames(valorant::store::readCache(isMap ? "maps.json" : "agents.json"), !isMap);
+    for (const QString &n : names) {
+        auto *a = menu.addAction(n);
+        a->setCheckable(true);
+        a->setChecked(n == current);
+        connect(a, &QAction::triggered, this, [this, field, n] { m_manual.insert(field, n); commitManual(); });
+    }
+    if (!names.isEmpty()) menu.addSeparator();
+    auto *other = menu.addAction("Outro…");
+    connect(other, &QAction::triggered, this, [this, field, isMap, current] {
+        bool ok = false;
+        const QString t = QInputDialog::getText(this, isMap ? "Mapa" : "Agente", isMap ? "Nome do mapa:" : "Nome do agente:",
+                                                QLineEdit::Normal, current, &ok).trimmed();
+        if (!ok) return;
+        if (t.isEmpty()) m_manual.remove(field); else m_manual.insert(field, t);
+        commitManual();
+    });
+    menu.exec(btn->mapToGlobal(btn->rect().bottomLeft()));
+}
+
+void MainWindow::pickKills()
+{
+    const int current = m_manual.value("kills").toInt(0);
+    QMenu menu(this);
+    if (current > 0) {
+        auto *clear = menu.addAction("Limpar");
+        connect(clear, &QAction::triggered, this, [this] { m_manual.remove("kills"); commitManual(); });
+        menu.addSeparator();
+    }
+    for (int k = 2; k <= 10; ++k) {
+        auto *a = menu.addAction(QString("%1k").arg(k));
+        a->setCheckable(true);
+        a->setChecked(k == current);
+        connect(a, &QAction::triggered, this, [this, k] { m_manual.insert("kills", k); commitManual(); });
+    }
+    menu.exec(m_killsBtn->mapToGlobal(m_killsBtn->rect().bottomLeft()));
+}
+
+// Guarda no clips.json (campo "manual") e atualiza a tela. Vale para qualquer clipe.
+void MainWindow::commitManual()
+{
+    if (m_file.isEmpty()) return;
     ensureValorant()->saveManual(m_file, m_clipSize ? m_clipSize : QFileInfo(m_file).size(), m_manual);
-    applyValorantEvents();
+    refreshInfoBar();
 }
 
 void MainWindow::detectNvenc()
@@ -1047,12 +1145,12 @@ void MainWindow::openFile(const QString &path)
     }
     m_file = path;
     m_title->setText(QFileInfo(path).fileName());
-    m_gameInfo->clear();
     m_gameText.clear();
+    m_autoTags.clear();
+    m_commentEdit->clear();
     m_apiMap.clear();
     m_apiAgent.clear();
     m_manual = QJsonObject();
-    m_autoKills = 0;
     m_vTags.clear();
     m_userPaused = false;
     m_roundStarts.clear();
@@ -1353,6 +1451,7 @@ void MainWindow::jumpBy(double sec)
 
 void MainWindow::userTogglePause()
 {
+    if (m_commentEdit) m_commentEdit->clearFocus();
     m_userPaused = true; // você mexeu no play/pause: o shear não despausa mais sozinho neste vídeo
     // Parado no fim do vídeo OU na marca de fim (O), play recomeça do início do clipe (a marca I; sem marca, o começo).
     const double dur = m_mpv->duration();
@@ -1700,6 +1799,11 @@ void MainWindow::dropEvent(QDropEvent *e)
 // Roda do mouse sobre o botão de velocidade: para cima acelera, para baixo desacelera (um passo por "clique" da roda).
 bool MainWindow::eventFilter(QObject *obj, QEvent *e)
 {
+    if (obj == m_commentEdit && e->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(e)->key() == Qt::Key_Escape) {
+        m_commentEdit->setText(m_manual.value("comment").toString()); // descarta o que foi digitado
+        m_commentEdit->clearFocus();
+        return true;
+    }
     if (obj == m_speedBtn && e->type() == QEvent::Wheel) {
         auto *w = static_cast<QWheelEvent *>(e);
         m_speedWheelAcc += w->angleDelta().y();

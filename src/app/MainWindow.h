@@ -21,6 +21,7 @@ class QSlider;
 class QTimer;
 class QToolButton;
 class QLabel;
+class QLineEdit;
 class QListWidget;
 class QProgressBar;
 class QPushButton;
@@ -173,15 +174,21 @@ private:
     double m_holdUntilPos = 0;         // com dano: segura a imagem até o playback chegar aqui           // o início utilizável vira o primeiro keyframe depois do trecho corrompido
     ExportJob *m_job = nullptr;
     QElapsedTimer m_openClock;
-    QLabel *m_gameInfo = nullptr;                // "Mapa · Agente" (Valorant), discreto, ao lado do título
+    // Ao lado do título: "· Mapa · Agente · 3k". O que o jogo identificou é só texto; o que ele não sabe é clicável (menu).
+    QToolButton *m_mapBtn = nullptr, *m_agentBtn = nullptr, *m_killsBtn = nullptr;
+    QLabel *m_sep[3] = {nullptr, nullptr, nullptr};
+    QLineEdit *m_commentEdit = nullptr;              // comentário opcional, à direita
     valorant::ValorantService *m_valorant = nullptr; // criado só na primeira consulta
     QVector<shear::valorant::MatchEvent> m_vEvents;  // meus kills/mortes da partida (horário absoluto)
     qint64 m_clipEndMs = 0, m_clipSize = 0;          // fim do clipe (data de criação) e tamanho, para alinhar e guardar
     QString m_gameText;                              // "Mapa · Agente" que veio do jogo (sem as tags)
     QString m_apiMap, m_apiAgent;                    // mapa e agente que vieram do jogo
     QJsonObject m_manual;                            // o que foi digitado à mão: {map, agent, kills, comment}
-    int m_autoKills = 0;                             // kills achadas sozinhas no clipe (maior número num mesmo round)
-    void editClipInfo();                             // F2: mapa, agente, kills e comentário à mão
+    QStringList m_autoTags;                          // tag de kills achada sozinha (ex.: "3k")
+    void refreshInfoBar();                           // atualiza os textos do topo
+    void pickName(const QString &field);             // menu para escolher "map" ou "agent"
+    void pickKills();                                // menu para escolher o número de kills
+    void commitManual();                             // guarda o que foi digitado/escolhido à mão
     void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline
     void jumpToEvent(int dir);
     QVector<qint64> m_roundStarts;                   // início de cada round da partida (ms absoluto)

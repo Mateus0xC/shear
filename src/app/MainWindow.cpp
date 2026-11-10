@@ -193,8 +193,8 @@ MainWindow::MainWindow()
     sc(QKeySequence(Qt::SHIFT | Qt::Key_E), gotoEnd);
     // Q / E: evento (kill ou morte) anterior / próximo, quando o clipe tem eventos do Valorant
     sc(Qt::Key_K, [=, this] { if (inEditor()) calibrateEvents(); }); // calibra: o evento mais próximo cai no ponto atual
-    sc(Qt::Key_Q, [=, this] { if (inEditor()) { if (m_timeline->hasEvents()) jumpToEvent(-1); else gotoStart(); } });
-    sc(Qt::Key_E, [=, this] { if (inEditor()) { if (m_timeline->hasEvents()) jumpToEvent(+1); else gotoEnd(); } });
+    sc(Qt::Key_Q, [=, this] { if (inEditor()) jumpToEvent(-1); });
+    sc(Qt::Key_E, [=, this] { if (inEditor()) jumpToEvent(+1); });
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
     sc(QKeySequence::Redo, [=, this] { if (inEditor()) redo(); }); // Ctrl+Y e Ctrl+Shift+Z
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
@@ -696,11 +696,28 @@ void MainWindow::calibrateEvents()
     m_status->setText(QString("Marcas alinhadas (ajuste %1 s, guardado para esta partida).").arg(m_matchOffset, 0, 'f', 1));
 }
 
+// Q / E: vai para a parada anterior / seguinte, que pode ser um evento (kill/morte) ou o ponto I / O. Paradas a menos de
+// 0,25 s do ponto atual (ou seja, "em cima" dele) são ignoradas. Sem nenhuma parada naquele lado, vai direto para I / O.
 void MainWindow::jumpToEvent(int dir)
 {
-    const double p = m_mpv->position();
-    if (const auto t = dir < 0 ? m_timeline->prevEvent(p) : m_timeline->nextEvent(p))
-        m_mpv->seek(*t);
+    constexpr double kTol = 0.25;
+    const double p = m_mpv->position(), s = m_timeline->start(), e = m_timeline->end();
+    std::vector<double> stops = m_timeline->eventTimes();
+    stops.push_back(s);
+    stops.push_back(e);
+    std::optional<double> target;
+    for (const double t : stops) {
+        if (dir < 0 && t < p - kTol && (!target || t > *target)) target = t;
+        if (dir > 0 && t > p + kTol && (!target || t < *target)) target = t;
+    }
+    if (!target) {
+        const double fallback = dir < 0 ? s : e;
+        if (std::abs(fallback - p) <= kTol) return; // já está no I / O
+        target = fallback;
+    }
+    if (std::abs(*target - e) < 1e-6 && !m_mpv->paused())
+        m_mpv->setPaused(true); // chegando no O tocando: para em cima dele (para ver/ajustar o fim)
+    m_mpv->seek(*target);
 }
 
 // Alinha os eventos da partida ao clipe (que cobre ~[fim − duração, fim] + offset) e mostra: marcas, tags e rótulo.

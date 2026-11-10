@@ -43,6 +43,12 @@ public:
     };
     void setEvents(std::vector<Event> ev);
     bool hasEvents() const { return !m_events.empty(); }
+    std::vector<double> eventTimes() const
+    {
+        std::vector<double> v;
+        for (const Event &e : m_events) v.push_back(e.t);
+        return v;
+    }
     std::optional<double> prevEvent(double t) const; // último evento antes de t (com folga de 0,15 s)
     std::optional<double> nextEvent(double t) const; // primeiro evento depois de t
     void setFps(double fps) { m_fps = fps; } // com a taxa de quadros, o zoom fino anda de frame em frame

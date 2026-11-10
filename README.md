@@ -106,8 +106,8 @@ Clipes já identificados continuam mostrando mapa e agente com o jogo fechado.
 Depois que a partida acaba, o shear baixa o `match-details` dela (em segundo plano, uma partida de cada vez, ao abrir o app ou
 o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles aparecem como losangos no alto da timeline
 (**verde = kill, roxo = morte**, bem diferentes dos tracinhos cinza dos keyframes), e o rótulo ao lado do título ganha as tags
-(`2k`, `3k`, `4k`, `ace` e `morreu`). **Q** e **E** pulam para o evento anterior e o próximo; **Shift + Q** e **Shift + E**
-vão para os pontos I e O (sem eventos no clipe, Q e E continuam indo para I e O).
+(`2k`, `3k`, `4k`, `ace` e `morreu`). **Q** e **E** pulam para a parada anterior e a seguinte (os eventos e também os pontos I e O; uma parada que já está em cima do ponto atual é ignorada); **Shift + Q** e **Shift + E**
+vão direto para os pontos I e O.
 
 O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]` e somando ~104 s
 (os horários da API ficam cerca de 100 s antes do vídeo, e esse tanto muda de partida para partida). Para acertar: pause no

@@ -71,6 +71,50 @@
 
 namespace shear {
 
+// Barra de cima do editor: a imagem do mapa ao fundo, bem apagada, esmaecendo nas pontas. Os botões e textos ficam por cima.
+class BannerBar : public QWidget {
+public:
+    using QWidget::QWidget;
+    void setBanner(const QString &path)
+    {
+        if (path == m_path)
+            return;
+        m_path = path;
+        m_cache = QPixmap();
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        if (m_path.isEmpty() || width() <= 0 || height() <= 0)
+            return;
+        if (m_cache.isNull() || m_cache.size() != size()) {
+            const QPixmap src(m_path);
+            if (src.isNull())
+                return;
+            const QPixmap big = src.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            m_cache = QPixmap(size());
+            m_cache.fill(Qt::transparent);
+            QPainter q(&m_cache);
+            q.drawPixmap(0, 0, big, (big.width() - width()) / 2, (big.height() - height()) / 2, width(), height());
+            q.setCompositionMode(QPainter::CompositionMode_DestinationIn); // opacidade: ~30%, sumindo nas duas pontas
+            QLinearGradient g(0, 0, width(), 0);
+            g.setColorAt(0.0, QColor(0, 0, 0, 0));
+            g.setColorAt(0.15, QColor(0, 0, 0, 80));
+            g.setColorAt(0.85, QColor(0, 0, 0, 80));
+            g.setColorAt(1.0, QColor(0, 0, 0, 0));
+            q.fillRect(m_cache.rect(), g);
+        }
+        QPainter p(this);
+        p.drawPixmap(0, 0, m_cache);
+    }
+
+private:
+    QString m_path;
+    QPixmap m_cache;
+};
+
 // Linha da lista de clipes: por cima do desenho normal, a faixa do mapa (se houver) à direita, esmaecendo para a esquerda.
 class ClipRowDelegate : public QStyledItemDelegate {
 public:
@@ -406,7 +450,11 @@ QWidget *MainWindow::buildEditor()
     m_speedBtn->setMenu(speedMenu);
     top->addWidget(m_speedBtn);
     top->addWidget(settingsBtn);
-    l->addLayout(top);
+    // a barra de cima ganha a imagem do mapa ao fundo (BannerBar)
+    m_topBanner = new BannerBar;
+    top->setContentsMargins(6, 3, 6, 3);
+    m_topBanner->setLayout(top);
+    l->addWidget(m_topBanner);
 
     m_mpv = new MpvWidget(m_cfg.gpuDecode);
     m_scrub = new AudioScrubber(this);
@@ -922,6 +970,15 @@ void MainWindow::refreshInfoBar()
         killsText = m_autoTags.isEmpty() ? QString() : m_autoTags.first();
     else if (const int k = m_manual.value("kills").toInt(0); k >= 2)
         killsText = QString("%1k").arg(k);
+    {   // imagem do mapa ao fundo da barra de cima (some se não há mapa ou se a imagem ainda não foi baixada)
+        const QString mapName = m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap;
+        QString mapImg;
+        if (!mapName.isEmpty() && m_valorant) {
+            mapImg = m_valorant->imageFile("map", mapName);
+            if (mapImg.isEmpty()) m_valorant->requestImages("map", {mapName});
+        }
+        static_cast<BannerBar *>(m_topBanner)->setBanner(mapImg);
+    }
     struct Slot { QToolButton *btn; QLabel *sep; QString value; bool editable; QString hint; QString tip; QString kind; };
     const Slot items[] = {
         {m_mapBtn, m_sep[0], m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap, m_apiMap.isEmpty(), "mapa",
@@ -936,12 +993,12 @@ void MainWindow::refreshInfoBar()
         if (!show) continue;
         s.btn->setText(s.value.isEmpty() ? s.hint : s.value);
         QString img;
-        if (!s.kind.isEmpty() && !s.value.isEmpty() && m_valorant) {
+        if (s.kind == "agent" && !s.value.isEmpty() && m_valorant) {
             img = m_valorant->imageFile(s.kind, s.value);
             if (img.isEmpty()) m_valorant->requestImages(s.kind, {s.value});
         }
         s.btn->setIcon(img.isEmpty() ? QIcon() : QIcon(img));
-        s.btn->setIconSize(s.kind == "map" ? QSize(40, 18) : QSize(20, 20));
+        s.btn->setIconSize(QSize(20, 20));
         s.btn->setToolButtonStyle(img.isEmpty() ? Qt::ToolButtonTextOnly : Qt::ToolButtonTextBesideIcon);
         QFont f = s.btn->font();
         f.setItalic(s.value.isEmpty()); // "mapa" / "agente" / "kills" ainda sem valor

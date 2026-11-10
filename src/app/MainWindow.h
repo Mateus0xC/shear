@@ -129,6 +129,7 @@ private:
     QToolButton *m_fastBtn = nullptr, *m_exactBtn = nullptr; // seletor Rápido | Exato
     QButtonGroup *m_modeGroup = nullptr;
     struct TrackRow { QToolButton *on; };
+    QWidget *m_topBanner = nullptr;    // a barra de cima (BannerBar): imagem do mapa ao fundo
     QHBoxLayout *m_topBar = nullptr;   // barra de cima do editor (voltar, título, áudio de 1 faixa, engrenagem)
     QToolButton *m_soloAudioBtn = nullptr; // alto-falante: só existe quando o vídeo tem uma única faixa
     QFrame *m_audioBox = nullptr;      // painel lateral fino, só com as faixas

@@ -1311,11 +1311,13 @@ void MainWindow::refreshInfoBar()
 {
     if (!m_mapBtn) return;
     const bool vclip = valorant::looksLikeValorantClip(m_file);
-    const bool killsEditable = m_vEvents.isEmpty(); // com kills vindas do jogo, não dá para mudar
+    // Só fica fixo o que o jogo achou (2k ou mais no clipe). Se ele não achou kills (sem partida, ou com 0 ou 1 kill dentro
+    // do clipe), dá para escolher à mão, de 1k em diante.
+    const bool killsEditable = m_autoTags.isEmpty();
     QString killsText;
     if (!killsEditable)
-        killsText = m_autoTags.isEmpty() ? QString() : m_autoTags.first();
-    else if (const int k = m_manual.value("kills").toInt(0); k >= 2)
+        killsText = m_autoTags.first();
+    else if (const int k = m_manual.value("kills").toInt(0); k >= 1)
         killsText = QString("%1k").arg(k);
     {   // imagem do mapa ao fundo da barra de cima (some se não há mapa ou se a imagem ainda não foi baixada)
         const QString mapName = m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap;
@@ -1473,7 +1475,7 @@ void MainWindow::pickKills()
         connect(clear, &QAction::triggered, this, [this] { m_manual.remove("kills"); commitManual(); });
         menu.addSeparator();
     }
-    for (int k = 2; k <= 10; ++k) {
+    for (int k = 1; k <= 10; ++k) {
         auto *a = menu.addAction(QString("%1k").arg(k));
         a->setCheckable(true);
         a->setChecked(k == current);
@@ -1584,7 +1586,7 @@ void MainWindow::refreshRecent(bool autoOpen)
                     (QByteArray(k) == "map" ? r.mapName : r.agentName) = s;
                 }
                 if (const int kills = man.value("kills").toInt(0); kills > 0) {
-                    if (kills >= 2) r.tags = QString("%1k").arg(kills);
+                    r.tags = QString("%1k").arg(kills); // à mão vale até 1k; só as achadas sozinhas exigem 2k ou mais
                 } else {
                     for (const auto &t : e.value("tags").toArray())
                         if (const QString tag = t.toString(); tag.endsWith('k') && tag.chopped(1).toInt() >= 2)

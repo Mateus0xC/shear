@@ -112,7 +112,7 @@ vão direto para os pontos I e O.
 
 **Dados à mão:** o que o jogo identificou (mapa, agente, kills) aparece como texto e não dá para mudar. O que ele não sabe
 aparece como "mapa", "agente" ou "kills" em cinza e itálico ao lado do título, e é clicável: o clique abre um menu para escolher
-(mapas e agentes vêm da lista do valorant-api.com; "Outro…" aceita qualquer nome; kills de 2k a 10k). Depois deles há um ícone de editar (✎) para um
+(mapas e agentes vêm da lista do valorant-api.com; "Outro…" aceita qualquer nome; kills de 1k a 10k; só aparece quando o jogo não achou kills no clipe). Depois deles há um ícone de editar (✎) para um
 comentário opcional, em qualquer clipe: clique, digite e aperte Enter (Esc descarta). O comentário também é gravado ao voltar
 para a lista de clipes, ao abrir outro clipe e ao sair do programa; enquanto você digita, os atalhos do editor ficam desligados. Tudo isso fica em `clips.json` (campo `manual`), aparece na lista de clipes e a identificação automática
 nunca apaga.

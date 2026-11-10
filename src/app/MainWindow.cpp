@@ -681,9 +681,15 @@ void MainWindow::applyAutoRange(double dur, double offset)
     const double start = snapIfFast(std::max(span->first, m_timeline->damagedUntil()));
     if (std::abs(start - s0) < 0.001 && std::abs(span->second - e0) < 0.001)
         return;
-    if (!m_autoRange)
+    const std::optional<std::pair<double, double>> prev = m_autoRange;
+    if (!prev)
         pushUndo(currentState()); // um só Ctrl+Z desfaz (os refinamentos seguintes não empilham)
     m_timeline->setRange(start, span->second);
+    // Ao entrar no vídeo ele começa no I (e não no começo do arquivo). Só se o ponto de reprodução ainda estiver antes do I e
+    // você não tiver ido a outro lugar: na primeira aplicação, ou se ele ainda estava parado no I anterior (refino do encaixe).
+    const double pos = m_mpv->position();
+    if (pos < m_timeline->start() - 0.001 && (!prev || pos >= prev->first - 0.05))
+        m_mpv->seek(m_timeline->start());
     m_autoRange = std::make_pair(m_timeline->start(), m_timeline->end());
     metrics::log(QString("valorant: I/O automáticos no último round: %1 a %2 s").arg(m_timeline->start(), 0, 'f', 1)
                      .arg(m_timeline->end(), 0, 'f', 1));

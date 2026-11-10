@@ -20,7 +20,10 @@
 #include <QComboBox>
 #include <QFrame>
 #include <QApplication>
+#include <QContextMenuEvent>
+#include <QDrag>
 #include <QEnterEvent>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <functional>
@@ -269,9 +272,22 @@ private:
     }
 };
 
-class LinkLabel : public QLabel { // rótulo clicável (cursor de mão, sublinhado ao passar o mouse)
+// Começa a arrastar o arquivo (para o Discord, o Explorer ou o próprio shear): vai como uma lista de arquivos (CopyAction).
+static void startFileDrag(QWidget *source, const QString &path)
+{
+    auto *drag = new QDrag(source);
+    auto *mime = new QMimeData;
+    mime->setUrls({QUrl::fromLocalFile(path)});
+    drag->setMimeData(mime);
+    drag->setPixmap(source->grab());
+    drag->exec(Qt::CopyAction);
+}
+
+class LinkLabel : public QLabel { // nome do arquivo: clicável (sublinha só ao passar o mouse), arrastável, com menu de contexto
 public:
     std::function<void()> onClick;
+    std::function<QString()> dragFile;               // arquivo que vai no arrasto ("" = não arrasta)
+    std::function<void(const QPoint &)> onContext;   // posição global do clique direito
     using QLabel::QLabel;
 
 protected:
@@ -289,12 +305,91 @@ protected:
         setFont(f);
         QLabel::leaveEvent(e);
     }
+    void mousePressEvent(QMouseEvent *e) override
+    {
+        if (e->button() == Qt::LeftButton) m_press = e->pos();
+        m_dragged = false;
+        QLabel::mousePressEvent(e);
+    }
+    void mouseMoveEvent(QMouseEvent *e) override
+    {
+        if ((e->buttons() & Qt::LeftButton) && dragFile &&
+            (e->pos() - m_press).manhattanLength() >= QApplication::startDragDistance()) {
+            if (const QString path = dragFile(); !path.isEmpty()) {
+                m_dragged = true;
+                startFileDrag(this, path);
+                return;
+            }
+        }
+        QLabel::mouseMoveEvent(e);
+    }
     void mouseReleaseEvent(QMouseEvent *e) override
     {
-        if (e->button() == Qt::LeftButton && rect().contains(e->pos()) && onClick)
+        if (!m_dragged && e->button() == Qt::LeftButton && rect().contains(e->pos()) && onClick)
             onClick();
+        m_dragged = false;
         QLabel::mouseReleaseEvent(e);
     }
+    void contextMenuEvent(QContextMenuEvent *e) override
+    {
+        if (onContext) onContext(e->globalPos()); else QLabel::contextMenuEvent(e);
+    }
+
+private:
+    QPoint m_press;
+    bool m_dragged = false;
+};
+
+class FileButton : public QPushButton { // nome do clipe exportado: clicável, arrastável, com menu de contexto
+public:
+    std::function<QString()> dragFile;
+    std::function<void(const QPoint &)> onContext;
+    using QPushButton::QPushButton;
+
+protected:
+    void mousePressEvent(QMouseEvent *e) override
+    {
+        if (e->button() == Qt::LeftButton) m_press = e->pos();
+        QPushButton::mousePressEvent(e);
+    }
+    void mouseMoveEvent(QMouseEvent *e) override
+    {
+        if ((e->buttons() & Qt::LeftButton) && dragFile &&
+            (e->pos() - m_press).manhattanLength() >= QApplication::startDragDistance()) {
+            if (const QString path = dragFile(); !path.isEmpty()) {
+                setDown(false);
+                startFileDrag(this, path);
+                return;
+            }
+        }
+        QPushButton::mouseMoveEvent(e);
+    }
+    void contextMenuEvent(QContextMenuEvent *e) override
+    {
+        if (onContext) onContext(e->globalPos()); else QPushButton::contextMenuEvent(e);
+    }
+
+private:
+    QPoint m_press;
+};
+
+// Lista de clipes: arrastar uma linha leva o arquivo (não os dados internos da lista).
+class ClipListWidget : public QListWidget {
+public:
+    using QListWidget::QListWidget;
+
+protected:
+    QMimeData *mimeData(const QList<QListWidgetItem *> &items) const override
+    {
+        auto *m = new QMimeData;
+        QList<QUrl> urls;
+        for (const QListWidgetItem *i : items)
+            if (const QString p = i->data(Qt::UserRole).toString(); !p.isEmpty())
+                urls << QUrl::fromLocalFile(p);
+        m->setUrls(urls);
+        return m;
+    }
+    Qt::DropActions supportedDragActions() const override { return Qt::CopyAction; }
 };
 
 } // namespace shear
@@ -468,7 +563,12 @@ QWidget *MainWindow::buildHome()
     bar->addWidget(open);
     bar->addWidget(settings);
     bar->addStretch();
-    m_recent = new QListWidget;
+    m_recent = new ClipListWidget;
+    m_recent->setDragEnabled(true); // arrastar uma linha leva o arquivo (Discord, Explorer, o próprio shear)
+    m_recent->setDragDropMode(QAbstractItemView::DragOnly);
+    m_recent->setDefaultDropAction(Qt::CopyAction);
+    m_recent->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_recent, &QWidget::customContextMenuRequested, this, [this](const QPoint &p) { showListMenu(p); });
     m_recent->setAlternatingRowColors(true);
     m_recent->setIconSize(QSize(28, 28));
     m_recent->setUniformItemSizes(true);
@@ -517,6 +617,8 @@ QWidget *MainWindow::buildEditor()
     titleLink->setCursor(Qt::PointingHandCursor);
     titleLink->setToolTip("Abrir a pasta do arquivo");
     titleLink->onClick = [this] { if (!m_file.isEmpty()) revealInExplorer(m_file); };
+    titleLink->dragFile = [this] { return m_file; };
+    titleLink->onContext = [this](const QPoint &g) { showTitleMenu(g, false); };
     m_title->setForegroundRole(QPalette::PlaceholderText); // o nome do arquivo fica em cinza; o mapa/agente/kills é que ficam claros
     // Engrenagem (glifo E713 da fonte de ícones do Windows; sem ela, o emoji ⚙)
     auto *settingsBtn = new QPushButton;
@@ -781,12 +883,15 @@ QWidget *MainWindow::buildEditor()
     m_deleteOrigBtn->setToolTip("Manda o vídeo original para a Lixeira (o clipe mantido fica).");
     connect(m_deleteOrigBtn, &QPushButton::clicked, this, &MainWindow::deleteOriginalOnly);
     m_deleteBothBtn->setToolTip("Manda o vídeo original para a Lixeira e apaga o clipe cortado.");
-    m_fileLink = new QPushButton;
+    auto *fileLink = new FileButton;
+    m_fileLink = fileLink;
     m_fileLink->setFlat(true);
     m_fileLink->setCursor(Qt::PointingHandCursor);
     m_fileLink->setFocusPolicy(Qt::NoFocus);
     m_fileLink->setToolTip("Abrir a pasta do clipe");
-    m_fileLink->setStyleSheet("QPushButton { border: none; padding: 0 2px; text-decoration: underline; }");
+    m_fileLink->setStyleSheet("QPushButton { border: none; padding: 0 2px; } QPushButton:hover { text-decoration: underline; }");
+    fileLink->dragFile = [this] { return m_lastOutput; };
+    fileLink->onContext = [this](const QPoint &g) { showTitleMenu(g, true); };
     m_fileLink->hide();
     connect(m_fileLink, &QPushButton::clicked, this, [this] { revealInExplorer(m_lastOutput); });
     connect(m_deleteBothBtn, &QPushButton::clicked, this, &MainWindow::deleteBoth);
@@ -2042,6 +2147,62 @@ static bool confirmDestructive(QWidget *parent, const QString &title, const QStr
     box.setDefaultButton(no);
     box.exec();
     return box.clickedButton() == yes;
+}
+
+// Botão direito numa linha da lista de clipes
+void MainWindow::showListMenu(const QPoint &pos)
+{
+    QListWidgetItem *it = m_recent->itemAt(pos);
+    const QString path = it ? it->data(Qt::UserRole).toString() : QString();
+    if (path.isEmpty())
+        return;
+    m_recent->setCurrentItem(it);
+    QMenu menu(this);
+    auto *open = menu.addAction("Abrir no shear");
+    auto *reveal = menu.addAction("Abrir local do arquivo");
+    menu.addSeparator();
+    auto *del = menu.addAction("Apagar original");
+    del->setEnabled(!m_job);
+    connect(open, &QAction::triggered, this, [this, path] { openFile(path); });
+    connect(reveal, &QAction::triggered, this, [path] { revealInExplorer(path); });
+    connect(del, &QAction::triggered, this, [this, path] { trashFromList(path); });
+    menu.exec(m_recent->viewport()->mapToGlobal(pos));
+}
+
+// "Apagar original" na lista: confirma e manda para a Lixeira (dá para recuperar de lá).
+void MainWindow::trashFromList(const QString &path)
+{
+    if (m_job || path.isEmpty() || path == m_file)
+        return;
+    if (!confirmDestructive(this, "Apagar o original",
+                            "Mandar para a Lixeira o vídeo?\n\n" + QDir::toNativeSeparators(path), "Apagar original",
+                            "Cancelar"))
+        return;
+    if (QFile::moveToTrash(path))
+        metrics::log("original enviado para a Lixeira: " + path);
+    else
+        QMessageBox::warning(this, "Apagar o original", "Não foi possível mandar o arquivo para a Lixeira.");
+    refreshRecent(false);
+}
+
+// Botão direito no nome do arquivo do editor (`exported` = false) ou no do clipe exportado (`exported` = true).
+// "Abrir local do arquivo" só existe na lista de clipes (aqui, clicar no nome já abre a pasta).
+void MainWindow::showTitleMenu(const QPoint &global, bool exported)
+{
+    if (m_file.isEmpty())
+        return;
+    QMenu menu(this);
+    if (exported && !m_lastOutput.isEmpty()) {
+        auto *open = menu.addAction("Abrir no shear");
+        open->setEnabled(!m_job);
+        connect(open, &QAction::triggered, this, [this] { if (!m_job && !m_lastOutput.isEmpty()) openFile(m_lastOutput); });
+        menu.addSeparator();
+    }
+    const bool temp = m_tempFiles.contains(m_lastOutput); // clipe ainda não mantido: apagar o original leva o clipe junto
+    auto *del = menu.addAction(temp ? "Apagar original e clipe" : "Apagar original");
+    del->setEnabled(!m_job);
+    connect(del, &QAction::triggered, this, [this, temp] { if (temp) deleteBoth(); else deleteOriginalOnly(); });
+    menu.exec(global);
 }
 
 // Botão "Apagar original e clipe": só existe enquanto o clipe cortado é temporário.

@@ -192,6 +192,9 @@ private:
     void refreshInfoBar();                           // atualiza os textos do topo
     void pickName(const QString &field);             // menu para escolher "map" ou "agent"
     void pickKills();                                // menu para escolher o número de kills
+    void showListMenu(const QPoint &pos);            // botão direito numa linha da lista de clipes
+    void showTitleMenu(const QPoint &global, bool exported); // botão direito no nome do arquivo (editor) ou do clipe exportado
+    void trashFromList(const QString &path);         // manda um vídeo da lista para a Lixeira
     void commitManual(bool wait = false);
     void commitComment(bool wait = false);           // grava o comentário em edição (Enter, voltar, trocar de clipe, sair)                             // guarda o que foi digitado/escolhido à mão
     void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline

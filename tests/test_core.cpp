@@ -413,7 +413,9 @@ private slots:
         QVector<valorant::ClipEvent> ace;
         for (int i = 0; i < 5; ++i) ace.push_back({MatchEvent::Kill, double(i), 7, {}});
         QCOMPARE(valorant::makeTags(ace), QStringList({"5k"}));
-        for (int i = 5; i < 7; ++i) ace.push_back({MatchEvent::Kill, double(i), 8, {}});
+        for (int i = 5; i < 7; ++i) ace.push_back({MatchEvent::Kill, double(i), 8, {}}); // + 2 kills de OUTRO round
+        QCOMPARE(valorant::makeTags(ace), QStringList({"5k"}));                          // não somam: continua 5k
+        for (int i = 7; i < 12; ++i) ace.push_back({MatchEvent::Kill, double(i), 8, {}}); // round 8 agora com 7 kills
         QCOMPARE(valorant::makeTags(ace), QStringList({"7k"}));
         ace.resize(5);
         ace.resize(3);

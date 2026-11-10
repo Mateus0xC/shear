@@ -115,8 +115,10 @@ void ValorantService::identify(const QString &clipPath, const QDateTime &created
     c->key = clipKey(QFileInfo(clipPath).fileName(), size);
     c->clock.start();
 
-    if (!looksLikeValorantClip(clipPath))
-        return; // clipe de outro jogo: nem toca na rede
+    if (!looksLikeValorantClip(clipPath)) { // clipe de outro jogo: nem toca na rede
+        metrics::log("valorant: ignorado (o caminho do clipe não contém \"valorant\")");
+        return;
+    }
 
     // Já associado antes (vale mesmo com o jogo fechado) ou ainda dá para associar à partida em andamento?
     runAsync(this, [c] { return store::loadClips().value(c->key).toObject(); }, [this, c](QJsonObject known) {

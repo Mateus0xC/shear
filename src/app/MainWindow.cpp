@@ -237,7 +237,7 @@ public:
             p->setFont(cf);
             p->setPen(mute);
             p->drawText(col(commentX, commentW - 8), Qt::AlignLeft | Qt::AlignVCenter,
-                        QFontMetrics(cf).elidedText("“" + comment + "”", Qt::ElideRight, commentW - 8));
+                        QFontMetrics(cf).elidedText(comment, Qt::ElideRight, commentW - 8));
         }
         p->restore();
     }

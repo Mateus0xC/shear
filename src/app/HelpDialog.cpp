@@ -128,6 +128,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
     const std::vector<Section> general = {
         {"Janela e arquivos", {
             {"F1", "Abre esta ajuda"},
+            {"F5 · Ctrl + R", "Atualiza a lista de clipes (na tela inicial)"},
             {"← Clipes", "Volta para a lista de clipes (o clipe que você não guardou é apagado)"},
             {"Engrenagem", "Abre as Configurações"},
             {"Mapa · Agente · kills (ao lado do título)", "O que o jogo não identificou fica clicável: clique para escolher à mão"},

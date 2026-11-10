@@ -379,6 +379,9 @@ MainWindow::MainWindow()
         connect(s, &QShortcut::activated, this, fn);
     };
     auto inEditor = [this] { return m_stack->currentIndex() == 1 && !(m_commentEdit && m_commentEdit->hasFocus()); };
+    // F5 / Ctrl+R: relê a pasta e atualiza a lista de clipes (só na lista; no editor, Ctrl+R não faz nada)
+    sc(Qt::Key_F5, [=, this] { if (m_stack->currentIndex() == 0) refreshRecent(false); });
+    sc(QKeySequence(Qt::CTRL | Qt::Key_R), [=, this] { if (m_stack->currentIndex() == 0) refreshRecent(false); });
     sc(Qt::Key_F1, [=, this] { openHelp(); }); // ajuda com todos os atalhos (vale na lista de clipes e no editor)
     sc(Qt::Key_Space, [=, this] { if (inEditor()) userTogglePause(); });
     // X: apaga um trecho do MEIO (1º X = onde começa, 2º X = onde termina); o que sobra é emendado na exportação.

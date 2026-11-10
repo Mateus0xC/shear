@@ -697,10 +697,10 @@ void MainWindow::calibrateEvents()
 }
 
 // Q / E: vai para a parada anterior / seguinte, que pode ser um evento (kill/morte) ou o ponto I / O. Paradas a menos de
-// 0,25 s do ponto atual (ou seja, "em cima" dele) são ignoradas. Sem nenhuma parada naquele lado, vai direto para I / O.
+// 1 s do ponto atual (ou seja, "em cima" dele) são ignoradas. Sem nenhuma parada naquele lado, vai direto para I / O.
 void MainWindow::jumpToEvent(int dir)
 {
-    constexpr double kTol = 0.25;
+    constexpr double kTol = 1.0;
     const double p = m_mpv->position(), s = m_timeline->start(), e = m_timeline->end();
     std::vector<double> stops = m_timeline->eventTimes();
     stops.push_back(s);

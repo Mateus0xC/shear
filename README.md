@@ -116,6 +116,11 @@ comentário opcional, em qualquer clipe: clique, digite e aperte Enter (Esc desc
 para a lista de clipes, ao abrir outro clipe e ao sair do programa; enquanto você digita, os atalhos do editor ficam desligados. Tudo isso fica em `clips.json` (campo `manual`), aparece na lista de clipes e a identificação automática
 nunca apaga.
 
+**Imagens:** o ícone do agente e uma faixa do mapa (do valorant-api.com) aparecem ao lado do nome no topo, nos menus de escolha
+e na lista de clipes (ícone do agente à esquerda da linha e a faixa do mapa esmaecendo à direita). Elas são baixadas uma vez,
+reduzidas e guardadas em `valorant/img/` (só as que você usa; ao abrir um menu, as que faltam são baixadas para a próxima vez).
+No menu de mapas ficam só os do modo bomba; os demais (treino, mata-mata etc.) ficam no submenu "Outros modos".
+
 **Lista de clipes:** os clipes que o shear já identificou mostram "Mapa · Agente · 5k" no fim da linha (lido do `clips.json`,
 sem rede); um clipe só ganha esses dados depois de ser aberto uma vez com o Riot Client logado.
 

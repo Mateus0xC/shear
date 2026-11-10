@@ -56,6 +56,10 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QLineEdit>
+#include <QLinearGradient>
+#include <QPainter>
+#include <QSet>
+#include <QStyledItemDelegate>
 #include "valorant/ValorantService.h"
 #include "valorant/ValorantStore.h"
 #include "core/ValorantParse.h"
@@ -64,6 +68,43 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
+
+namespace shear {
+
+// Linha da lista de clipes: por cima do desenho normal, a faixa do mapa (se houver) à direita, esmaecendo para a esquerda.
+class ClipRowDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *p, const QStyleOptionViewItem &opt, const QModelIndex &idx) const override
+    {
+        QStyledItemDelegate::paint(p, opt, idx);
+        const QString path = idx.data(Qt::UserRole + 1).toString();
+        if (path.isEmpty())
+            return;
+        const int w = std::min(260, opt.rect.width() / 3), h = opt.rect.height();
+        const QString key = path + "|" + QString::number(w) + "x" + QString::number(h);
+        static QHash<QString, QPixmap> cache;
+        QPixmap &out = cache[key];
+        if (out.isNull()) {
+            QPixmap src(path);
+            if (src.isNull() || w <= 0 || h <= 0)
+                return;
+            const QPixmap big = src.scaled(w, h, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            out = QPixmap(w, h);
+            out.fill(Qt::transparent);
+            QPainter q(&out);
+            q.drawPixmap(0, 0, big, (big.width() - w) / 2, (big.height() - h) / 2, w, h);
+            q.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+            QLinearGradient g(0, 0, w, 0);
+            g.setColorAt(0, QColor(0, 0, 0, 0));
+            g.setColorAt(1, QColor(0, 0, 0, 150));
+            q.fillRect(out.rect(), g);
+        }
+        p->drawPixmap(opt.rect.right() - w + 1, opt.rect.top(), out);
+    }
+};
+
+} // namespace shear
 
 namespace shear {
 
@@ -233,6 +274,8 @@ QWidget *MainWindow::buildHome()
     bar->addStretch();
     m_recent = new QListWidget;
     m_recent->setAlternatingRowColors(true);
+    m_recent->setIconSize(QSize(26, 26));
+    m_recent->setItemDelegate(new ClipRowDelegate(m_recent));
     connect(m_recent, &QListWidget::itemActivated, this,
             [this](QListWidgetItem *i) { openFile(i->data(Qt::UserRole).toString()); });
     // Cabeçalho: a logo ao lado do nome
@@ -297,7 +340,8 @@ QWidget *MainWindow::buildEditor()
         btn->setAutoRaise(true);
         btn->setFocusPolicy(Qt::NoFocus);
         QPalette pal = btn->palette();
-        pal.setColor(QPalette::ButtonText, palette().color(QPalette::PlaceholderText));
+        for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
+            pal.setColor(role, palette().color(QPalette::PlaceholderText)); // com ícone o texto usa outro papel de cor
         btn->setPalette(pal);
         top->addWidget(sep);
         top->addWidget(btn);
@@ -708,6 +752,16 @@ valorant::ValorantService *MainWindow::ensureValorant()
                 m_apiAgent = agent;
                 applyValorantEvents(); // atualiza o rótulo (com as tags, se já houver eventos)
             });
+    connect(m_valorant, &valorant::ValorantService::imageReady, this, [this] {
+        refreshInfoBar();
+        if (m_stack->currentIndex() == 0 && !m_imgRefreshQueued) { // junta várias imagens num só redesenho da lista
+            m_imgRefreshQueued = true;
+            QTimer::singleShot(300, this, [this] {
+                m_imgRefreshQueued = false;
+                if (m_stack->currentIndex() == 0) refreshRecent(false);
+            });
+        }
+    });
     connect(m_valorant, &valorant::ValorantService::manualLoaded, this,
             [this](const QString &path, const QJsonObject &manual) {
                 if (path != m_file) return;
@@ -868,19 +922,27 @@ void MainWindow::refreshInfoBar()
         killsText = m_autoTags.isEmpty() ? QString() : m_autoTags.first();
     else if (const int k = m_manual.value("kills").toInt(0); k >= 2)
         killsText = QString("%1k").arg(k);
-    struct Slot { QToolButton *btn; QLabel *sep; QString value; bool editable; QString hint; QString tip; };
+    struct Slot { QToolButton *btn; QLabel *sep; QString value; bool editable; QString hint; QString tip; QString kind; };
     const Slot items[] = {
         {m_mapBtn, m_sep[0], m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap, m_apiMap.isEmpty(), "mapa",
-         "Clique para escolher o mapa"},
+         "Clique para escolher o mapa", "map"},
         {m_agentBtn, m_sep[1], m_apiAgent.isEmpty() ? m_manual.value("agent").toString() : m_apiAgent, m_apiAgent.isEmpty(),
-         "agente", "Clique para escolher o agente"},
-        {m_killsBtn, m_sep[2], killsText, killsEditable, "kills", "Clique para dizer quantas kills (no mesmo round)"}};
+         "agente", "Clique para escolher o agente", "agent"},
+        {m_killsBtn, m_sep[2], killsText, killsEditable, "kills", "Clique para dizer quantas kills (no mesmo round)", QString()}};
     for (const Slot &s : items) {
         const bool show = !s.value.isEmpty() || (s.editable && vclip);
         s.btn->setVisible(show);
         s.sep->setVisible(show);
         if (!show) continue;
         s.btn->setText(s.value.isEmpty() ? s.hint : s.value);
+        QString img;
+        if (!s.kind.isEmpty() && !s.value.isEmpty() && m_valorant) {
+            img = m_valorant->imageFile(s.kind, s.value);
+            if (img.isEmpty()) m_valorant->requestImages(s.kind, {s.value});
+        }
+        s.btn->setIcon(img.isEmpty() ? QIcon() : QIcon(img));
+        s.btn->setIconSize(s.kind == "map" ? QSize(40, 18) : QSize(20, 20));
+        s.btn->setToolButtonStyle(img.isEmpty() ? Qt::ToolButtonTextOnly : Qt::ToolButtonTextBesideIcon);
         QFont f = s.btn->font();
         f.setItalic(s.value.isEmpty()); // "mapa" / "agente" / "kills" ainda sem valor
         s.btn->setFont(f);
@@ -913,36 +975,57 @@ void MainWindow::refreshInfoBar()
     m_commentSep->setVisible(true);
 }
 
-static QStringList cachedNames(const QByteArray &json, bool onlyPlayable)
+struct NameEntry { QString name; bool bomb; }; // bomb = mapa do modo bomba (os de competitivo/padrão)
+
+static QVector<NameEntry> cachedNames(const QByteArray &json, bool onlyPlayable, bool isMap)
 {
-    QStringList out;
+    QVector<NameEntry> out;
+    QSet<QString> seen;
     for (const auto &v : QJsonDocument::fromJson(json).object().value("data").toArray()) {
         const QJsonObject o = v.toObject();
         if (onlyPlayable && !o.value("isPlayableCharacter").toBool(true)) continue;
-        if (const QString n = o.value("displayName").toString(); !n.isEmpty() && !out.contains(n)) out << n;
+        const QString n = o.value("displayName").toString();
+        if (n.isEmpty() || seen.contains(n)) continue;
+        seen.insert(n);
+        // os mapas do modo bomba têm "A/B Sites" (ou "A/B/C Sites"); Range, Skirmish, Team Deathmatch etc. não
+        out.push_back({n, !isMap || !o.value("tacticalDescription").toString().isEmpty()});
     }
-    out.sort(Qt::CaseInsensitive);
+    std::sort(out.begin(), out.end(), [](const NameEntry &a, const NameEntry &b) { return a.name.compare(b.name, Qt::CaseInsensitive) < 0; });
     return out;
 }
 
 void MainWindow::pickName(const QString &field)
 {
     const bool isMap = field == "map";
+    const QString kind = isMap ? "map" : "agent";
     QToolButton *btn = isMap ? m_mapBtn : m_agentBtn;
     const QString current = m_manual.value(field).toString();
+    auto *svc = ensureValorant();
     QMenu menu(this);
     if (!current.isEmpty()) {
         auto *clear = menu.addAction(isMap ? "Limpar o mapa" : "Limpar o agente");
         connect(clear, &QAction::triggered, this, [this, field] { m_manual.remove(field); commitManual(); });
         menu.addSeparator();
     }
-    const QStringList names = cachedNames(valorant::store::readCache(isMap ? "maps.json" : "agents.json"), !isMap);
-    for (const QString &n : names) {
-        auto *a = menu.addAction(n);
+    const QVector<NameEntry> names = cachedNames(valorant::store::readCache(isMap ? "maps.json" : "agents.json"), !isMap, isMap);
+    QStringList missing;
+    auto addEntry = [&](QMenu *m, const QString &n) {
+        auto *a = m->addAction(n);
+        const QString img = svc->imageFile(kind, n);
+        if (!img.isEmpty()) a->setIcon(QIcon(img)); else missing << n;
         a->setCheckable(true);
         a->setChecked(n == current);
         connect(a, &QAction::triggered, this, [this, field, n] { m_manual.insert(field, n); commitManual(); });
-    }
+    };
+    for (const NameEntry &n : names)
+        if (n.bomb) addEntry(&menu, n.name);
+    QMenu *others = nullptr; // mapas de outros modos (treino, mata-mata...) ficam num submenu
+    for (const NameEntry &n : names)
+        if (!n.bomb) {
+            if (!others) others = menu.addMenu("Outros modos");
+            addEntry(others, n.name);
+        }
+    svc->requestImages(kind, missing); // o que ainda não tem imagem é baixado para a próxima vez
     if (!names.isEmpty()) menu.addSeparator();
     auto *other = menu.addAction("Outro…");
     connect(other, &QAction::triggered, this, [this, field, isMap, current] {
@@ -1020,7 +1103,7 @@ QString MainWindow::ffmpegPath() const
 }
 
 // `created`: quando o arquivo foi CRIADO (é o que vale para "clipado há N min"); a data de modificação é só reserva.
-struct RecentItem { QString path; QDateTime created; qint64 size; QString info; /* "Mapa · Agente · 5k" (Valorant) */ };
+struct RecentItem { QString path; QDateTime created; qint64 size; QString info; /* "Mapa · Agente · 5k" (Valorant) */ QString mapName, agentName; };
 
 void MainWindow::showHome()
 {
@@ -1075,12 +1158,14 @@ void MainWindow::refreshRecent(bool autoOpen)
                 for (const char *k : {"map", "agent"}) {
                     const QString s = man.value(k).toString().isEmpty() ? e.value(k).toString() : man.value(k).toString();
                     if (!s.isEmpty()) parts << s;
+                    (QByteArray(k) == "map" ? r.mapName : r.agentName) = s;
                 }
                 if (const int kills = man.value("kills").toInt(0); kills > 0) {
                     if (kills >= 2) parts << QString("%1k").arg(kills);
                 } else {
                     for (const auto &t : e.value("tags").toArray())
-                        parts << t.toString();
+                        if (const QString tag = t.toString(); tag.endsWith('k') && tag.chopped(1).toInt() >= 2)
+                            parts << tag; // só "Nk" (guardados de versões antigas podem ter "morreu"/"ace")
                 }
                 r.info = parts.join(" · ");
                 if (const QString c = man.value("comment").toString(); !c.isEmpty())
@@ -1090,6 +1175,11 @@ void MainWindow::refreshRecent(bool autoOpen)
             const QDateTime now = QDateTime::currentDateTime();
             const QColor accent = palette().color(QPalette::Highlight);
             m_recent->clear();
+            // ícone do agente e faixa do mapa (só os que já estão guardados; os outros são baixados e a lista se atualiza)
+            auto *svc = ensureValorant();
+            QPixmap blank(26, 26);
+            blank.fill(Qt::transparent); // linhas sem agente ficam alinhadas com as que têm
+            QSet<QString> needAgents, needMaps;
             for (const auto &r : v) {
                 const qint64 age = r.created.secsTo(now);
                 const bool fresh = &r == &v.front() && age <= kFreshHighlightSec; // só o ÚLTIMO clipe, se tiver até 5 min
@@ -1109,8 +1199,16 @@ void MainWindow::refreshRecent(bool autoOpen)
                 }
                 i->setData(Qt::UserRole, r.path);
                 i->setToolTip(r.path);
+                const QString agentImg = r.agentName.isEmpty() ? QString() : svc->imageFile("agent", r.agentName);
+                const QString mapImg = r.mapName.isEmpty() ? QString() : svc->imageFile("map", r.mapName);
+                i->setIcon(agentImg.isEmpty() ? QIcon(blank) : QIcon(agentImg));
+                i->setData(Qt::UserRole + 1, mapImg);
+                if (agentImg.isEmpty() && !r.agentName.isEmpty()) needAgents.insert(r.agentName);
+                if (mapImg.isEmpty() && !r.mapName.isEmpty()) needMaps.insert(r.mapName);
                 m_recent->addItem(i);
             }
+            svc->requestImages("agent", needAgents.values());
+            svc->requestImages("map", needMaps.values());
             if (v.empty())
                 m_recent->addItem("Nenhum clipe encontrado em " + m_cfg.effectiveShadowPlayDir());
             else if (autoOpen && !m_job && v.front().created.secsTo(now) <= kFreshOpenSec && v.front().path != m_file)

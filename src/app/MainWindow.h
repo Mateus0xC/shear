@@ -186,6 +186,7 @@ private:
     QString m_gameText;                              // "Mapa · Agente" que veio do jogo (sem as tags)
     QString m_apiMap, m_apiAgent;                    // mapa e agente que vieram do jogo
     QJsonObject m_manual;                            // o que foi digitado à mão: {map, agent, kills, comment}
+    bool m_imgRefreshQueued = false;
     QStringList m_autoTags;                          // tag de kills achada sozinha (ex.: "3k")
     void refreshInfoBar();                           // atualiza os textos do topo
     void pickName(const QString &field);             // menu para escolher "map" ou "agent"

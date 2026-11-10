@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QImage>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -97,12 +98,12 @@ ValorantService::ValorantService(QObject *parent) : QObject(parent) {}
 
 bool ValorantService::stale(const Ctx &c) const { return c.gen >= 0 && c.gen != m_gen; }
 
-void ValorantService::get(const QString &url, const Headers &headers, bool local, Reply cb)
+void ValorantService::get(const QString &url, const Headers &headers, bool local, Reply cb, int timeoutMs)
 {
     if (!m_nam)
         m_nam = new QNetworkAccessManager(this);
     QNetworkRequest rq{QUrl(url)};
-    rq.setTransferTimeout(2000);
+    rq.setTransferTimeout(timeoutMs);
     for (const auto &h : headers)
         rq.setRawHeader(h.first, h.second);
     QNetworkReply *r = m_nam->get(rq);
@@ -384,6 +385,80 @@ void ValorantService::backfill()
 void ValorantService::saveMatchOffset(const QString &matchId, double offsetSec)
 {
     runAsync(this, [matchId, offsetSec] { return store::saveMatch(matchId, {{"offsetSec", offsetSec}}); }, [](bool) {});
+}
+
+// nome -> {uuid, url da imagem}, lido das listas do valorant-api.com que já estão em cache (recarrega se o arquivo mudou)
+void ValorantService::loadImageIndex()
+{
+    const QString dir = store::dir();
+    const QDateTime stamp = qMax(QFileInfo(dir + "/maps.json").lastModified(), QFileInfo(dir + "/agents.json").lastModified());
+    if (stamp == m_imgIdxStamp && stamp.isValid())
+        return;
+    m_imgIdxStamp = stamp;
+    const struct { int idx; const char *file; const char *urlField; } kinds[] = {{0, "agents.json", "displayIcon"},
+                                                                              {1, "maps.json", "listViewIcon"}};
+    for (const auto &k : kinds) {
+        m_imgIdx[k.idx].clear();
+        for (const auto &v : QJsonDocument::fromJson(store::readCache(k.file)).object().value("data").toArray()) {
+            const QJsonObject o = v.toObject();
+            const QString name = o.value("displayName").toString(), url = o.value(k.urlField).toString();
+            if (!name.isEmpty() && !url.isEmpty() && !m_imgIdx[k.idx].contains(name))
+                m_imgIdx[k.idx].insert(name, {o.value("uuid").toString(), url});
+        }
+    }
+}
+
+static QString imagePath(const QString &kind, const QString &uuid)
+{
+    return store::dir() + "/img/" + kind + "_" + uuid + ".png";
+}
+
+QString ValorantService::imageFile(const QString &kind, const QString &name)
+{
+    loadImageIndex();
+    const ImgRef ref = m_imgIdx[kind == "map" ? 1 : 0].value(name);
+    if (ref.uuid.isEmpty())
+        return {};
+    const QString path = imagePath(kind, ref.uuid);
+    return QFile::exists(path) ? path : QString();
+}
+
+void ValorantService::requestImages(const QString &kind, const QStringList &names)
+{
+    loadImageIndex();
+    for (const QString &name : names) {
+        const ImgRef ref = m_imgIdx[kind == "map" ? 1 : 0].value(name);
+        if (ref.uuid.isEmpty() || QFile::exists(imagePath(kind, ref.uuid)))
+            continue;
+        const QString key = kind + "|" + ref.uuid;
+        if (m_imgPending.contains(key))
+            continue;
+        m_imgPending.insert(key);
+        get(ref.url, {}, false, [this, kind, name, ref, key](int st, const QByteArray &bytes) {
+            if (st != 200) {
+                m_imgPending.remove(key); // tenta de novo numa próxima vez
+                return;
+            }
+            runAsync(
+                this,
+                [kind, ref, bytes] {
+                    QImage img = QImage::fromData(bytes);
+                    if (img.isNull())
+                        return QString();
+                    // guarda reduzida: o ícone do agente vem com ~570 KB e a faixa do mapa em tamanho grande
+                    img = kind == "map" ? img.scaledToWidth(640, Qt::SmoothTransformation)
+                                        : img.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                    const QString path = imagePath(kind, ref.uuid);
+                    QDir().mkpath(QFileInfo(path).absolutePath());
+                    return img.save(path, "PNG") ? path : QString();
+                },
+                [this, kind, name, key](QString path) {
+                    m_imgPending.remove(key);
+                    if (!path.isEmpty())
+                        emit imageReady(kind, name, path);
+                });
+        }, 30000);
+    }
 }
 
 void ValorantService::saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual, bool wait)

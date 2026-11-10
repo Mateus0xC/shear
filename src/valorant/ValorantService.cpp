@@ -41,6 +41,21 @@ static QJsonArray eventsToJson(const QVector<MatchEvent> &ev)
     return a;
 }
 
+static QVector<MatchEvent> eventsFromJson(const QJsonArray &a);
+
+static MatchData matchDataFromJson(const QString &id, const QJsonObject &m)
+{
+    MatchData d;
+    d.matchId = id;
+    d.events = eventsFromJson(m.value("events").toArray());
+    for (const auto &v : m.value("rounds").toArray())
+        d.roundStartsMs.push_back(qint64(v.toDouble()));
+    d.endMs = qint64(m.value("startMs").toDouble()) + qint64(m.value("lengthMs").toDouble());
+    if (m.contains("offsetSec"))
+        d.offsetSec = m.value("offsetSec").toDouble();
+    return d;
+}
+
 static QVector<MatchEvent> eventsFromJson(const QJsonArray &a)
 {
     QVector<MatchEvent> out;
@@ -147,9 +162,12 @@ void ValorantService::loadKnownEvents(std::shared_ptr<Ctx> c)
     runAsync(this, [c] { return store::loadMatch(c->matchId); }, [this, c](QJsonObject match) {
         if (stale(*c))
             return;
-        if (match.contains("events"))
-            return emit eventsReady(c->clipPath, c->matchId, eventsFromJson(match.value("events").toArray()),
-                                    match.contains("offsetSec") ? match.value("offsetSec").toDouble() : qQNaN());
+        if (match.contains("events")) {
+            emit matchDataReady(c->clipPath, matchDataFromJson(c->matchId, match));
+            if (match.contains("rounds"))
+                return;
+        }
+        // sem eventos (partida estava em andamento) ou sem os rounds (guardado numa versão anterior): baixa de novo
         c->detailsOnly = true;
         c->pending = {c->matchId};
         step1(c);
@@ -262,15 +280,16 @@ void ValorantService::applyDetails(std::shared_ptr<Ctx> c, const QString &matchI
         [matchId, body, puuid] {
             const QVector<MatchEvent> ev = extractMyEvents(body, puuid);
             const MatchSummary m = parseMatchDetails(body, puuid);
-            store::saveMatch(matchId, {{"events", eventsToJson(ev)}, {"startMs", double(m.startMs)},
+            QJsonArray rounds;
+            for (const qint64 r : extractRoundStarts(body))
+                rounds.push_back(double(r));
+            store::saveMatch(matchId, {{"events", eventsToJson(ev)}, {"rounds", rounds}, {"startMs", double(m.startMs)},
                                        {"lengthMs", double(m.lengthMs)}});
-            const QJsonObject saved = store::loadMatch(matchId);
-            const double off = saved.contains("offsetSec") ? saved.value("offsetSec").toDouble() : qQNaN();
-            return std::make_pair(ev, off);
+            return matchDataFromJson(matchId, store::loadMatch(matchId));
         },
-        [this, c, matchId, then](std::pair<QVector<MatchEvent>, double> r) {
+        [this, c, matchId, then](MatchData d) {
             if (!stale(*c) && !c->clipPath.isEmpty() && matchId == c->matchId)
-                emit eventsReady(c->clipPath, matchId, r.first, r.second);
+                emit matchDataReady(c->clipPath, d);
             then();
         });
 }
@@ -286,7 +305,7 @@ void ValorantService::backfill()
         const QJsonObject clips = store::loadClips();
         for (auto it = clips.begin(); it != clips.end() && todo.size() < 5; ++it) {
             const QString id = it.value().toObject().value("matchId").toString();
-            if (!id.isEmpty() && !todo.contains(id) && !store::loadMatch(id).contains("events"))
+            if (!id.isEmpty() && !todo.contains(id) && !store::loadMatch(id).contains("rounds"))
                 todo << id;
         }
         return todo;

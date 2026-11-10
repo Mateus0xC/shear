@@ -416,6 +416,34 @@ private slots:
         ace.resize(3);
         QCOMPARE(valorant::makeTags(ace), QStringList({"3k"}));
     }
+    void valorant_round_starts_and_last_round_span()
+    {
+        const QByteArray json = R"({"matchInfo":{"gameStartMillis":1000000},"kills":[
+            {"killer":"a","victim":"b","gameTime":40000,"roundTime":10000,"round":0},
+            {"killer":"a","victim":"b","gameTime":60000,"roundTime":30000,"round":0},
+            {"killer":"a","victim":"b","gameTime":150000,"roundTime":20000,"round":1},
+            {"killer":"a","victim":"b","gameTime":300000,"roundTime":50000,"round":2}]})";
+        const auto starts = valorant::extractRoundStarts(json);
+        QCOMPARE(starts, QVector<qint64>({1030000, 1130000, 1250000}));
+        // clipe de 100 s que termina em 1200000 (começa em 1100000), sem ajuste; partida acaba em 1500000
+        // round 1 = [1130000, 1250000) -> 30..100 s no clipe (70 s dentro do clipe): é ele
+        auto sp = valorant::pickLastRoundSpan(starts, 1500000, 1200000, 100.0, 0.0);
+        QVERIFY(sp);
+        QCOMPARE(sp->first, 30.0);
+        QCOMPARE(sp->second, 100.0);
+        // clipe termina em 1135000: o round 1 só tem 5 s lá dentro (< 10) -> vale o round 0
+        sp = valorant::pickLastRoundSpan(starts, 1500000, 1135000, 100.0, 0.0);
+        QVERIFY(sp);
+        QCOMPARE(sp->first, 0.0);  // o round 0 começou antes do clipe
+        QCOMPARE(sp->second, 95.0); // termina onde o round 1 começa (1130000 -> 95 s do clipe)
+        // com offset: tudo desloca
+        sp = valorant::pickLastRoundSpan(starts, 1500000, 1200000, 100.0, 10.0);
+        QVERIFY(sp);
+        QCOMPARE(sp->first, 40.0);
+        // clipe antes de qualquer round -> nada
+        QVERIFY(!valorant::pickLastRoundSpan(starts, 1500000, 900000, 50.0, 0.0));
+        QVERIFY(!valorant::pickLastRoundSpan({}, 1500000, 1200000, 100.0, 0.0));
+    }
 };
 
 QTEST_APPLESS_MAIN(CoreTest)

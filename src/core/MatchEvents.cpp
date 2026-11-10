@@ -33,6 +33,54 @@ QVector<MatchEvent> extractMyEvents(const QByteArray &json, const QString &puuid
     return out;
 }
 
+QVector<qint64> extractRoundStarts(const QByteArray &json)
+{
+    const QJsonObject o = QJsonDocument::fromJson(json).object();
+    const qint64 start = qint64(o.value("matchInfo").toObject().value("gameStartMillis").toDouble());
+    std::map<int, qint64> byRound;
+    if (start > 0) {
+        for (const auto &v : o.value("kills").toArray()) {
+            const QJsonObject k = v.toObject();
+            const qint64 s = start + qint64(k.value("gameTime").toDouble()) - qint64(k.value("roundTime").toDouble());
+            const int round = k.value("round").toInt();
+            auto it = byRound.find(round);
+            if (it == byRound.end() || s < it->second)
+                byRound[round] = s;
+        }
+    }
+    QVector<qint64> out;
+    for (const auto &r : byRound)
+        out.push_back(r.second);
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+std::optional<std::pair<double, double>> pickLastRoundSpan(const QVector<qint64> &starts, qint64 matchEndMs,
+                                                           qint64 clipEndMs, double dur, double offsetSec, double minSec)
+{
+    if (starts.isEmpty() || dur <= 0)
+        return std::nullopt;
+    const double clipStartMs = double(clipEndMs) - dur * 1000.0;
+    const auto toClip = [&](qint64 abs) { return (double(abs) - clipStartMs) / 1000.0 + offsetSec; };
+    const auto span = [&](int i) {
+        const double a = toClip(starts[i]);
+        const double b = i + 1 < starts.size() ? toClip(starts[i + 1]) : toClip(matchEndMs);
+        return std::make_pair(std::max(a, 0.0), std::min(b, dur)); // só a parte que está dentro do clipe
+    };
+    int last = -1; // último round que começa antes do fim do clipe
+    for (int i = 0; i < starts.size(); ++i)
+        if (toClip(starts[i]) < dur)
+            last = i;
+    if (last < 0)
+        return std::nullopt;
+    auto s = span(last);
+    if (s.second - s.first < minSec && last > 0)
+        s = span(last - 1);
+    if (s.second - s.first <= 0)
+        return std::nullopt;
+    return s;
+}
+
 QVector<ClipEvent> alignToClip(const QVector<MatchEvent> &events, qint64 clipEndMs, double durationSec, double offsetSec)
 {
     QVector<ClipEvent> out;

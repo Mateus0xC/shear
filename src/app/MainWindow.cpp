@@ -646,16 +646,41 @@ valorant::ValorantService *MainWindow::ensureValorant()
                 m_gameText = parts.join(" · ");
                 applyValorantEvents(); // atualiza o rótulo (com as tags, se já houver eventos)
             });
-    connect(m_valorant, &valorant::ValorantService::eventsReady, this,
-            [this](const QString &path, const QString &matchId, const QVector<valorant::MatchEvent> &events,
-                   double offsetSec) {
+    connect(m_valorant, &valorant::ValorantService::matchDataReady, this,
+            [this](const QString &path, const valorant::MatchData &d) {
                 if (path != m_file) return;
-                m_matchId = matchId;
-                m_matchOffset = offsetSec;
-                m_vEvents = events;
+                m_matchId = d.matchId;
+                m_matchOffset = d.offsetSec;
+                m_vEvents = d.events;
+                m_roundStarts = d.roundStartsMs;
+                m_matchEndMs = d.endMs;
                 applyValorantEvents();
             });
     return m_valorant;
+}
+
+// I e O no último round capturado (se ele tiver 10 s ou mais no clipe; senão, o anterior). Só mexe se você ainda não mexeu
+// em I/O/trechos; se você calibrar (K) depois, refaz, desde que I/O ainda sejam os que o shear pôs. Ctrl+Z desfaz.
+void MainWindow::applyAutoRange(double dur, double offset)
+{
+    if (m_roundStarts.isEmpty() || dur <= 0 || m_clipEndMs <= 0 || m_job)
+        return;
+    const double s0 = m_timeline->start(), e0 = m_timeline->end();
+    const bool untouched =
+        m_timeline->gaps().empty() && !m_timeline->pendingGap() &&
+        (m_autoRange ? (std::abs(s0 - m_autoRange->first) < 0.05 && std::abs(e0 - m_autoRange->second) < 0.05)
+                     : (s0 <= 0.01 && e0 >= dur - 0.01));
+    if (!untouched)
+        return;
+    const auto span = valorant::pickLastRoundSpan(m_roundStarts, m_matchEndMs, m_clipEndMs, dur, offset);
+    if (!span || (std::abs(span->first - s0) < 0.01 && std::abs(span->second - e0) < 0.01))
+        return;
+    pushUndo(currentState());
+    m_timeline->setRange(snapIfFast(span->first), span->second);
+    m_autoRange = std::make_pair(m_timeline->start(), m_timeline->end());
+    metrics::log(QString("valorant: I/O automáticos no último round: %1 a %2 s").arg(m_timeline->start(), 0, 'f', 1)
+                     .arg(m_timeline->end(), 0, 'f', 1));
+    updateInfo();
 }
 
 // Ajuste do alinhamento: o da partida (tecla K), senão o do registro (valorant/offsetSec), senão o padrão.
@@ -740,6 +765,7 @@ void MainWindow::applyValorantEvents()
         }
     }
     m_timeline->setEvents(std::move(marks));
+    applyAutoRange(dur, currentOffset());
     QStringList parts;
     if (!m_gameText.isEmpty()) parts << m_gameText;
     parts << tags;
@@ -926,6 +952,9 @@ void MainWindow::openFile(const QString &path)
     m_gameInfo->clear();
     m_gameText.clear();
     m_vTags.clear();
+    m_roundStarts.clear();
+    m_matchEndMs = 0;
+    m_autoRange.reset();
     m_matchId.clear();
     m_matchOffset = std::numeric_limits<double>::quiet_NaN();
     m_vEvents.clear();

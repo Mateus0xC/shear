@@ -30,9 +30,8 @@ public:
 signals:
     void identified(const QString &clipPath, const QString &map, const QString &agent);
     // Meus kills e mortes da partida do clipe (horário absoluto).
-    // `offsetSec` é o ajuste guardado para a partida (NaN se nunca foi calibrada).
-    void eventsReady(const QString &clipPath, const QString &matchId, const QVector<shear::valorant::MatchEvent> &events,
-                     double offsetSec);
+    // Meus eventos, início dos rounds e ajuste guardado da partida do clipe.
+    void matchDataReady(const QString &clipPath, const shear::valorant::MatchData &data);
 
 private:
     struct Ctx;

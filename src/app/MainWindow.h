@@ -5,6 +5,7 @@
 #include "util/Settings.h"
 #include <QElapsedTimer>
 #include <limits>
+#include <optional>
 #include <QMainWindow>
 #include <vector>
 
@@ -178,6 +179,10 @@ private:
     QString m_gameText;                              // "Mapa · Agente" sem as tags
     void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline
     void jumpToEvent(int dir);
+    QVector<qint64> m_roundStarts;                   // início de cada round da partida (ms absoluto)
+    qint64 m_matchEndMs = 0;
+    std::optional<std::pair<double, double>> m_autoRange; // I/O que o shear pôs sozinho (para refazer se recalibrar)
+    void applyAutoRange(double dur, double offset);  // I/O = último round capturado
     void calibrateEvents();                          // K: a marca mais próxima do ponto atual passa a cair aqui
     QString m_matchId;
     double m_matchOffset = std::numeric_limits<double>::quiet_NaN(); // ajuste da partida (NaN = padrão)

@@ -3,6 +3,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <optional>
 #include <utility>
 
 // Eventos do jogador numa partida do Valorant e sua conversão para o tempo do clipe (puro: sem rede nem disco).
@@ -26,6 +27,26 @@ struct ClipEvent {
     int round = 0;
     QString weaponId;
 };
+
+// Tudo o que se guarda de uma partida para os clipes dela.
+struct MatchData {
+    QString matchId;
+    QVector<MatchEvent> events;
+    QVector<qint64> roundStartsMs; // início de cada round (ms absoluto), em ordem; o fim de um round é o início do seguinte
+    qint64 endMs = 0;              // fim da partida (início + duração)
+    double offsetSec = qQNaN();    // ajuste de alinhamento calibrado para a partida (NaN = nunca calibrada)
+};
+
+// Início de cada round em /match-details: gameStartMillis + (gameTime − roundTime) de qualquer kill do round.
+// Rounds sem nenhuma kill não aparecem.
+QVector<qint64> extractRoundStarts(const QByteArray &matchDetailsJson);
+
+// "Último round capturado": o round que contém o fim do clipe. Se o trecho dele dentro do clipe tiver menos de `minSec`,
+// vale o round anterior. O fim de cada round é o início do seguinte (o do último é o fim da partida). Devolve {I, O} em
+// segundos do clipe (já limitados a [0, duração]) ou nada se não houver round que cubra o clipe.
+std::optional<std::pair<double, double>> pickLastRoundSpan(const QVector<qint64> &roundStartsMs, qint64 matchEndMs,
+                                                           qint64 clipEndMs, double durationSec, double offsetSec,
+                                                           double minSec = 10.0);
 
 // Os MEUS eventos em /match-details: kills (killer == puuid) e mortes (victim == puuid), em ordem de horário.
 QVector<MatchEvent> extractMyEvents(const QByteArray &matchDetailsJson, const QString &puuid);

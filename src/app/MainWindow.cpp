@@ -55,6 +55,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
+#include "valorant/ValorantService.h"
 #include <algorithm>
 
 namespace shear {
@@ -272,7 +273,10 @@ QWidget *MainWindow::buildEditor()
     settingsBtn->setFocusPolicy(Qt::NoFocus);
     connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::openSettings);
     top->addWidget(back);
-    top->addWidget(m_title, 1);
+    top->addWidget(m_title);
+    m_gameInfo = new QLabel;
+    m_gameInfo->setForegroundRole(QPalette::PlaceholderText); // discreto
+    top->addWidget(m_gameInfo, 1);
     // Velocidade do preview: botão com menu (também as teclas - e +, Backspace volta a 1×)
     m_speedBtn = new QToolButton;
     m_speedBtn->setText("1×");
@@ -519,6 +523,23 @@ QWidget *MainWindow::buildEditor()
     });
     connect(m_mpv, &MpvWidget::firstFrame, this, [this] {
         metrics::log(QString("primeiro frame: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
+        // Valorant (mapa e agente): só depois do primeiro quadro, assíncrono, e em silêncio se algo falhar.
+        QTimer::singleShot(0, this, [this] {
+            if (m_file.isEmpty()) return;
+            if (!m_valorant) {
+                m_valorant = new valorant::ValorantService(this);
+                connect(m_valorant, &valorant::ValorantService::identified, this,
+                        [this](const QString &path, const QString &map, const QString &agent) {
+                            if (path != m_file) return;
+                            QStringList parts;
+                            if (!map.isEmpty()) parts << map;
+                            if (!agent.isEmpty()) parts << agent;
+                            m_gameInfo->setText(parts.isEmpty() ? QString() : "·  " + parts.join(" · "));
+                        });
+            }
+            const QFileInfo fi(m_file);
+            m_valorant->identify(m_file, fi.birthTime().isValid() ? fi.birthTime() : fi.lastModified(), fi.size());
+        });
     });
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
         m_mpv->seek(t);
@@ -784,6 +805,7 @@ void MainWindow::openFile(const QString &path)
     }
     m_file = path;
     m_title->setText(QFileInfo(path).fileName());
+    m_gameInfo->clear();
     setWindowTitle("shear"); // o título da janela é sempre só o nome do app
     m_timeline->reset(0);
     m_undo.clear();

@@ -93,6 +93,15 @@ Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para bai
   trecho (de ~0,16 s sem zoom até ~0,05 s no zoom mais fino). Toca quando o **frame muda**: mexer o mouse dentro do mesmo frame,
   ou subir e descer para trocar o nível de zoom, não dispara som. Dá para desligar em **Configurações → Som ao arrastar**.
 
+### Valorant: mapa e agente
+Com o Valorant (ou o Riot Client) aberto, o shear mostra "Mapa · Agente" ao lado do título dos clipes do Valorant (nome ou
+pasta com "valorant"). Usa a API local não oficial do cliente, só leitura, sem configurar nada: lê o `lockfile` da Riot, pede
+os tokens ao servidor local, acha a partida (a em andamento, para clipe recente; senão pelo `match-history`, comparando o
+horário do clipe com o da partida) e traduz os IDs com o valorant-api.com (cache local). Tudo roda depois do primeiro quadro,
+em segundo plano, com limite de 2 s por requisição; se o jogo estiver fechado ou algo falhar, nada aparece e nada muda.
+O resultado fica em `%LOCALAPPDATA%\Shear\Shearalorant\` (`clips.json`, `matches/`). Tokens e senha nunca vão para o disco.
+Clipes já identificados continuam mostrando mapa e agente com o jogo fechado.
+
 ### Overlay da NVIDIA
 O shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não
 aciona o aviso "pressione ... para abrir" do overlay da NVIDIA, enquanto `d3d11va`/`dxva2` acionam. Em Configurações dá para

@@ -19,7 +19,8 @@ add_library(shear_core STATIC
   src/core/CutPlanner.cpp
   src/core/ExportEstimate.cpp
   src/core/FfmpegCommandBuilder.cpp
-  src/core/OutputNaming.cpp)
+  src/core/OutputNaming.cpp
+  src/core/ValorantParse.cpp)
 target_include_directories(shear_core PUBLIC src)
 target_link_libraries(shear_core PUBLIC Qt6::Core)
 

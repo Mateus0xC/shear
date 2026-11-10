@@ -24,6 +24,7 @@ class QStackedWidget;
 
 namespace shear {
 
+namespace valorant { class ValorantService; }
 class ExportJob;
 class DamagePrefetch;
 class DamageScanner;
@@ -168,6 +169,8 @@ private:
     double m_holdUntilPos = 0;         // com dano: segura a imagem até o playback chegar aqui           // o início utilizável vira o primeiro keyframe depois do trecho corrompido
     ExportJob *m_job = nullptr;
     QElapsedTimer m_openClock;
+    QLabel *m_gameInfo = nullptr;                // "Mapa · Agente" (Valorant), discreto, ao lado do título
+    valorant::ValorantService *m_valorant = nullptr; // criado só na primeira consulta
 };
 
 } // namespace shear

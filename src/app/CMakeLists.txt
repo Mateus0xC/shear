@@ -8,6 +8,7 @@ add_executable(shear WIN32
   ${S}/timeline/TimelineWidget.cpp ${S}/timeline/KeyframeScanner.cpp ${S}/timeline/DamageScanner.cpp
   ${S}/export/ExportJob.cpp
   ${S}/platform/Windows.cpp
+  ${S}/valorant/ValorantService.cpp ${S}/valorant/ValorantStore.cpp
   ${S}/util/Settings.cpp ${S}/util/Metrics.cpp ${S}/util/CrashLog.cpp
   ${CMAKE_SOURCE_DIR}/resources/shear.rc ${CMAKE_SOURCE_DIR}/resources/shear.qrc) # ícone do exe (logo)
 

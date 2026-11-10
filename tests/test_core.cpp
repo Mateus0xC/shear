@@ -4,6 +4,7 @@
 #include "core/ExportEstimate.h"
 #include "core/FfmpegCommandBuilder.h"
 #include "core/OutputNaming.h"
+#include "core/ValorantParse.h"
 
 using namespace shear;
 
@@ -323,6 +324,55 @@ private slots:
         auto ex = [&](const QString &p) { return taken.contains(p); };
         QCOMPARE(uniqueOutputPath("D:/c", "clip", QTime(1, 2, 3), ex),
                  QString("D:/c/clip_shear_01-02-03_3.mp4"));
+    }
+    void valorant_lockfile_and_log()
+    {
+        QVERIFY(!valorant::parseLockfile("lixo").valid());
+        QVERIFY(!valorant::parseLockfile("a:1:0:x:https").valid());
+        const auto l2 = valorant::parseLockfile("Riot Client:1234:5678:senha:https\n");
+        QCOMPARE(l2.port, 5678);
+        QCOMPARE(l2.password, QString("senha"));
+        const auto r = valorant::parseShooterLog(
+            "x CI server version: release-13.09-shipping-18-5804228\n y https://glz-br-1.na.a.pvp.net/z");
+        QCOMPARE(r.region, QString("br"));
+        QCOMPARE(r.shard, QString("na"));
+        QCOMPARE(r.version, QString("release-13.09-shipping-18-5804228"));
+        QVERIFY(!valorant::parseShooterLog("nada").valid());
+    }
+    void valorant_coregame_and_names()
+    {
+        QCOMPARE(valorant::parseMatchId(R"({"Subject":"a","MatchID":"m1","Version":1})"), QString("m1"));
+        QCOMPARE(valorant::parseMatchId("{}"), QString());
+        const auto c = valorant::parseCoreGame(
+            R"({"MapID":"/Game/Maps/Ascent/Ascent","ModeID":"m","Players":[{"Subject":"X","CharacterID":"AAA"},{"Subject":"ME","CharacterID":"ABC-1"}]})",
+            "me");
+        QVERIFY(c.valid());
+        QCOMPARE(c.agentId, QString("ABC-1"));
+        QVERIFY(!valorant::parseCoreGame(R"({"MapID":"m","Players":[]})", "me").valid());
+        const QByteArray agents = R"({"data":[{"uuid":"abc-1","displayName":"Jett"}]})";
+        const QByteArray maps = R"({"data":[{"mapUrl":"/Game/Maps/Ascent/Ascent","displayName":"Ascent"}]})";
+        QCOMPARE(valorant::agentNameFor(agents, "ABC-1"), QString("Jett"));
+        QCOMPARE(valorant::agentNameFor(agents, "zzz"), QString());
+        QCOMPARE(valorant::mapNameFor(maps, "/Game/Maps/Ascent/Ascent"), QString("Ascent"));
+        QCOMPARE(valorant::clipKey("a.mp4", 10), QString("a.mp4|10"));
+        QVERIFY(valorant::looksLikeValorantClip("D:/NVIDIA/Valorant/Valorant 2026.mp4"));
+        QVERIFY(!valorant::looksLikeValorantClip("D:/NVIDIA/Outro/x.mp4"));
+    }
+    void valorant_history_and_details()
+    {
+        const QByteArray hist = R"({"History":[{"MatchID":"novo","GameStartTime":3000},{"MatchID":"meio","GameStartTime":2000},{"MatchID":"velho","GameStartTime":1000}]})";
+        QCOMPARE(valorant::pickMatchForClip(hist, 2500), QString("meio"));
+        QCOMPARE(valorant::pickMatchForClip(hist, 9000), QString("novo"));
+        QCOMPARE(valorant::pickMatchForClip(hist, 500), QString());
+        const auto m = valorant::parseMatchDetails(
+            R"({"matchInfo":{"mapId":"/Game/Maps/Ascent/Ascent","gameStartMillis":2000,"gameLengthMillis":1000},"players":[{"subject":"X","characterId":"a"},{"subject":"ME","characterId":"b"}]})",
+            "me");
+        QVERIFY(m.valid());
+        QCOMPARE(m.agentId, QString("b"));
+        QVERIFY(m.covers(2500, 0));
+        QVERIFY(!m.covers(3500, 0));
+        QVERIFY(m.covers(3500, 600));
+        QVERIFY(!m.covers(1500, 600));
     }
 };
 

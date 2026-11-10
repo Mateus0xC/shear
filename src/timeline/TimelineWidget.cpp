@@ -217,6 +217,7 @@ void TimelineWidget::reset(double duration)
     m_start = 0;
     m_end = duration;
     m_kf.clear();
+    m_events.clear();
     m_floor = 0;
     m_gaps.clear();
     m_pendingGap.reset();
@@ -359,6 +360,29 @@ double TimelineWidget::xToSec(double x) const
     return m_dur > 0 ? std::clamp((x - kMargin) / w, 0.0, 1.0) * m_dur : 0;
 }
 
+void TimelineWidget::setEvents(std::vector<Event> ev)
+{
+    std::sort(ev.begin(), ev.end(), [](const Event &a, const Event &b) { return a.t < b.t; });
+    m_events = std::move(ev);
+    update();
+}
+
+std::optional<double> TimelineWidget::prevEvent(double t) const
+{
+    for (auto it = m_events.rbegin(); it != m_events.rend(); ++it)
+        if (it->t < t - 0.15)
+            return it->t;
+    return std::nullopt;
+}
+
+std::optional<double> TimelineWidget::nextEvent(double t) const
+{
+    for (const Event &e : m_events)
+        if (e.t > t + 0.05)
+            return e.t;
+    return std::nullopt;
+}
+
 void TimelineWidget::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
@@ -397,6 +421,19 @@ void TimelineWidget::paintEvent(QPaintEvent *)
     for (double k : m_kf) {
         const double x = std::round(secToX(k)) + 0.5;
         p.drawLine(QPointF(x, bottom - 12), QPointF(x, bottom));
+    }
+
+    for (const Event &e : m_events) { // kill = verde, morte = roxo; losango pequeno no alto, com um traço fino até a base
+        const double x = std::round(secToX(e.t)) + 0.5;
+        const QColor col = e.kill ? QColor(70, 215, 120) : QColor(190, 100, 255);
+        p.setPen(QPen(QColor(col.red(), col.green(), col.blue(), 110), 1));
+        p.drawLine(QPointF(x, top + 6), QPointF(x, bottom - 12));
+        QPolygonF d;
+        d << QPointF(x, top - 1) << QPointF(x + 4.5, top + 4.5) << QPointF(x, top + 10) << QPointF(x - 4.5, top + 4.5);
+        p.setPen(QPen(QColor(20, 20, 24), 1));
+        p.setBrush(col);
+        p.drawPolygon(d);
+        p.setBrush(Qt::NoBrush);
     }
 
     if (m_ghost) {

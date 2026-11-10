@@ -36,6 +36,15 @@ public:
     // Começo do vídeo corrompido: nada antes de t pode ser marcado nem exportado (desenhado hachurado em vermelho).
     void setDamagedUntil(double t);
     double damagedUntil() const { return m_floor; }
+    // Kills e mortes (Valorant): marcas discretas no alto da timeline, em cores diferentes das dos keyframes.
+    struct Event {
+        double t = 0;
+        bool kill = true;
+    };
+    void setEvents(std::vector<Event> ev);
+    bool hasEvents() const { return !m_events.empty(); }
+    std::optional<double> prevEvent(double t) const; // último evento antes de t (com folga de 0,15 s)
+    std::optional<double> nextEvent(double t) const; // primeiro evento depois de t
     void setFps(double fps) { m_fps = fps; } // com a taxa de quadros, o zoom fino anda de frame em frame
 
     double duration() const { return m_dur; }
@@ -84,6 +93,7 @@ private:
     std::vector<Gap> m_gaps;
     std::optional<double> m_pendingGap;
     std::vector<double> m_kf;
+    std::vector<Event> m_events; // em ordem de tempo
     std::optional<double> m_ghost;
     bool m_scanDone = false;
     bool m_snapStart = false;

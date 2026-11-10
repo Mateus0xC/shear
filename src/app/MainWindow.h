@@ -1,6 +1,7 @@
 #pragma once
 #include "core/CutTypes.h"
 #include "core/ExportEstimate.h"
+#include "core/MatchEvents.h"
 #include "util/Settings.h"
 #include <QElapsedTimer>
 #include <QMainWindow>
@@ -171,6 +172,13 @@ private:
     QElapsedTimer m_openClock;
     QLabel *m_gameInfo = nullptr;                // "Mapa · Agente" (Valorant), discreto, ao lado do título
     valorant::ValorantService *m_valorant = nullptr; // criado só na primeira consulta
+    QVector<shear::valorant::MatchEvent> m_vEvents;  // meus kills/mortes da partida (horário absoluto)
+    qint64 m_clipEndMs = 0, m_clipSize = 0;          // fim do clipe (data de criação) e tamanho, para alinhar e guardar
+    QString m_gameText;                              // "Mapa · Agente" sem as tags
+    void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline
+    void jumpToEvent(int dir);
+    valorant::ValorantService *ensureValorant();     // cria e liga o serviço na primeira vez
+    QStringList m_vTags;                             // últimas tags guardadas para o clipe aberto
 };
 
 } // namespace shear

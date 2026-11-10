@@ -3,6 +3,7 @@
 #include "core/CutPlanner.h"
 #include "core/ExportEstimate.h"
 #include "core/FfmpegCommandBuilder.h"
+#include "core/MatchEvents.h"
 #include "core/OutputNaming.h"
 #include "core/ValorantParse.h"
 
@@ -373,6 +374,47 @@ private slots:
         QVERIFY(!m.covers(3500, 0));
         QVERIFY(m.covers(3500, 600));
         QVERIFY(!m.covers(1500, 600));
+    }
+    void valorant_events_extract_align_export_tags()
+    {
+        using valorant::MatchEvent;
+        const QByteArray json = R"({"matchInfo":{"gameStartMillis":1000000},"kills":[
+            {"killer":"ME","victim":"a","gameTime":10000,"round":1,"finishingDamage":{"damageItem":"w1"}},
+            {"killer":"b","victim":"ME","gameTime":30000,"round":1,"finishingDamage":{"damageItem":""}},
+            {"killer":"x","victim":"y","gameTime":5000,"round":1},
+            {"killer":"me","victim":"c","gameTime":20000,"round":1}]})";
+        const auto ev = valorant::extractMyEvents(json, "me");
+        QCOMPARE(ev.size(), 3);
+        QCOMPARE(ev[0].absMs, qint64(1010000));
+        QCOMPARE(int(ev[0].kind), int(MatchEvent::Kill));
+        QCOMPARE(ev[0].weaponId, QString("w1"));
+        QCOMPARE(int(ev[2].kind), int(MatchEvent::Death));
+        // clipe termina em 1040000 e dura 40 s: começa em 1000000
+        auto al = valorant::alignToClip(ev, 1040000, 40.0);
+        QCOMPARE(al.size(), 3);
+        QCOMPARE(al[0].t, 10.0);
+        QCOMPARE(al[2].t, 30.0);
+        // clipe de 15 s (começa em 1025000): só a morte, aos 5 s
+        al = valorant::alignToClip(ev, 1040000, 15.0);
+        QCOMPARE(al.size(), 1);
+        QCOMPARE(al[0].t, 5.0);
+        // offset desloca todos
+        al = valorant::alignToClip(ev, 1040000, 40.0, 2.0);
+        QCOMPARE(al[0].t, 12.0);
+        // exportado: início 5, fim 35, trecho apagado 15..25 (o kill das 20 s some; a morte aos 30 vira 30-5-10 = 15)
+        const auto full = valorant::alignToClip(ev, 1040000, 40.0);
+        const auto ex = valorant::toExported(full, 5.0, 35.0, {{15.0, 25.0}});
+        QCOMPARE(ex.size(), 2);
+        QCOMPARE(ex[0].t, 5.0);
+        QCOMPARE(ex[1].t, 15.0);
+        // tags
+        QCOMPARE(valorant::makeTags(full), QStringList({"2k", "morreu"}));
+        QCOMPARE(valorant::makeTags({}), QStringList());
+        QVector<valorant::ClipEvent> ace;
+        for (int i = 0; i < 5; ++i) ace.push_back({MatchEvent::Kill, double(i), 7, {}});
+        QCOMPARE(valorant::makeTags(ace), QStringList({"ace"}));
+        ace.resize(3);
+        QCOMPARE(valorant::makeTags(ace), QStringList({"3k"}));
     }
 };
 

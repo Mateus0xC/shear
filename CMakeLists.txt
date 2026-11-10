@@ -18,6 +18,7 @@ add_library(shear_core STATIC
   src/core/CleanStart.cpp
   src/core/CutPlanner.cpp
   src/core/ExportEstimate.cpp
+  src/core/MatchEvents.cpp
   src/core/FfmpegCommandBuilder.cpp
   src/core/OutputNaming.cpp
   src/core/ValorantParse.cpp)

@@ -1,4 +1,5 @@
 #pragma once
+#include "core/MatchEvents.h"
 #include <QDateTime>
 #include <QObject>
 #include <QString>
@@ -19,9 +20,15 @@ public:
     static constexpr qint64 kAssociateMaxAgeSec = 300;
 
     void identify(const QString &clipPath, const QDateTime &created, qint64 size);
+    // Baixa (uma por vez, em segundo plano) os detalhes das partidas já associadas que ainda não os têm. Sem jogo, não faz nada.
+    void backfill();
+    // Guarda as tags (2k, 3k, ... morreu) do clipe no clips.json.
+    void saveTags(const QString &clipPath, qint64 size, const QStringList &tags);
 
 signals:
     void identified(const QString &clipPath, const QString &map, const QString &agent);
+    // Meus kills e mortes da partida do clipe (horário absoluto).
+    void eventsReady(const QString &clipPath, const QVector<shear::valorant::MatchEvent> &events);
 
 private:
     struct Ctx;
@@ -32,6 +39,11 @@ private:
     void step3(std::shared_ptr<Ctx> c);
     void step4(std::shared_ptr<Ctx> c);
     void stepHistory(std::shared_ptr<Ctx> c);
+    void stepDetails(std::shared_ptr<Ctx> c);
+    void loadKnownEvents(std::shared_ptr<Ctx> c);
+    void proceed(std::shared_ptr<Ctx> c);
+    void applyDetails(std::shared_ptr<Ctx> c, const QString &matchId, const QByteArray &body, std::function<void()> then);
+    bool stale(const Ctx &c) const;
     void finish(std::shared_ptr<Ctx> c, const QString &why);
     QList<QPair<QByteArray, QByteArray>> remoteHeaders(const Ctx &c) const;
     void resolveNames(std::shared_ptr<Ctx> c);

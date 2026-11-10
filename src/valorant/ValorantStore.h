@@ -8,7 +8,8 @@ namespace shear::valorant::store {
 QString dir();
 QJsonObject loadClips();                                   // chave do clipe -> entrada
 bool saveClip(const QString &key, const QJsonObject &entry); // lê, troca a entrada e regrava
-bool saveMatch(const QString &matchId, const QJsonObject &match);
+bool saveMatch(const QString &matchId, const QJsonObject &fields);   // junta os campos ao que já existe
+QJsonObject loadMatch(const QString &matchId);
 QByteArray readCache(const QString &name);                 // maps.json / agents.json
 bool writeCache(const QString &name, const QByteArray &data);
 

@@ -28,7 +28,33 @@ struct ValorantService::Ctx {
     CoreGameInfo game;
     QString mapName, agentName;
     bool live = false; // tenta primeiro a partida em andamento
+    bool detailsOnly = false; // só baixa os detalhes de `pending` (sem procurar a partida)
+    QStringList pending;
 };
+
+static QJsonArray eventsToJson(const QVector<MatchEvent> &ev)
+{
+    QJsonArray a;
+    for (const MatchEvent &e : ev)
+        a.push_back(QJsonObject{{"k", e.kind == MatchEvent::Kill ? "kill" : "death"}, {"t", double(e.absMs)},
+                                {"round", e.round}, {"weapon", e.weaponId}});
+    return a;
+}
+
+static QVector<MatchEvent> eventsFromJson(const QJsonArray &a)
+{
+    QVector<MatchEvent> out;
+    for (const auto &v : a) {
+        const QJsonObject o = v.toObject();
+        MatchEvent e;
+        e.kind = o.value("k").toString() == "kill" ? MatchEvent::Kill : MatchEvent::Death;
+        e.absMs = qint64(o.value("t").toDouble());
+        e.round = o.value("round").toInt();
+        e.weaponId = o.value("weapon").toString();
+        out.push_back(e);
+    }
+    return out;
+}
 
 using Headers = QList<QPair<QByteArray, QByteArray>>;
 
@@ -50,6 +76,8 @@ static void runAsync(QObject *ctx, Fn work, Done done)
 }
 
 ValorantService::ValorantService(QObject *parent) : QObject(parent) {}
+
+bool ValorantService::stale(const Ctx &c) const { return c.gen >= 0 && c.gen != m_gen; }
 
 void ValorantService::get(const QString &url, const Headers &headers, bool local, Reply cb)
 {
@@ -92,17 +120,35 @@ void ValorantService::identify(const QString &clipPath, const QDateTime &created
 
     // Já associado antes (vale mesmo com o jogo fechado) ou ainda dá para associar à partida em andamento?
     runAsync(this, [c] { return store::loadClips().value(c->key).toObject(); }, [this, c](QJsonObject known) {
-        if (c->gen != m_gen)
+        if (stale(*c))
             return;
         if (!known.isEmpty()) {
             const QString map = known.value("map").toString(), agent = known.value("agent").toString();
             if (!map.isEmpty() || !agent.isEmpty())
                 emit identified(c->clipPath, map, agent);
-            return finish(c, "clipe já conhecido");
+            c->matchId = known.value("matchId").toString();
+            finish(c, "clipe já conhecido");
+            return loadKnownEvents(c);
         }
         // Clipe recente: tenta a partida em andamento. Clipe antigo (ou partida já acabou): acha a partida pelo horário.
         const qint64 age = c->created.secsTo(QDateTime::currentDateTime());
         c->live = age >= 0 && age <= kAssociateMaxAgeSec;
+        step1(c);
+    });
+}
+
+// Clipe já associado: usa os eventos guardados; se ainda não há (a partida estava em andamento), baixa os detalhes.
+void ValorantService::loadKnownEvents(std::shared_ptr<Ctx> c)
+{
+    if (c->matchId.isEmpty())
+        return;
+    runAsync(this, [c] { return store::loadMatch(c->matchId); }, [this, c](QJsonObject match) {
+        if (stale(*c))
+            return;
+        if (match.contains("events"))
+            return emit eventsReady(c->clipPath, eventsFromJson(match.value("events").toArray()));
+        c->detailsOnly = true;
+        c->pending = {c->matchId};
         step1(c);
     });
 }
@@ -130,7 +176,7 @@ void ValorantService::step1(std::shared_ptr<Ctx> c)
             return p;
         },
         [this, c](Prep p) {
-            if (c->gen != m_gen)
+            if (stale(*c))
                 return;
             if (!p.lock.valid())
                 return finish(c, "jogo fechado");
@@ -149,7 +195,7 @@ void ValorantService::step2(std::shared_ptr<Ctx> c)
     const QString base = QString("https://127.0.0.1:%1").arg(c->lock.port);
     get(base + "/entitlements/v1/token", {{"Authorization", auth}}, true,
         [this, c, auth, base](int st, const QByteArray &b) {
-            if (c->gen != m_gen)
+            if (stale(*c))
                 return;
             const QJsonObject o = QJsonDocument::fromJson(b).object();
             c->accessToken = o.value("accessToken").toString();
@@ -158,11 +204,11 @@ void ValorantService::step2(std::shared_ptr<Ctx> c)
             if (st != 200 || c->accessToken.isEmpty() || c->puuid.isEmpty())
                 return finish(c, "sem tokens do cliente");
             if (!c->region.version.isEmpty())
-                return c->live ? step3(c) : stepHistory(c);
+                return proceed(c);
             // sem versão no log: usa a da sessão do produto "valorant"
             get(base + "/product-session/v1/external-sessions", {{"Authorization", auth}}, true,
                 [this, c](int, const QByteArray &sb) {
-                    if (c->gen != m_gen)
+                    if (stale(*c))
                         return;
                     const QJsonObject all = QJsonDocument::fromJson(sb).object();
                     for (auto it = all.begin(); it != all.end(); ++it) {
@@ -172,9 +218,91 @@ void ValorantService::step2(std::shared_ptr<Ctx> c)
                     }
                     if (c->region.version.isEmpty())
                         return finish(c, "versão do cliente não encontrada");
-                    c->live ? step3(c) : stepHistory(c);
+                    proceed(c);
                 });
         });
+}
+
+void ValorantService::proceed(std::shared_ptr<Ctx> c)
+{
+    if (c->detailsOnly)
+        stepDetails(c);
+    else if (c->live)
+        step3(c);
+    else
+        stepHistory(c);
+}
+
+// Detalhes de uma ou mais partidas já associadas (uma de cada vez)
+void ValorantService::stepDetails(std::shared_ptr<Ctx> c)
+{
+    if (c->pending.isEmpty())
+        return finish(c, "detalhes das partidas atualizados");
+    const QString id = c->pending.takeFirst();
+    const QString pd = QString("https://pd.%1.a.pvp.net").arg(c->region.shard);
+    get(pd + "/match-details/v1/matches/" + id, remoteHeaders(*c), false, [this, c, id](int st, const QByteArray &d) {
+        if (stale(*c))
+            return;
+        if (st != 200) // partida ainda em andamento ou fora do alcance: tenta de novo numa próxima vez
+            return stepDetails(c);
+        applyDetails(c, id, d, [this, c] { stepDetails(c); });
+    });
+}
+
+// Extrai meus eventos, guarda em matches/<id>.json e avisa quem espera por eles
+void ValorantService::applyDetails(std::shared_ptr<Ctx> c, const QString &matchId, const QByteArray &body,
+                                   std::function<void()> then)
+{
+    const QString puuid = c->puuid;
+    runAsync(
+        this,
+        [matchId, body, puuid] {
+            const QVector<MatchEvent> ev = extractMyEvents(body, puuid);
+            const MatchSummary m = parseMatchDetails(body, puuid);
+            store::saveMatch(matchId, {{"events", eventsToJson(ev)}, {"startMs", double(m.startMs)},
+                                       {"lengthMs", double(m.lengthMs)}});
+            return ev;
+        },
+        [this, c, matchId, then](QVector<MatchEvent> ev) {
+            if (!stale(*c) && !c->clipPath.isEmpty() && matchId == c->matchId)
+                emit eventsReady(c->clipPath, ev);
+            then();
+        });
+}
+
+void ValorantService::backfill()
+{
+    auto c = std::make_shared<Ctx>();
+    c->gen = -1; // independe das consultas de clipe (nunca fica "velha")
+    c->detailsOnly = true;
+    c->clock.start();
+    runAsync(this, [] {
+        QStringList todo;
+        const QJsonObject clips = store::loadClips();
+        for (auto it = clips.begin(); it != clips.end() && todo.size() < 5; ++it) {
+            const QString id = it.value().toObject().value("matchId").toString();
+            if (!id.isEmpty() && !todo.contains(id) && !store::loadMatch(id).contains("events"))
+                todo << id;
+        }
+        return todo;
+    }, [this, c](QStringList todo) {
+        if (todo.isEmpty())
+            return;
+        c->pending = todo;
+        step1(c);
+    });
+}
+
+void ValorantService::saveTags(const QString &clipPath, qint64 size, const QStringList &tags)
+{
+    const QString key = clipKey(QFileInfo(clipPath).fileName(), size);
+    runAsync(this, [key, tags] {
+        QJsonObject e = store::loadClips().value(key).toObject();
+        if (e.isEmpty())
+            return false; // clipe sem partida associada
+        e.insert("tags", QJsonArray::fromStringList(tags));
+        return store::saveClip(key, e);
+    }, [](bool) {});
 }
 
 Headers ValorantService::remoteHeaders(const Ctx &c) const
@@ -190,7 +318,7 @@ void ValorantService::step3(std::shared_ptr<Ctx> c)
 {
     const QString glz = QString("https://glz-%1-1.%2.a.pvp.net").arg(c->region.region, c->region.shard);
     get(glz + "/core-game/v1/players/" + c->puuid, remoteHeaders(*c), false, [this, c](int st, const QByteArray &b) {
-        if (c->gen != m_gen)
+        if (stale(*c))
             return;
         c->matchId = st == 200 ? parseMatchId(b) : QString();
         if (c->matchId.isEmpty()) // fora de partida (ou a partida já acabou): procura pelo horário do clipe
@@ -206,14 +334,14 @@ void ValorantService::stepHistory(std::shared_ptr<Ctx> c)
     const qint64 clipEndMs = c->created.toMSecsSinceEpoch();
     get(pd + "/match-history/v1/history/" + c->puuid + "?startIndex=0&endIndex=20", remoteHeaders(*c), false,
         [this, c, pd, clipEndMs](int st, const QByteArray &b) {
-            if (c->gen != m_gen)
+            if (stale(*c))
                 return;
             c->matchId = st == 200 ? pickMatchForClip(b, clipEndMs) : QString();
             if (c->matchId.isEmpty())
                 return finish(c, QString("nenhuma partida no histórico para o horário do clipe (HTTP %1)").arg(st));
             get(pd + "/match-details/v1/matches/" + c->matchId, remoteHeaders(*c), false,
                 [this, c, clipEndMs](int st2, const QByteArray &d) {
-                    if (c->gen != m_gen)
+                    if (stale(*c))
                         return;
                     const MatchSummary m = st2 == 200 ? parseMatchDetails(d, c->puuid) : MatchSummary();
                     constexpr qint64 kSlackMs = 10 * 60 * 1000; // clipe salvo até 10 min depois do fim da partida
@@ -221,9 +349,11 @@ void ValorantService::stepHistory(std::shared_ptr<Ctx> c)
                         return finish(c, "o clipe não cai em nenhuma partida do histórico");
                     c->game.mapId = m.mapId;
                     c->game.agentId = m.agentId;
-                    c->accessToken.clear();
-                    c->entitlement.clear();
-                    resolveNames(c);
+                    applyDetails(c, c->matchId, d, [this, c] {
+                        c->accessToken.clear();
+                        c->entitlement.clear();
+                        resolveNames(c);
+                    });
                 });
         });
 }
@@ -233,7 +363,7 @@ void ValorantService::step4(std::shared_ptr<Ctx> c)
 {
     const QString glz = QString("https://glz-%1-1.%2.a.pvp.net").arg(c->region.region, c->region.shard);
     get(glz + "/core-game/v1/matches/" + c->matchId, remoteHeaders(*c), false, [this, c](int st, const QByteArray &b) {
-        if (c->gen != m_gen)
+        if (stale(*c))
             return;
         c->game = st == 200 ? parseCoreGame(b, c->puuid) : CoreGameInfo();
         if (!c->game.valid())
@@ -262,7 +392,7 @@ void ValorantService::resolveNames(std::shared_ptr<Ctx> c)
                 return true;
             },
             [this, c](bool) {
-                if (c->gen == m_gen && (!c->mapName.isEmpty() || !c->agentName.isEmpty()))
+                if (!stale(*c) && (!c->mapName.isEmpty() || !c->agentName.isEmpty()))
                     emit identified(c->clipPath, c->mapName, c->agentName);
                 finish(c, QString("partida associada (%1 · %2)").arg(c->mapName, c->agentName));
             });
@@ -275,17 +405,17 @@ void ValorantService::resolveNames(std::shared_ptr<Ctx> c)
             return c->mapName.isEmpty() || c->agentName.isEmpty(); // precisa baixar?
         },
         [this, c, save](bool needDownload) {
-            if (c->gen != m_gen)
+            if (stale(*c))
                 return;
             if (!needDownload)
                 return save();
             // uma única vez por consulta: mapas e agentes
             get("https://valorant-api.com/v1/maps", {}, false, [this, c, save](int s1, const QByteArray &maps) {
-                if (c->gen != m_gen)
+                if (stale(*c))
                     return;
                 get("https://valorant-api.com/v1/agents?isPlayableCharacter=true", {}, false,
                     [this, c, save, s1, maps](int s2, const QByteArray &agents) {
-                        if (c->gen != m_gen)
+                        if (stale(*c))
                             return;
                         runAsync(
                             this,

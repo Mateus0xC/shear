@@ -69,7 +69,8 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"Alt + ← → · , .", "Anda um quadro de cada vez"},
             {"Home · End", "Vai para o começo ou para o fim do vídeo"},
             {"0 a 9", "Vai direto para uma parte do vídeo: 0 é o começo, 5 é a metade, 9 é quase o fim"},
-            {"Q · E", "Vai para o ponto I ou para o ponto O"},
+            {"Shift + Q · Shift + E", "Vai para o ponto I ou para o ponto O"},
+            {"Q · E", "Clipe do Valorant com kills/mortes marcados: pula para o evento anterior ou próximo (sem eventos, vai para o ponto I ou O)"},
         }},
         {"Volume e zoom", {
             {"↑ ↓ · W S · roda do mouse sobre o vídeo", "Aumenta ou diminui o volume"},

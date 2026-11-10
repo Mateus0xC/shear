@@ -102,6 +102,17 @@ em segundo plano, com limite de 2 s por requisição; se o jogo estiver fechado 
 O resultado fica em `%LOCALAPPDATA%\Shear\Shearalorant\` (`clips.json`, `matches/`). Tokens e senha nunca vão para o disco.
 Clipes já identificados continuam mostrando mapa e agente com o jogo fechado.
 
+### Valorant: kills e mortes na timeline
+Depois que a partida acaba, o shear baixa o `match-details` dela (em segundo plano, uma partida de cada vez, ao abrir o app ou
+o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles aparecem como losangos no alto da timeline
+(**verde = kill, roxo = morte**, bem diferentes dos tracinhos cinza dos keyframes), e o rótulo ao lado do título ganha as tags
+(`2k`, `3k`, `4k`, `ace` e `morreu`). **Q** e **E** pulam para o evento anterior e o próximo; **Shift + Q** e **Shift + E**
+vão para os pontos I e O (sem eventos no clipe, Q e E continuam indo para I e O).
+
+O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]`. Se as marcas estiverem
+deslocadas em relação ao vídeo, o ajuste fica em `HKCU\Software\Shear\Shear`, valor `valorant/offsetSec` (segundos; positivo
+= as marcas aparecem mais tarde no clipe). O `metrics.log` mostra quantos eventos caíram no clipe e o offset usado.
+
 ### Overlay da NVIDIA
 O shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não
 aciona o aviso "pressione ... para abrir" do overlay da NVIDIA, enquanto `d3d11va`/`dxva2` acionam. Em Configurações dá para

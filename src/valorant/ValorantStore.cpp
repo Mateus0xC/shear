@@ -37,14 +37,31 @@ bool saveClip(const QString &key, const QJsonObject &entry)
     return writeAtomic(dir() + "/clips.json", QJsonDocument(all).toJson(QJsonDocument::Indented));
 }
 
-bool saveMatch(const QString &matchId, const QJsonObject &match)
+static bool safeId(const QString &id)
 {
     // o ID vem da rede: só aceita caracteres de um UUID, para nunca virar caminho
-    for (const QChar ch : matchId)
+    for (const QChar ch : id)
         if (!ch.isLetterOrNumber() && ch != '-')
             return false;
-    return !matchId.isEmpty() &&
-           writeAtomic(dir() + "/matches/" + matchId + ".json", QJsonDocument(match).toJson(QJsonDocument::Indented));
+    return !id.isEmpty();
+}
+
+QJsonObject loadMatch(const QString &matchId)
+{
+    if (!safeId(matchId))
+        return {};
+    QFile f(dir() + "/matches/" + matchId + ".json");
+    return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
+}
+
+bool saveMatch(const QString &matchId, const QJsonObject &fields)
+{
+    if (!safeId(matchId))
+        return false;
+    QJsonObject all = loadMatch(matchId);
+    for (auto it = fields.begin(); it != fields.end(); ++it)
+        all.insert(it.key(), it.value());
+    return writeAtomic(dir() + "/matches/" + matchId + ".json", QJsonDocument(all).toJson(QJsonDocument::Indented));
 }
 
 QByteArray readCache(const QString &name)

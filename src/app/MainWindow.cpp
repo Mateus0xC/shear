@@ -180,14 +180,20 @@ MainWindow::MainWindow()
             if (inEditor() && m_timeline->duration() > 0)
                 m_mpv->seek(m_timeline->duration() * n / 10.0);
         });
-    sc(Qt::Key_Q, [=, this] { if (inEditor()) m_mpv->seek(m_timeline->start()); }); // vai para o ponto I
-    // E: vai para o ponto O; se o vídeo estava rodando, para em cima dele (para ver/ajustar o fim)
-    sc(Qt::Key_E, [=, this] {
+    // Shift+Q: vai para o ponto I. Sem kills/mortes no clipe, Q também (como sempre foi).
+    const auto gotoStart = [=, this] { if (inEditor()) m_mpv->seek(m_timeline->start()); };
+    // Shift+E: vai para o ponto O; se o vídeo estava rodando, para em cima dele (para ver/ajustar o fim). Sem eventos, E também.
+    const auto gotoEnd = [=, this] {
         if (!inEditor()) return;
         if (!m_mpv->paused())
             m_mpv->setPaused(true);
         m_mpv->seek(m_timeline->end());
-    });
+    };
+    sc(QKeySequence(Qt::SHIFT | Qt::Key_Q), gotoStart);
+    sc(QKeySequence(Qt::SHIFT | Qt::Key_E), gotoEnd);
+    // Q / E: evento (kill ou morte) anterior / próximo, quando o clipe tem eventos do Valorant
+    sc(Qt::Key_Q, [=, this] { if (inEditor()) { if (m_timeline->hasEvents()) jumpToEvent(-1); else gotoStart(); } });
+    sc(Qt::Key_E, [=, this] { if (inEditor()) { if (m_timeline->hasEvents()) jumpToEvent(+1); else gotoEnd(); } });
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
     sc(QKeySequence::Redo, [=, this] { if (inEditor()) redo(); }); // Ctrl+Y e Ctrl+Shift+Z
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
@@ -519,6 +525,7 @@ QWidget *MainWindow::buildEditor()
     });
     connect(m_mpv, &MpvWidget::durationChanged, this, [this](double d) {
         m_timeline->setDuration(d);
+        applyValorantEvents();
         updateInfo();
     });
     connect(m_mpv, &MpvWidget::firstFrame, this, [this] {
@@ -526,19 +533,11 @@ QWidget *MainWindow::buildEditor()
         // Valorant (mapa e agente): só depois do primeiro quadro, assíncrono, e em silêncio se algo falhar.
         QTimer::singleShot(0, this, [this] {
             if (m_file.isEmpty()) return;
-            if (!m_valorant) {
-                m_valorant = new valorant::ValorantService(this);
-                connect(m_valorant, &valorant::ValorantService::identified, this,
-                        [this](const QString &path, const QString &map, const QString &agent) {
-                            if (path != m_file) return;
-                            QStringList parts;
-                            if (!map.isEmpty()) parts << map;
-                            if (!agent.isEmpty()) parts << agent;
-                            m_gameInfo->setText(parts.isEmpty() ? QString() : "·  " + parts.join(" · "));
-                        });
-            }
             const QFileInfo fi(m_file);
-            m_valorant->identify(m_file, fi.birthTime().isValid() ? fi.birthTime() : fi.lastModified(), fi.size());
+            const QDateTime created = fi.birthTime().isValid() ? fi.birthTime() : fi.lastModified();
+            m_clipEndMs = created.toMSecsSinceEpoch();
+            m_clipSize = fi.size();
+            ensureValorant()->identify(m_file, created, fi.size());
         });
     });
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
@@ -626,6 +625,66 @@ void MainWindow::deferredInit()
     migrateLegacyContextMenu(QCoreApplication::applicationFilePath()); // menu de contexto da versão antiga
     refreshRecent(m_autoOpenFresh);
     detectNvenc();
+    // Valorant: baixa, em segundo plano e uma de cada vez, os detalhes das partidas já associadas que ainda não os têm.
+    QTimer::singleShot(3000, this, [this] {
+        ensureValorant()->backfill();
+    });
+}
+
+valorant::ValorantService *MainWindow::ensureValorant()
+{
+    if (m_valorant)
+        return m_valorant;
+    m_valorant = new valorant::ValorantService(this);
+    connect(m_valorant, &valorant::ValorantService::identified, this,
+            [this](const QString &path, const QString &map, const QString &agent) {
+                if (path != m_file) return;
+                QStringList parts;
+                if (!map.isEmpty()) parts << map;
+                if (!agent.isEmpty()) parts << agent;
+                m_gameText = parts.join(" · ");
+                applyValorantEvents(); // atualiza o rótulo (com as tags, se já houver eventos)
+            });
+    connect(m_valorant, &valorant::ValorantService::eventsReady, this,
+            [this](const QString &path, const QVector<valorant::MatchEvent> &events) {
+                if (path != m_file) return;
+                m_vEvents = events;
+                applyValorantEvents();
+            });
+    return m_valorant;
+}
+
+void MainWindow::jumpToEvent(int dir)
+{
+    const double p = m_mpv->position();
+    if (const auto t = dir < 0 ? m_timeline->prevEvent(p) : m_timeline->nextEvent(p))
+        m_mpv->seek(*t);
+}
+
+// Alinha os eventos da partida ao clipe (que cobre ~[fim − duração, fim] + offset) e mostra: marcas, tags e rótulo.
+void MainWindow::applyValorantEvents()
+{
+    const double dur = m_timeline->duration();
+    std::vector<TimelineWidget::Event> marks;
+    QStringList tags;
+    if (!m_vEvents.isEmpty() && dur > 0 && m_clipEndMs > 0) {
+        const double offset = QSettings().value("valorant/offsetSec", 0.0).toDouble(); // ajuste fino do alinhamento
+        const auto aligned = valorant::alignToClip(m_vEvents, m_clipEndMs, dur, offset);
+        for (const auto &e : aligned)
+            marks.push_back({e.t, e.kind == valorant::MatchEvent::Kill});
+        tags = valorant::makeTags(aligned);
+        metrics::log(QString("valorant: %1 de %2 eventos caem no clipe (duração %3 s, offset %4 s)")
+                         .arg(aligned.size()).arg(m_vEvents.size()).arg(dur, 0, 'f', 1).arg(offset));
+        if (m_valorant && !m_file.isEmpty() && tags != m_vTags) {
+            m_vTags = tags;
+            m_valorant->saveTags(m_file, m_clipSize, tags);
+        }
+    }
+    m_timeline->setEvents(std::move(marks));
+    QStringList parts;
+    if (!m_gameText.isEmpty()) parts << m_gameText;
+    parts << tags;
+    m_gameInfo->setText(parts.isEmpty() ? QString() : "·  " + parts.join(" · "));
 }
 
 void MainWindow::detectNvenc()
@@ -806,6 +865,10 @@ void MainWindow::openFile(const QString &path)
     m_file = path;
     m_title->setText(QFileInfo(path).fileName());
     m_gameInfo->clear();
+    m_gameText.clear();
+    m_vTags.clear();
+    m_vEvents.clear();
+    m_clipEndMs = 0;
     setWindowTitle("shear"); // o título da janela é sempre só o nome do app
     m_timeline->reset(0);
     m_undo.clear();

@@ -360,6 +360,7 @@ QWidget *MainWindow::buildEditor()
     back->setFocusPolicy(Qt::NoFocus);
     connect(back, &QPushButton::clicked, this, [this] { if (!m_job) showHome(); });
     m_title = new QLabel;
+    m_title->setForegroundRole(QPalette::PlaceholderText); // o nome do arquivo fica em cinza; o mapa/agente/kills é que ficam claros
     // Engrenagem (glifo E713 da fonte de ícones do Windows; sem ela, o emoji ⚙)
     auto *settingsBtn = new QPushButton;
     if (const QString family = iconFontFamily(); !family.isEmpty()) {
@@ -992,6 +993,13 @@ void MainWindow::refreshInfoBar()
         s.sep->setVisible(show);
         if (!show) continue;
         s.btn->setText(s.value.isEmpty() ? s.hint : s.value);
+        {   // texto claro quando tem valor; cinza (e itálico) só nas dicas "mapa" / "agente" / "kills"
+            QPalette pal = s.btn->palette();
+            const QColor c = palette().color(s.value.isEmpty() ? QPalette::PlaceholderText : QPalette::WindowText);
+            for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
+                pal.setColor(role, c);
+            s.btn->setPalette(pal);
+        }
         QString img;
         if (s.kind == "agent" && !s.value.isEmpty() && m_valorant) {
             img = m_valorant->imageFile(s.kind, s.value);
@@ -1028,6 +1036,13 @@ void MainWindow::refreshInfoBar()
         m_commentBtn->setFont(font());
         m_commentBtn->setText(QFontMetrics(font()).elidedText(comment, Qt::ElideRight, 320));
         m_commentBtn->setToolTip(comment);
+    }
+    {   // comentário escrito: texto claro; só o ícone de editar fica cinza
+        QPalette pal = m_commentBtn->palette();
+        const QColor c = palette().color(comment.isEmpty() ? QPalette::PlaceholderText : QPalette::WindowText);
+        for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
+            pal.setColor(role, c);
+        m_commentBtn->setPalette(pal);
     }
     m_commentSep->setVisible(true);
 }

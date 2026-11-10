@@ -8,6 +8,11 @@
 // Eventos do jogador numa partida do Valorant e sua conversão para o tempo do clipe (puro: sem rede nem disco).
 namespace shear::valorant {
 
+// Calibrado com um clipe real (kills anotados à mão): os horários da API ficam ~108,5 s antes do que aparece no vídeo
+// (gameStartMillis marca o começo da seleção de agentes/carregamento, não o do primeiro round). Medido em UMA partida:
+// a duração dessas fases varia um pouco, então ainda dá para ajustar (HKCU\Software\Shear\Shear, valorant/offsetSec).
+inline constexpr double kDefaultClipOffsetSec = 108.5;
+
 struct MatchEvent {
     enum Kind { Kill, Death } kind = Kill;
     qint64 absMs = 0; // horário absoluto (ms desde 1970): gameStartMillis + gameTime

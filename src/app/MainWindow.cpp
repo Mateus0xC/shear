@@ -668,7 +668,7 @@ void MainWindow::applyValorantEvents()
     std::vector<TimelineWidget::Event> marks;
     QStringList tags;
     if (!m_vEvents.isEmpty() && dur > 0 && m_clipEndMs > 0) {
-        const double offset = QSettings().value("valorant/offsetSec", 0.0).toDouble(); // ajuste fino do alinhamento
+        const double offset = QSettings().value("valorant/offsetSec", valorant::kDefaultClipOffsetSec).toDouble(); // ajuste fino do alinhamento
         const auto aligned = valorant::alignToClip(m_vEvents, m_clipEndMs, dur, offset);
         for (const auto &e : aligned)
             marks.push_back({e.t, e.kind == valorant::MatchEvent::Kill});

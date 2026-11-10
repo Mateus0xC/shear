@@ -109,7 +109,8 @@ o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles 
 (`2k`, `3k`, `4k`, `ace` e `morreu`). **Q** e **E** pulam para o evento anterior e o próximo; **Shift + Q** e **Shift + E**
 vão para os pontos I e O (sem eventos no clipe, Q e E continuam indo para I e O).
 
-O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]`. Se as marcas estiverem
+O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]` e somando 108,5 s,
+valor medido com um clipe real (os horários da API ficam esse tanto antes do vídeo). Se as marcas estiverem
 deslocadas em relação ao vídeo, o ajuste fica em `HKCU\Software\Shear\Shear`, valor `valorant/offsetSec` (segundos; positivo
 = as marcas aparecem mais tarde no clipe). O `metrics.log` mostra quantos eventos caíram no clipe e o offset usado.
 

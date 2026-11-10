@@ -109,6 +109,9 @@ o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles 
 (`2k`, `3k`, `4k`, `5k`, `6k`... conforme o maior número de kills num mesmo round dentro do clipe, e `morreu`). **Q** e **E** pulam para a parada anterior e a seguinte (os eventos e também os pontos I e O; uma parada que já está em cima do ponto atual é ignorada); **Shift + Q** e **Shift + E**
 vão direto para os pontos I e O.
 
+**Lista de clipes:** os clipes que o shear já identificou mostram "Mapa · Agente · 5k" no fim da linha (lido do `clips.json`,
+sem rede); um clipe só ganha esses dados depois de ser aberto uma vez com o Riot Client logado.
+
 **I e O automáticos:** se o clipe tem rounds conhecidos, o shear põe o I no começo do último round capturado e o O no fim
 dele (o fim de um round é o começo do seguinte), desde que o trecho dentro do clipe tenha 10 s ou mais; senão, usa o round
 anterior. No modo Rápido o I encaixa no keyframe mais próximo (sem o aviso "o clipe vai começar X s antes") e nunca cai no

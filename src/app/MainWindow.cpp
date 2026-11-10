@@ -56,6 +56,10 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include "valorant/ValorantService.h"
+#include "valorant/ValorantStore.h"
+#include "core/ValorantParse.h"
+#include <QJsonArray>
+#include <QJsonObject>
 #include <algorithm>
 
 namespace shear {
@@ -810,7 +814,7 @@ QString MainWindow::ffmpegPath() const
 }
 
 // `created`: quando o arquivo foi CRIADO (é o que vale para "clipado há N min"); a data de modificação é só reserva.
-struct RecentItem { QString path; QDateTime created; qint64 size; };
+struct RecentItem { QString path; QDateTime created; qint64 size; QString info; /* "Mapa · Agente · 5k" (Valorant) */ };
 
 void MainWindow::showHome()
 {
@@ -854,6 +858,18 @@ void MainWindow::refreshRecent(bool autoOpen)
         }
         std::sort(v.begin(), v.end(), [](auto &a, auto &b) { return a.created > b.created; });
         if (v.size() > 40) v.resize(40);
+        // Valorant: mapa, agente e tags dos clipes que o shear já identificou (só lê o clips.json; sem rede)
+        const QJsonObject known = valorant::store::loadClips();
+        if (!known.isEmpty())
+            for (auto &r : v) {
+                const QJsonObject e = known.value(valorant::clipKey(QFileInfo(r.path).fileName(), r.size)).toObject();
+                QStringList parts;
+                for (const char *k : {"map", "agent"})
+                    if (const QString s = e.value(k).toString(); !s.isEmpty()) parts << s;
+                for (const auto &t : e.value("tags").toArray())
+                    parts << t.toString();
+                r.info = parts.join(" · ");
+            }
         QMetaObject::invokeMethod(this, [this, v, autoOpen] {
             const QDateTime now = QDateTime::currentDateTime();
             const QColor accent = palette().color(QPalette::Highlight);
@@ -861,9 +877,11 @@ void MainWindow::refreshRecent(bool autoOpen)
             for (const auto &r : v) {
                 const qint64 age = r.created.secsTo(now);
                 const bool fresh = &r == &v.front() && age <= kFreshHighlightSec; // só o ÚLTIMO clipe, se tiver até 5 min
-                const QString base = QString("%1    %2    %3 MB")
-                                         .arg(QFileInfo(r.path).fileName(), r.created.toString("dd/MM/yyyy HH:mm"))
-                                         .arg(r.size / 1048576);
+                QString base = QString("%1    %2    %3 MB")
+                                   .arg(QFileInfo(r.path).fileName(), r.created.toString("dd/MM/yyyy HH:mm"))
+                                   .arg(r.size / 1048576);
+                if (!r.info.isEmpty())
+                    base += "    ·  " + r.info;
                 auto *i = new QListWidgetItem(fresh ? QString("●  NOVO · há %1    %2").arg(formatAgo(age), base) : base);
                 if (fresh) { // o clipe mais recente (salvo há até 5 min): destaque; a lista já vem do mais novo para o mais antigo
                     QColor bg = accent;

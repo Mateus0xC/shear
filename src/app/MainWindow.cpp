@@ -192,6 +192,7 @@ MainWindow::MainWindow()
     sc(QKeySequence(Qt::SHIFT | Qt::Key_Q), gotoStart);
     sc(QKeySequence(Qt::SHIFT | Qt::Key_E), gotoEnd);
     // Q / E: evento (kill ou morte) anterior / próximo, quando o clipe tem eventos do Valorant
+    sc(Qt::Key_K, [=, this] { if (inEditor()) calibrateEvents(); }); // calibra: o evento mais próximo cai no ponto atual
     sc(Qt::Key_Q, [=, this] { if (inEditor()) { if (m_timeline->hasEvents()) jumpToEvent(-1); else gotoStart(); } });
     sc(Qt::Key_E, [=, this] { if (inEditor()) { if (m_timeline->hasEvents()) jumpToEvent(+1); else gotoEnd(); } });
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
@@ -646,12 +647,53 @@ valorant::ValorantService *MainWindow::ensureValorant()
                 applyValorantEvents(); // atualiza o rótulo (com as tags, se já houver eventos)
             });
     connect(m_valorant, &valorant::ValorantService::eventsReady, this,
-            [this](const QString &path, const QVector<valorant::MatchEvent> &events) {
+            [this](const QString &path, const QString &matchId, const QVector<valorant::MatchEvent> &events,
+                   double offsetSec) {
                 if (path != m_file) return;
+                m_matchId = matchId;
+                m_matchOffset = offsetSec;
                 m_vEvents = events;
                 applyValorantEvents();
             });
     return m_valorant;
+}
+
+// Ajuste do alinhamento: o da partida (tecla K), senão o do registro (valorant/offsetSec), senão o padrão.
+double MainWindow::currentOffset() const
+{
+    if (!std::isnan(m_matchOffset))
+        return m_matchOffset;
+    return QSettings().value("valorant/offsetSec", valorant::kDefaultClipOffsetSec).toDouble();
+}
+
+// K: o evento mais próximo do ponto atual (até 60 s) passa a cair exatamente aqui. Vale para a partida toda.
+void MainWindow::calibrateEvents()
+{
+    const double dur = m_timeline->duration();
+    if (m_vEvents.isEmpty() || dur <= 0 || m_clipEndMs <= 0) {
+        m_status->setText("Sem kills/mortes do Valorant neste clipe para calibrar.");
+        return;
+    }
+    const double pos = m_mpv->position(), cur = currentOffset();
+    // tempos sem o corte em [0, duração]: a marca certa pode estar fora do clipe se o offset estiver muito errado
+    const double clipStartMs = double(m_clipEndMs) - dur * 1000.0;
+    double best = 1e18, bestT = 0;
+    for (const auto &e : m_vEvents) {
+        const double t = (double(e.absMs) - clipStartMs) / 1000.0 + cur;
+        if (std::abs(t - pos) < best) {
+            best = std::abs(t - pos);
+            bestT = t;
+        }
+    }
+    if (best > 60.0) {
+        m_status->setText("Nenhuma kill/morte a menos de 60 s do ponto atual.");
+        return;
+    }
+    m_matchOffset = cur + (pos - bestT);
+    applyValorantEvents();
+    if (m_valorant && !m_matchId.isEmpty())
+        m_valorant->saveMatchOffset(m_matchId, m_matchOffset);
+    m_status->setText(QString("Marcas alinhadas (ajuste %1 s, guardado para esta partida).").arg(m_matchOffset, 0, 'f', 1));
 }
 
 void MainWindow::jumpToEvent(int dir)
@@ -668,7 +710,7 @@ void MainWindow::applyValorantEvents()
     std::vector<TimelineWidget::Event> marks;
     QStringList tags;
     if (!m_vEvents.isEmpty() && dur > 0 && m_clipEndMs > 0) {
-        const double offset = QSettings().value("valorant/offsetSec", valorant::kDefaultClipOffsetSec).toDouble(); // ajuste fino do alinhamento
+        const double offset = currentOffset();
         const auto aligned = valorant::alignToClip(m_vEvents, m_clipEndMs, dur, offset);
         for (const auto &e : aligned)
             marks.push_back({e.t, e.kind == valorant::MatchEvent::Kill});
@@ -867,6 +909,8 @@ void MainWindow::openFile(const QString &path)
     m_gameInfo->clear();
     m_gameText.clear();
     m_vTags.clear();
+    m_matchId.clear();
+    m_matchOffset = std::numeric_limits<double>::quiet_NaN();
     m_vEvents.clear();
     m_clipEndMs = 0;
     setWindowTitle("shear"); // o título da janela é sempre só o nome do app

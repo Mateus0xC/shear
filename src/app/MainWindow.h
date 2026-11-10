@@ -4,6 +4,7 @@
 #include "core/MatchEvents.h"
 #include "util/Settings.h"
 #include <QElapsedTimer>
+#include <limits>
 #include <QMainWindow>
 #include <vector>
 
@@ -177,6 +178,10 @@ private:
     QString m_gameText;                              // "Mapa · Agente" sem as tags
     void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline
     void jumpToEvent(int dir);
+    void calibrateEvents();                          // K: a marca mais próxima do ponto atual passa a cair aqui
+    QString m_matchId;
+    double m_matchOffset = std::numeric_limits<double>::quiet_NaN(); // ajuste da partida (NaN = padrão)
+    double currentOffset() const;
     valorant::ValorantService *ensureValorant();     // cria e liga o serviço na primeira vez
     QStringList m_vTags;                             // últimas tags guardadas para o clipe aberto
 };

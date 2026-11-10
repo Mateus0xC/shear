@@ -24,11 +24,15 @@ public:
     void backfill();
     // Guarda as tags (2k, 3k, ... morreu) do clipe no clips.json.
     void saveTags(const QString &clipPath, qint64 size, const QStringList &tags);
+    // Guarda o ajuste de alinhamento da partida (vale para todos os clipes dela).
+    void saveMatchOffset(const QString &matchId, double offsetSec);
 
 signals:
     void identified(const QString &clipPath, const QString &map, const QString &agent);
     // Meus kills e mortes da partida do clipe (horário absoluto).
-    void eventsReady(const QString &clipPath, const QVector<shear::valorant::MatchEvent> &events);
+    // `offsetSec` é o ajuste guardado para a partida (NaN se nunca foi calibrada).
+    void eventsReady(const QString &clipPath, const QString &matchId, const QVector<shear::valorant::MatchEvent> &events,
+                     double offsetSec);
 
 private:
     struct Ctx;

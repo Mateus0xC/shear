@@ -148,7 +148,8 @@ void ValorantService::loadKnownEvents(std::shared_ptr<Ctx> c)
         if (stale(*c))
             return;
         if (match.contains("events"))
-            return emit eventsReady(c->clipPath, eventsFromJson(match.value("events").toArray()));
+            return emit eventsReady(c->clipPath, c->matchId, eventsFromJson(match.value("events").toArray()),
+                                    match.contains("offsetSec") ? match.value("offsetSec").toDouble() : qQNaN());
         c->detailsOnly = true;
         c->pending = {c->matchId};
         step1(c);
@@ -263,11 +264,13 @@ void ValorantService::applyDetails(std::shared_ptr<Ctx> c, const QString &matchI
             const MatchSummary m = parseMatchDetails(body, puuid);
             store::saveMatch(matchId, {{"events", eventsToJson(ev)}, {"startMs", double(m.startMs)},
                                        {"lengthMs", double(m.lengthMs)}});
-            return ev;
+            const QJsonObject saved = store::loadMatch(matchId);
+            const double off = saved.contains("offsetSec") ? saved.value("offsetSec").toDouble() : qQNaN();
+            return std::make_pair(ev, off);
         },
-        [this, c, matchId, then](QVector<MatchEvent> ev) {
+        [this, c, matchId, then](std::pair<QVector<MatchEvent>, double> r) {
             if (!stale(*c) && !c->clipPath.isEmpty() && matchId == c->matchId)
-                emit eventsReady(c->clipPath, ev);
+                emit eventsReady(c->clipPath, matchId, r.first, r.second);
             then();
         });
 }
@@ -293,6 +296,11 @@ void ValorantService::backfill()
         c->pending = todo;
         step1(c);
     });
+}
+
+void ValorantService::saveMatchOffset(const QString &matchId, double offsetSec)
+{
+    runAsync(this, [matchId, offsetSec] { return store::saveMatch(matchId, {{"offsetSec", offsetSec}}); }, [](bool) {});
 }
 
 void ValorantService::saveTags(const QString &clipPath, qint64 size, const QStringList &tags)

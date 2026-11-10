@@ -109,9 +109,10 @@ o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles 
 (`2k`, `3k`, `4k`, `ace` e `morreu`). **Q** e **E** pulam para o evento anterior e o próximo; **Shift + Q** e **Shift + E**
 vão para os pontos I e O (sem eventos no clipe, Q e E continuam indo para I e O).
 
-O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]` e somando 108,5 s,
-valor medido com um clipe real (os horários da API ficam esse tanto antes do vídeo). Se as marcas estiverem
-deslocadas em relação ao vídeo, o ajuste fica em `HKCU\Software\Shear\Shear`, valor `valorant/offsetSec` (segundos; positivo
+O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]` e somando ~104 s
+(os horários da API ficam cerca de 100 s antes do vídeo, e esse tanto muda de partida para partida). Para acertar: pause no
+quadro de uma kill e aperte **K** — a marca mais próxima passa a cair ali, para esse clipe e para os outros da mesma
+partida (fica em `matches/<id>.json`, campo `offsetSec`). O padrão geral, se quiser mudar, fica em `HKCU\Software\Shear\Shear`, valor `valorant/offsetSec` (segundos; positivo
 = as marcas aparecem mais tarde no clipe). O `metrics.log` mostra quantos eventos caíram no clipe e o offset usado.
 
 ### Overlay da NVIDIA

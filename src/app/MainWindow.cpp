@@ -19,7 +19,11 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFrame>
+#include <QApplication>
+#include <QEnterEvent>
+#include <QMouseEvent>
 #include <QPainter>
+#include <functional>
 #include <QPalette>
 #include <QPixmap>
 #include <QWheelEvent>
@@ -115,36 +119,179 @@ private:
     QPixmap m_cache;
 };
 
-// Linha da lista de clipes: por cima do desenho normal, a faixa do mapa (se houver) à direita, esmaecendo para a esquerda.
+// Papéis de dados de cada linha da lista de clipes (ver ClipRowDelegate)
+enum ClipRole { RoleBanner = Qt::UserRole + 1, RoleMap, RoleTags, RoleComment, RoleDate, RoleFresh };
+
+// Linha da lista de clipes, em colunas alinhadas:
+//   [ícone do agente]  nome do arquivo ........  data   tags   comentário   [faixa do mapa com o nome dele por cima]
 class ClipRowDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
+
+    QSize sizeHint(const QStyleOptionViewItem &opt, const QModelIndex &idx) const override
+    {
+        QSize s = QStyledItemDelegate::sizeHint(opt, idx);
+        if (!idx.data(Qt::UserRole).toString().isEmpty())
+            s.setHeight(42);
+        return s;
+    }
+
     void paint(QPainter *p, const QStyleOptionViewItem &opt, const QModelIndex &idx) const override
     {
-        QStyledItemDelegate::paint(p, opt, idx);
-        const QString path = idx.data(Qt::UserRole + 1).toString();
-        if (path.isEmpty())
+        if (idx.data(Qt::UserRole).toString().isEmpty()) { // linha de aviso ("nenhum clipe..."): desenho normal
+            QStyledItemDelegate::paint(p, opt, idx);
             return;
-        const int w = std::min(260, opt.rect.width() / 3), h = opt.rect.height();
-        const QString key = path + "|" + QString::number(w) + "x" + QString::number(h);
-        static QHash<QString, QPixmap> cache;
-        QPixmap &out = cache[key];
-        if (out.isNull()) {
-            QPixmap src(path);
-            if (src.isNull() || w <= 0 || h <= 0)
-                return;
-            const QPixmap big = src.scaled(w, h, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-            out = QPixmap(w, h);
-            out.fill(Qt::transparent);
-            QPainter q(&out);
-            q.drawPixmap(0, 0, big, (big.width() - w) / 2, (big.height() - h) / 2, w, h);
-            q.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-            QLinearGradient g(0, 0, w, 0);
-            g.setColorAt(0, QColor(0, 0, 0, 0));
-            g.setColorAt(1, QColor(0, 0, 0, 150));
-            q.fillRect(out.rect(), g);
         }
-        p->drawPixmap(opt.rect.right() - w + 1, opt.rect.top(), out);
+        // fundo, listras e seleção do estilo, sem o texto nem o ícone (isso é desenhado abaixo)
+        QStyleOptionViewItem o = opt;
+        initStyleOption(&o, idx);
+        o.text.clear();
+        o.icon = QIcon();
+        o.state &= ~QStyle::State_HasFocus;
+        QStyle *style = o.widget ? o.widget->style() : QApplication::style();
+        style->drawControl(QStyle::CE_ItemViewItem, &o, p, o.widget);
+
+        const QRect r = opt.rect;
+        const bool sel = opt.state & QStyle::State_Selected;
+        const QColor fg = opt.palette.color(sel ? QPalette::HighlightedText : QPalette::Text);
+        QColor mute = sel ? fg : opt.palette.color(QPalette::PlaceholderText);
+        if (sel) mute.setAlpha(190);
+        const QColor accent = sel ? fg : opt.palette.color(QPalette::Highlight).lighter(160);
+        const int pad = 12, iconSz = 28;
+
+        p->save();
+        p->setRenderHint(QPainter::Antialiasing);
+        p->setClipRect(r);
+
+        // faixa do mapa (direita), com o nome do mapa por cima
+        const int bw = std::min(250, r.width() / 3);
+        const QString banner = idx.data(RoleBanner).toString();
+        const QString map = idx.data(RoleMap).toString();
+        if (!banner.isEmpty())
+            p->drawPixmap(r.right() - bw + 1, r.top(), bannerPixmap(banner, bw, r.height()));
+        if (!map.isEmpty()) {
+            QFont mf = opt.font;
+            mf.setBold(true);
+            p->setFont(mf);
+            const QRect tr(r.right() - bw, r.top(), bw - pad - 2, r.height());
+            if (!banner.isEmpty()) { // sombra, para ler bem em cima da imagem
+                p->setPen(QColor(0, 0, 0, 190));
+                p->drawText(tr.translated(1, 1), Qt::AlignRight | Qt::AlignVCenter, map);
+            }
+            p->setPen(banner.isEmpty() ? fg : QColor(255, 255, 255));
+            p->drawText(tr, Qt::AlignRight | Qt::AlignVCenter, map);
+        }
+
+        // colunas de texto, da direita para a esquerda (as larguras são fixas para as linhas ficarem alinhadas)
+        const bool wide = r.width() > 760;
+        const int xr = r.right() - bw - 6;
+        const int commentW = wide ? 190 : 0, tagsW = 46, dateW = 118;
+        const int commentX = xr - commentW, tagsX = commentX - tagsW, dateX = tagsX - dateW - 6;
+        const int nameX = r.left() + pad + iconSz + 10;
+        const QRect vr(0, r.top(), 0, r.height());
+        auto col = [&](int x, int w) { return QRect(x, vr.top(), std::max(0, w), vr.height()); };
+
+        // ícone do agente
+        const QIcon ic = idx.data(Qt::DecorationRole).value<QIcon>();
+        if (!ic.isNull())
+            ic.paint(p, QRect(r.left() + pad, r.top() + (r.height() - iconSz) / 2, iconSz, iconSz));
+
+        QFont f = opt.font;
+        // nome do arquivo (com "● NOVO · há …" na frente no clipe recém-salvo)
+        const QString fresh = idx.data(RoleFresh).toString();
+        int nx = nameX;
+        if (!fresh.isEmpty()) {
+            QFont bf = f;
+            bf.setBold(true);
+            p->setFont(bf);
+            p->setPen(accent);
+            const int fw = QFontMetrics(bf).horizontalAdvance(fresh) + 10;
+            p->drawText(col(nx, fw), Qt::AlignLeft | Qt::AlignVCenter, fresh);
+            nx += fw;
+        }
+        p->setFont(f);
+        p->setPen(fg);
+        const int nameW = dateX - 14 - nx;
+        p->drawText(col(nx, nameW), Qt::AlignLeft | Qt::AlignVCenter,
+                    QFontMetrics(f).elidedText(idx.data(Qt::DisplayRole).toString(), Qt::ElideMiddle, std::max(0, nameW)));
+
+        // data
+        p->setPen(mute);
+        p->drawText(col(dateX, dateW), Qt::AlignLeft | Qt::AlignVCenter, idx.data(RoleDate).toString());
+        // tags (5k...)
+        const QString tags = idx.data(RoleTags).toString();
+        if (!tags.isEmpty()) {
+            QFont tf = f;
+            tf.setBold(true);
+            p->setFont(tf);
+            p->setPen(accent);
+            p->drawText(col(tagsX, tagsW), Qt::AlignLeft | Qt::AlignVCenter, tags);
+        }
+        // comentário
+        const QString comment = idx.data(RoleComment).toString();
+        if (!comment.isEmpty() && commentW > 0) {
+            QFont cf = f;
+            cf.setItalic(true);
+            p->setFont(cf);
+            p->setPen(mute);
+            p->drawText(col(commentX, commentW - 8), Qt::AlignLeft | Qt::AlignVCenter,
+                        QFontMetrics(cf).elidedText("“" + comment + "”", Qt::ElideRight, commentW - 8));
+        }
+        p->restore();
+    }
+
+private:
+    // imagem do mapa cortada no tamanho da faixa, com um véu escuro e esmaecendo para a esquerda
+    static const QPixmap &bannerPixmap(const QString &path, int w, int h)
+    {
+        static QHash<QString, QPixmap> cache;
+        QPixmap &out = cache[path + "|" + QString::number(w) + "x" + QString::number(h)];
+        if (out.isNull() && w > 0 && h > 0) {
+            const QPixmap src(path);
+            if (!src.isNull()) {
+                const QPixmap big = src.scaled(w, h, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                out = QPixmap(w, h);
+                out.fill(Qt::transparent);
+                QPainter q(&out);
+                q.drawPixmap(0, 0, big, (big.width() - w) / 2, (big.height() - h) / 2, w, h);
+                q.fillRect(out.rect(), QColor(0, 0, 0, 80)); // véu: o nome do mapa fica legível por cima
+                q.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+                QLinearGradient g(0, 0, w, 0);
+                g.setColorAt(0, QColor(0, 0, 0, 0));
+                g.setColorAt(0.55, QColor(0, 0, 0, 170));
+                g.setColorAt(1, QColor(0, 0, 0, 235));
+                q.fillRect(out.rect(), g);
+            }
+        }
+        return out;
+    }
+};
+
+class LinkLabel : public QLabel { // rótulo clicável (cursor de mão, sublinhado ao passar o mouse)
+public:
+    std::function<void()> onClick;
+    using QLabel::QLabel;
+
+protected:
+    void enterEvent(QEnterEvent *e) override
+    {
+        QFont f = font();
+        f.setUnderline(true);
+        setFont(f);
+        QLabel::enterEvent(e);
+    }
+    void leaveEvent(QEvent *e) override
+    {
+        QFont f = font();
+        f.setUnderline(false);
+        setFont(f);
+        QLabel::leaveEvent(e);
+    }
+    void mouseReleaseEvent(QMouseEvent *e) override
+    {
+        if (e->button() == Qt::LeftButton && rect().contains(e->pos()) && onClick)
+            onClick();
+        QLabel::mouseReleaseEvent(e);
     }
 };
 
@@ -318,7 +465,8 @@ QWidget *MainWindow::buildHome()
     bar->addStretch();
     m_recent = new QListWidget;
     m_recent->setAlternatingRowColors(true);
-    m_recent->setIconSize(QSize(26, 26));
+    m_recent->setIconSize(QSize(28, 28));
+    m_recent->setUniformItemSizes(true);
     m_recent->setItemDelegate(new ClipRowDelegate(m_recent));
     connect(m_recent, &QListWidget::itemActivated, this,
             [this](QListWidgetItem *i) { openFile(i->data(Qt::UserRole).toString()); });
@@ -359,7 +507,11 @@ QWidget *MainWindow::buildEditor()
     auto *back = new QPushButton("← Clipes");
     back->setFocusPolicy(Qt::NoFocus);
     connect(back, &QPushButton::clicked, this, [this] { if (!m_job) showHome(); });
-    m_title = new QLabel;
+    auto *titleLink = new LinkLabel;
+    m_title = titleLink;
+    titleLink->setCursor(Qt::PointingHandCursor);
+    titleLink->setToolTip("Abrir a pasta do arquivo");
+    titleLink->onClick = [this] { if (!m_file.isEmpty()) revealInExplorer(m_file); };
     m_title->setForegroundRole(QPalette::PlaceholderText); // o nome do arquivo fica em cinza; o mapa/agente/kills é que ficam claros
     // Engrenagem (glifo E713 da fonte de ícones do Windows; sem ela, o emoji ⚙)
     auto *settingsBtn = new QPushButton;
@@ -1175,7 +1327,7 @@ QString MainWindow::ffmpegPath() const
 }
 
 // `created`: quando o arquivo foi CRIADO (é o que vale para "clipado há N min"); a data de modificação é só reserva.
-struct RecentItem { QString path; QDateTime created; qint64 size; QString info; /* "Mapa · Agente · 5k" (Valorant) */ QString mapName, agentName; };
+struct RecentItem { QString path; QDateTime created; qint64 size; QString mapName, agentName, tags, comment; /* Valorant */ };
 
 void MainWindow::showHome()
 {
@@ -1226,22 +1378,18 @@ void MainWindow::refreshRecent(bool autoOpen)
             for (auto &r : v) {
                 const QJsonObject e = known.value(valorant::clipKey(QFileInfo(r.path).fileName(), r.size)).toObject();
                 const QJsonObject man = e.value("manual").toObject();
-                QStringList parts;
                 for (const char *k : {"map", "agent"}) {
                     const QString s = man.value(k).toString().isEmpty() ? e.value(k).toString() : man.value(k).toString();
-                    if (!s.isEmpty()) parts << s;
                     (QByteArray(k) == "map" ? r.mapName : r.agentName) = s;
                 }
                 if (const int kills = man.value("kills").toInt(0); kills > 0) {
-                    if (kills >= 2) parts << QString("%1k").arg(kills);
+                    if (kills >= 2) r.tags = QString("%1k").arg(kills);
                 } else {
                     for (const auto &t : e.value("tags").toArray())
                         if (const QString tag = t.toString(); tag.endsWith('k') && tag.chopped(1).toInt() >= 2)
-                            parts << tag; // só "Nk" (guardados de versões antigas podem ter "morreu"/"ace")
+                            r.tags = tag; // só "Nk" (guardados de versões antigas podem ter "morreu"/"ace")
                 }
-                r.info = parts.join(" · ");
-                if (const QString c = man.value("comment").toString(); !c.isEmpty())
-                    r.info += (r.info.isEmpty() ? "" : "  —  ") + QString("“%1”").arg(c);
+                r.comment = man.value("comment").toString();
             }
         QMetaObject::invokeMethod(this, [this, v, autoOpen] {
             const QDateTime now = QDateTime::currentDateTime();
@@ -1249,32 +1397,29 @@ void MainWindow::refreshRecent(bool autoOpen)
             m_recent->clear();
             // ícone do agente e faixa do mapa (só os que já estão guardados; os outros são baixados e a lista se atualiza)
             auto *svc = ensureValorant();
-            QPixmap blank(26, 26);
+            QPixmap blank(28, 28);
             blank.fill(Qt::transparent); // linhas sem agente ficam alinhadas com as que têm
             QSet<QString> needAgents, needMaps;
             for (const auto &r : v) {
                 const qint64 age = r.created.secsTo(now);
                 const bool fresh = &r == &v.front() && age <= kFreshHighlightSec; // só o ÚLTIMO clipe, se tiver até 5 min
-                QString base = QString("%1    %2    %3 MB")
-                                   .arg(QFileInfo(r.path).fileName(), r.created.toString("dd/MM/yyyy HH:mm"))
-                                   .arg(r.size / 1048576);
-                if (!r.info.isEmpty())
-                    base += "    ·  " + r.info;
-                auto *i = new QListWidgetItem(fresh ? QString("●  NOVO · há %1    %2").arg(formatAgo(age), base) : base);
+                auto *i = new QListWidgetItem(QFileInfo(r.path).fileName()); // o ClipRowDelegate desenha a linha em colunas
+                i->setData(RoleDate, r.created.toString("dd/MM/yyyy HH:mm"));
+                i->setData(RoleTags, r.tags);
+                i->setData(RoleComment, r.comment);
+                i->setData(RoleMap, r.mapName);
                 if (fresh) { // o clipe mais recente (salvo há até 5 min): destaque; a lista já vem do mais novo para o mais antigo
                     QColor bg = accent;
                     bg.setAlpha(70);
                     i->setBackground(bg);
-                    QFont f = i->font();
-                    f.setBold(true);
-                    i->setFont(f);
+                    i->setData(RoleFresh, QString("●  NOVO · há %1").arg(formatAgo(age)));
                 }
                 i->setData(Qt::UserRole, r.path);
                 i->setToolTip(r.path);
                 const QString agentImg = r.agentName.isEmpty() ? QString() : svc->imageFile("agent", r.agentName);
                 const QString mapImg = r.mapName.isEmpty() ? QString() : svc->imageFile("map", r.mapName);
                 i->setIcon(agentImg.isEmpty() ? QIcon(blank) : QIcon(agentImg));
-                i->setData(Qt::UserRole + 1, mapImg);
+                i->setData(RoleBanner, mapImg);
                 if (agentImg.isEmpty() && !r.agentName.isEmpty()) needAgents.insert(r.agentName);
                 if (mapImg.isEmpty() && !r.mapName.isEmpty()) needMaps.insert(r.mapName);
                 m_recent->addItem(i);

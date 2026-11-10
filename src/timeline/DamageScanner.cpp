@@ -2,7 +2,11 @@
 #include "core/CleanStart.h"
 #include "util/Metrics.h"
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <atomic>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 #include <functional>
 #include <mutex>
 #include <thread>
@@ -18,6 +22,25 @@ extern "C" {
 namespace shear {
 
 namespace {
+
+// Alguns arquivos quebrados (clipes do ShadowPlay com o começo cortado) decodificam "sem erro" para o FFmpeg: os quadros
+// não saem marcados como corrompidos, mas o decodificador avisa ("Frame num change", "reference count overflow"...).
+// Os avisos de cada thread são contados enquanto ela decodifica uma amostra.
+thread_local int t_decodeWarnings = 0;
+void countDecodeWarnings(void *, int level, const char *fmt, va_list vl)
+{
+    if (level > AV_LOG_WARNING)
+        return;
+    char buf[256];
+    vsnprintf(buf, sizeof buf, fmt, vl);
+    static const char *const kPatterns[] = {"error while decoding", "Frame num change", "overflow", "illegal",
+                                            "concealing", "corrupt", "missing picture", "no frame!"};
+    for (const char *p : kPatterns)
+        if (strstr(buf, p)) {
+            ++t_decodeWarnings;
+            return;
+        }
+}
 
 // Decodifica uma janelinha do vídeo com um decodificador NOVO (um quadro corrompido pode "envenenar" o estado do
 // decodificador e fazer tudo depois dele falhar, como se o arquivo inteiro estivesse quebrado).
@@ -53,6 +76,7 @@ struct Sampler {
         const double tb = av_q2d(st->time_base);
         const int64_t target = int64_t((sec + offset()) / tb);
         int ok = 0, total = 0;
+        t_decodeWarnings = 0;
         auto drain = [&] {
             while (avcodec_receive_frame(ctx, frame) == 0) {
                 const int64_t ts = frame->best_effort_timestamp;
@@ -75,6 +99,8 @@ struct Sampler {
             }
         }
         avcodec_free_context(&ctx);
+        if (t_decodeWarnings > 0)
+            return 0; // o decodificador reclamou: o trecho está quebrado, mesmo com os quadros "sem erro"
         return total > 0 ? double(ok) / n : 0; // quadro que nunca saiu conta como ruim
     }
 };
@@ -98,7 +124,8 @@ struct Source {
 double analyze(const QString &path, unsigned maxThreads, const std::function<bool()> &cancelled, bool *decided)
 {
     *decided = false;
-    av_log_set_level(AV_LOG_QUIET); // arquivo quebrado enche o log de avisos
+    av_log_set_level(AV_LOG_WARNING); // arquivo quebrado enche o log de avisos: o callback conta e não imprime nada
+    av_log_set_callback(countDecodeWarnings);
     QElapsedTimer clock;
     clock.start();
     Source main;
@@ -170,8 +197,8 @@ double analyze(const QString &path, unsigned maxThreads, const std::function<boo
         const double mid = (lo + hi) / 2;
         if (perSecond(sm, mid) >= 0.5 * fps) hi = mid; else lo = mid;
     }
-    metrics::log(QString("análise do começo: pronta em %1 ms (teste rápido %2 ms); vídeo sadio a partir de ~%3 s")
-                     .arg(clock.elapsed()).arg(tProbe).arg(hi, 0, 'f', 1));
+    metrics::log(QString("análise do começo de %1: pronta em %2 ms (teste rápido %3 ms); vídeo sadio a partir de ~%4 s")
+                     .arg(QFileInfo(path).fileName()).arg(clock.elapsed()).arg(tProbe).arg(hi, 0, 'f', 1));
     *decided = true;
     return hi;
 }

@@ -819,7 +819,7 @@ void MainWindow::showHome()
 static QString damageCacheKey(const QString &path)
 {
     const QFileInfo fi(path);
-    return "damage/" + QString::fromLatin1(QCryptographicHash::hash(
+    return "damage2/" + QString::fromLatin1(QCryptographicHash::hash(
         (fi.absoluteFilePath() + "|" + QString::number(fi.size()) + "|" + QString::number(fi.lastModified().toSecsSinceEpoch())).toUtf8(),
         QCryptographicHash::Md5).toHex());
 }

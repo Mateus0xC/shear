@@ -2181,7 +2181,7 @@ void MainWindow::startExport()
     const auto plan = planCut(r);
     const QString dir = tempDir(); // exports são temporários até o usuário clicar em Manter
     QDir().mkpath(dir);
-    // Dados do Valorant: o nome vira "Mapa_Agente_Nk_aaaa-mm-dd_hh-mm" e os eventos viram os do arquivo exportado
+    // Dados do Valorant: o nome leva mapa e agente e os eventos viram os do arquivo exportado
     m_exportMeta = {};
     m_exportMeta.map = m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap;
     m_exportMeta.agent = m_apiAgent.isEmpty() ? m_manual.value("agent").toString() : m_apiAgent;
@@ -2202,10 +2202,12 @@ void MainWindow::startExport()
     if (m_exportMeta.tag.isEmpty()) // sem kills achadas: vale o que foi escolhido à mão
         if (const int k = m_manual.value("kills").toInt(0); k >= 1)
             m_exportMeta.tag = QString("%1k").arg(k);
-    r.outputPath = uniqueOutputPath(dir,
-                                    clipBaseName(QFileInfo(m_file).completeBaseName(), m_exportMeta.map, m_exportMeta.agent,
-                                                 m_exportMeta.tag),
-                                    QDateTime::currentDateTime(), [](const QString &p) { return QFileInfo::exists(p); });
+    // Nome: "Valorant aaaa.mm.dd - Mapa_Agente" (a data é a do clipe original); sem mapa e agente, "<original>_aaaa-mm-dd_hh-mm".
+    const QDate clipDate = m_clipEndMs > 0 ? QDateTime::fromMSecsSinceEpoch(m_clipEndMs).date() : QDate::currentDate();
+    m_exportStem = valorantStem(clipDate, m_exportMeta.map, m_exportMeta.agent);
+    if (m_exportStem.isEmpty())
+        m_exportStem = fallbackStem(QFileInfo(m_file).completeBaseName(), QDateTime::currentDateTime());
+    r.outputPath = uniquePath(dir, m_exportStem, [](const QString &p) { return QFileInfo::exists(p); });
     const auto args = buildFfmpegArgs(r, plan);
     metrics::log("ffmpeg " + args.join(' '));
 
@@ -2393,9 +2395,9 @@ void MainWindow::keepLastOutput(bool deleteOriginalToo)
     const QString dir = m_cfg.outputDir.isEmpty() ? QFileInfo(m_file).absolutePath() : m_cfg.outputDir;
     QDir().mkpath(dir);
     const QFileInfo src(m_lastOutput);
-    QString dest = dir + "/" + src.fileName();
-    for (int i = 2; QFileInfo::exists(dest); ++i) // nunca sobrescreve
-        dest = dir + "/" + src.completeBaseName() + QString("_%1.").arg(i) + src.suffix();
+    // nunca sobrescreve: repetido vira "..._2", "..._3"... (conta a partir do nome-base, não do nome temporário)
+    const QString dest = uniquePath(dir, m_exportStem.isEmpty() ? src.completeBaseName() : m_exportStem,
+                                    [](const QString &p) { return QFileInfo::exists(p); });
     if (!QFile::rename(m_lastOutput, dest)) {
         m_status->setText("Não foi possível mover o clipe para " + QDir::toNativeSeparators(dir));
         return;

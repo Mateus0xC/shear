@@ -194,6 +194,7 @@ private:
         QString map, agent, tag;
         QVector<valorant::ClipEvent> events; // já no tempo do arquivo exportado (descontando início e trechos apagados)
     } m_exportMeta;
+    QString m_exportStem; // nome-base (sem extensão) do último export: "Valorant aaaa.mm.dd - Mapa_Agente"
     QVector<valorant::ClipEvent> m_keptEvents; // eventos de um clipe MANTIDO que foi reaberto (já no tempo dele)
     QStringList m_keptTags;
     QStringList m_autoTags;                          // tag de kills achada sozinha (ex.: "3k")

@@ -321,11 +321,11 @@ private slots:
     }
     void naming_never_overwrites()
     {
-        const QDateTime t(QDate(2026, 11, 10), QTime(1, 2, 3));
-        QSet<QString> taken{"D:/c/clip_2026-11-10_01-02.mp4", "D:/c/clip_2026-11-10_01-02_2.mp4"};
+        QSet<QString> taken{"D:/c/Valorant 2026.11.10 - Ascent_Jett.mp4", "D:/c/Valorant 2026.11.10 - Ascent_Jett_2.mp4"};
         auto ex = [&](const QString &p) { return taken.contains(p); };
-        QCOMPARE(uniqueOutputPath("D:/c", "clip", t, ex), QString("D:/c/clip_2026-11-10_01-02_3.mp4"));
-        QCOMPARE(uniqueOutputPath("D:/c", "outro", t, ex), QString("D:/c/outro_2026-11-10_01-02.mp4"));
+        QCOMPARE(uniquePath("D:/c", "Valorant 2026.11.10 - Ascent_Jett", ex),
+                 QString("D:/c/Valorant 2026.11.10 - Ascent_Jett_3.mp4"));
+        QCOMPARE(uniquePath("D:/c/", "Valorant 2026.11.10 - Bind_Omen", ex), QString("D:/c/Valorant 2026.11.10 - Bind_Omen.mp4"));
     }
     void valorant_lockfile_and_log()
     {
@@ -468,18 +468,18 @@ private slots:
         // partida achada, mas o log termina antes do round 0 começar
         QVERIFY(!valorant::findRound0StartMs(log.left(log.indexOf("[2026.11.08-16.02.30")), "abc-123").has_value());
     }
-    void clip_base_name_uses_valorant_data()
+    void valorant_clip_names()
     {
-        QCOMPARE(clipBaseName("Valorant 2026.11.08", "Ascent", "Jett", "3k"), QString("Ascent_Jett_3k"));
-        QCOMPARE(clipBaseName("orig", "Ascent", "Jett", ""), QString("Ascent_Jett"));
-        QCOMPARE(clipBaseName("orig", "", "Jett", "5k"), QString("Jett_5k"));
-        QCOMPARE(clipBaseName("orig", "", "", ""), QString("orig"));
-        QCOMPARE(clipBaseName("orig", "Skirmish A", "KAY/O", "2k"), QString("Skirmish A_KAYO_2k"));
-        QCOMPARE(clipBaseName("orig", "A:B*C", "", ""), QString("ABC"));
-        // com os dados, o caminho final segue o padrão de sempre
-        const auto path = uniqueOutputPath("D:/c", clipBaseName("orig", "Ascent", "Jett", "3k"),
-                                           QDateTime(QDate(2026, 11, 10), QTime(21, 4, 33)), [](const QString &) { return false; });
-        QCOMPARE(path, QString("D:/c/Ascent_Jett_3k_2026-11-10_21-04.mp4"));
+        const QDate d(2026, 11, 10);
+        QCOMPARE(valorantStem(d, "Ascent", "Jett"), QString("Valorant 2026.11.10 - Ascent_Jett"));
+        QCOMPARE(valorantStem(d, "Ascent", ""), QString("Valorant 2026.11.10 - Ascent"));
+        QCOMPARE(valorantStem(d, "", "Jett"), QString("Valorant 2026.11.10 - Jett"));
+        QCOMPARE(valorantStem(d, "", ""), QString());
+        QCOMPARE(valorantStem(d, "Skirmish A", "KAY/O"), QString("Valorant 2026.11.10 - Skirmish A_KAYO"));
+        QCOMPARE(valorantStem(d, "A:B*C", ""), QString("Valorant 2026.11.10 - ABC"));
+        QCOMPARE(fallbackStem("clip", QDateTime(d, QTime(21, 4, 33))), QString("clip_2026-11-10_21-04"));
+        QCOMPARE(uniquePath("D:/c", valorantStem(d, "Ascent", "Jett"), [](const QString &) { return false; }),
+                 QString("D:/c/Valorant 2026.11.10 - Ascent_Jett.mp4"));
     }
 };
 

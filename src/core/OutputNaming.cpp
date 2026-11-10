@@ -1,4 +1,5 @@
 #include "OutputNaming.h"
+#include <QStringList>
 
 namespace shear {
 
@@ -9,20 +10,25 @@ static QString fileSafe(QString s)
     return s.simplified();
 }
 
-QString clipBaseName(const QString &original, const QString &map, const QString &agent, const QString &tag)
+QString valorantStem(const QDate &date, const QString &map, const QString &agent)
 {
     QStringList parts;
-    for (const QString &p : {map, agent, tag})
+    for (const QString &p : {map, agent})
         if (const QString s = fileSafe(p); !s.isEmpty())
             parts << s;
-    return parts.isEmpty() ? original : parts.join('_');
+    if (parts.isEmpty())
+        return {};
+    return QString("Valorant %1 - %2").arg(date.toString("yyyy.MM.dd"), parts.join('_'));
 }
 
-QString uniqueOutputPath(const QString &dir, const QString &baseName, const QDateTime &now,
-                         const std::function<bool(const QString &)> &exists)
+QString fallbackStem(const QString &original, const QDateTime &now)
+{
+    return QString("%1_%2").arg(original, now.toString("yyyy-MM-dd_HH-mm"));
+}
+
+QString uniquePath(const QString &dir, const QString &stem, const std::function<bool(const QString &)> &exists)
 {
     const QString d = dir.endsWith('/') || dir.endsWith('\\') ? dir : dir + '/';
-    const QString stem = QString("%1_%2").arg(baseName, now.toString("yyyy-MM-dd_HH-mm"));
     QString path = d + stem + ".mp4";
     for (int i = 2; exists(path); ++i)
         path = d + QString("%1_%2.mp4").arg(stem).arg(i);

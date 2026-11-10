@@ -132,27 +132,15 @@ QStringList makeTags(const QVector<ClipEvent> &events)
 {
     int kills = 0;
     bool died = false;
-    std::map<int, int> perRound;
     for (const ClipEvent &e : events) {
-        if (e.kind == MatchEvent::Kill) {
+        if (e.kind == MatchEvent::Kill)
             ++kills;
-            ++perRound[e.round];
-        } else {
+        else
             died = true;
-        }
     }
-    int bestRound = 0;
-    for (const auto &r : perRound)
-        bestRound = std::max(bestRound, r.second);
     QStringList tags;
-    if (bestRound >= 5)
-        tags << "ace";
-    else if (kills >= 4)
-        tags << "4k";
-    else if (kills == 3)
-        tags << "3k";
-    else if (kills == 2)
-        tags << "2k";
+    if (kills >= 2)
+        tags << QString("%1k").arg(kills); // 2k, 3k, 4k, 5k, 6k... (um clipe pode ter mais de um round)
     if (died)
         tags << "morreu";
     return tags;

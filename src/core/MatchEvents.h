@@ -61,7 +61,7 @@ QVector<ClipEvent> alignToClip(const QVector<MatchEvent> &events, qint64 clipEnd
 QVector<ClipEvent> toExported(const QVector<ClipEvent> &events, double start, double end,
                               const QVector<std::pair<double, double>> &gaps);
 
-// Kills no clipe: "2k", "3k", "4k"; "ace" = 5 kills no mesmo round; "morreu" se morri nele.
+// Kills no clipe: "2k", "3k", "4k", "5k", "6k"... (número de kills dentro do clipe, a partir de 2); "morreu" se morri nele.
 QStringList makeTags(const QVector<ClipEvent> &events);
 
 } // namespace shear::valorant

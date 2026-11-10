@@ -408,7 +408,7 @@ private slots:
         QCOMPARE(ex[0].t, 5.0);
         QCOMPARE(ex[1].t, 15.0);
         // tags
-        QCOMPARE(valorant::makeTags(full), QStringList({"2k", "morreu"}));
+        QCOMPARE(valorant::makeTags(full), QStringList({"2k"}));
         QCOMPARE(valorant::makeTags({}), QStringList());
         QVector<valorant::ClipEvent> ace;
         for (int i = 0; i < 5; ++i) ace.push_back({MatchEvent::Kill, double(i), 7, {}});

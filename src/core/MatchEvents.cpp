@@ -131,21 +131,15 @@ QVector<ClipEvent> toExported(const QVector<ClipEvent> &events, double start, do
 QStringList makeTags(const QVector<ClipEvent> &events)
 {
     int kills = 0;
-    bool died = false;
     std::map<int, int> perRound;
-    for (const ClipEvent &e : events) {
-        if (e.kind == MatchEvent::Kill)
+    for (const ClipEvent &e : events)
+        if (e.kind == MatchEvent::Kill) // mortes só aparecem como marcas na timeline, não viram tag
             ++perRound[e.round];
-        else
-            died = true;
-    }
     for (const auto &r : perRound)
         kills = std::max(kills, r.second); // o maior número de kills num MESMO round (kills de rounds diferentes não somam)
     QStringList tags;
     if (kills >= 2)
         tags << QString("%1k").arg(kills); // 2k, 3k, 4k, 5k, 6k, 7k...
-    if (died)
-        tags << "morreu";
     return tags;
 }
 

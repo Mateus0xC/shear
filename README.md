@@ -106,7 +106,7 @@ Clipes já identificados continuam mostrando mapa e agente com o jogo fechado.
 Depois que a partida acaba, o shear baixa o `match-details` dela (em segundo plano, uma partida de cada vez, ao abrir o app ou
 o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles aparecem como losangos no alto da timeline
 (**verde = kill, roxo = morte**, bem diferentes dos tracinhos cinza dos keyframes), e o rótulo ao lado do título ganha as tags
-(`2k`, `3k`, `4k`, `5k`, `6k`... conforme o maior número de kills num mesmo round dentro do clipe, e `morreu`). **Q** e **E** pulam para a parada anterior e a seguinte (os eventos e também os pontos I e O; uma parada que já está em cima do ponto atual é ignorada); **Shift + Q** e **Shift + E**
+(`2k`, `3k`, `4k`, `5k`, `6k`... conforme o maior número de kills num mesmo round dentro do clipe; morte não vira tag, aparece só na timeline). **Q** e **E** pulam para a parada anterior e a seguinte (os eventos e também os pontos I e O; uma parada que já está em cima do ponto atual é ignorada); **Shift + Q** e **Shift + E**
 vão direto para os pontos I e O.
 
 **Lista de clipes:** os clipes que o shear já identificou mostram "Mapa · Agente · 5k" no fim da linha (lido do `clips.json`,

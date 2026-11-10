@@ -62,7 +62,7 @@ QVector<ClipEvent> toExported(const QVector<ClipEvent> &events, double start, do
                               const QVector<std::pair<double, double>> &gaps);
 
 // Kills no clipe: "2k", "3k", "4k", "5k"... = o maior número de kills num mesmo round dentro do clipe (a partir de 2);
-// "morreu" se morri nele.
+// mortes não geram tag (aparecem só na timeline).
 QStringList makeTags(const QVector<ClipEvent> &events);
 
 } // namespace shear::valorant

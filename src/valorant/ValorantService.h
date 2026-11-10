@@ -22,7 +22,7 @@ public:
     void identify(const QString &clipPath, const QDateTime &created, qint64 size);
     // Baixa (uma por vez, em segundo plano) os detalhes das partidas já associadas que ainda não os têm. Sem jogo, não faz nada.
     void backfill();
-    // Guarda as tags (2k, 3k, ... morreu) do clipe no clips.json.
+    // Guarda as tags (2k, 3k, 4k...) do clipe no clips.json.
     void saveTags(const QString &clipPath, qint64 size, const QStringList &tags);
     // Guarda o ajuste de alinhamento da partida (vale para todos os clipes dela).
     void saveMatchOffset(const QString &matchId, double offsetSec);

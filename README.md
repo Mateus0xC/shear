@@ -109,6 +109,11 @@ o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles 
 (`2k`, `3k`, `4k`, `ace` e `morreu`). **Q** e **E** pulam para a parada anterior e a seguinte (os eventos e também os pontos I e O; uma parada que já está em cima do ponto atual é ignorada); **Shift + Q** e **Shift + E**
 vão direto para os pontos I e O.
 
+**I e O automáticos:** se o clipe tem rounds conhecidos, o shear põe o I no começo do último round capturado e o O no fim
+dele (o fim de um round é o começo do seguinte), desde que o trecho dentro do clipe tenha 10 s ou mais; senão, usa o round
+anterior. No modo Rápido o I encaixa no keyframe mais próximo (sem o aviso "o clipe vai começar X s antes") e nunca cai no
+começo corrompido. Só acontece se você ainda não mexeu em I, O ou nos trechos apagados, e Ctrl+Z desfaz.
+
 O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]` e somando ~104 s
 (os horários da API ficam cerca de 100 s antes do vídeo, e esse tanto muda de partida para partida). Para acertar: pause no
 quadro de uma kill e aperte **K** — a marca mais próxima passa a cair ali, para esse clipe e para os outros da mesma

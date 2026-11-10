@@ -673,10 +673,17 @@ void MainWindow::applyAutoRange(double dur, double offset)
     if (!untouched)
         return;
     const auto span = valorant::pickLastRoundSpan(m_roundStarts, m_matchEndMs, m_clipEndMs, dur, offset);
-    if (!span || (std::abs(span->first - s0) < 0.01 && std::abs(span->second - e0) < 0.01))
+    if (!span)
         return;
-    pushUndo(currentState());
-    m_timeline->setRange(snapIfFast(span->first), span->second);
+    // Modo Rápido: o início só existe em keyframes; encaixa nele para não aparecer o aviso "o clipe vai começar X s antes".
+    // (Os keyframes chegam aos poucos: esta função é chamada de novo a cada lote, e o encaixe se refina.) O início também
+    // não pode cair no trecho corrompido do começo.
+    const double start = snapIfFast(std::max(span->first, m_timeline->damagedUntil()));
+    if (std::abs(start - s0) < 0.001 && std::abs(span->second - e0) < 0.001)
+        return;
+    if (!m_autoRange)
+        pushUndo(currentState()); // um só Ctrl+Z desfaz (os refinamentos seguintes não empilham)
+    m_timeline->setRange(start, span->second);
     m_autoRange = std::make_pair(m_timeline->start(), m_timeline->end());
     metrics::log(QString("valorant: I/O automáticos no último round: %1 a %2 s").arg(m_timeline->start(), 0, 'f', 1)
                      .arg(m_timeline->end(), 0, 'f', 1));
@@ -994,11 +1001,13 @@ void MainWindow::openFile(const QString &path)
     connect(m_scanner, &KeyframeScanner::keyframes, this, [this](QVector<double> b) {
         m_timeline->addKeyframes(b);
         if (m_damageT > 0) applyDamageFloor();
+        applyAutoRange(m_timeline->duration(), currentOffset());
         updateInfo();
     });
     connect(m_scanner, &QThread::finished, this, [this] {
         m_timeline->setScanDone(true);
         applyDamageFloor(); // com todos os keyframes lidos, o início utilizável cai num keyframe de verdade
+        applyAutoRange(m_timeline->duration(), currentOffset());
         metrics::log(QString("keyframes lidos: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
         updateInfo();
     });

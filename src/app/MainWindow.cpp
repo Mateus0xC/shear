@@ -224,7 +224,9 @@ public:
             QFont tf = f;
             tf.setBold(true);
             p->setFont(tf);
-            p->setPen(accent);
+            // 5k ou mais: amarelo (as demais seguem a cor de destaque)
+            const bool big = tags.chopped(1).toInt() >= 5;
+            p->setPen(big && !sel ? QColor(255, 204, 51) : accent);
             p->drawText(col(tagsX, tagsW), Qt::AlignLeft | Qt::AlignVCenter, tags);
         }
         // comentário

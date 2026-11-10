@@ -655,6 +655,7 @@ valorant::ValorantService *MainWindow::ensureValorant()
                 if (path != m_file) return;
                 m_matchId = d.matchId;
                 m_matchOffset = d.offsetSec;
+                m_autoOffset = d.autoOffsetSec;
                 m_vEvents = d.events;
                 m_roundStarts = d.roundStartsMs;
                 m_matchEndMs = d.endMs;
@@ -707,7 +708,9 @@ void MainWindow::applyAutoRange(double dur, double offset)
 double MainWindow::currentOffset() const
 {
     if (!std::isnan(m_matchOffset))
-        return m_matchOffset;
+        return m_matchOffset; // o que você acertou com a tecla K
+    if (!std::isnan(m_autoOffset))
+        return m_autoOffset;  // o que o shear achou no log do jogo
     return QSettings().value("valorant/offsetSec", valorant::kDefaultClipOffsetSec).toDouble();
 }
 
@@ -992,6 +995,7 @@ void MainWindow::openFile(const QString &path)
     m_autoRange.reset();
     m_matchId.clear();
     m_matchOffset = std::numeric_limits<double>::quiet_NaN();
+    m_autoOffset = std::numeric_limits<double>::quiet_NaN();
     m_vEvents.clear();
     m_clipEndMs = 0;
     setWindowTitle("shear"); // o título da janela é sempre só o nome do app

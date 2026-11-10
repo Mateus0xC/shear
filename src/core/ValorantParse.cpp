@@ -2,7 +2,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDateTime>
 #include <QRegularExpression>
+#include <QTimeZone>
 
 namespace shear::valorant {
 
@@ -103,6 +105,40 @@ static QString findName(const QByteArray &json, const char *keyField, const QStr
 
 QString mapNameFor(const QByteArray &json, const QString &mapUrl) { return findName(json, "mapUrl", mapUrl); }
 QString agentNameFor(const QByteArray &json, const QString &uuid) { return findName(json, "uuid", uuid); }
+
+std::optional<qint64> findRound0StartMs(QByteArrayView log, const QByteArray &matchId)
+{
+    if (matchId.isEmpty())
+        return std::nullopt;
+    const qsizetype at = log.indexOf("Match Load Times] MatchId: " + matchId);
+    if (at < 0)
+        return std::nullopt;
+    const QByteArrayView tail = log.mid(at, 8 * 1024 * 1024); // o round 0 começa ~1 min depois do carregamento
+    static const QByteArray kKey = "Gameplay started at local time ";
+    qsizetype pos = 0;
+    while ((pos = tail.indexOf(kKey, pos)) >= 0) {
+        const qsizetype lineEnd = tail.indexOf('\n', pos);
+        const QByteArrayView line = tail.mid(pos, lineEnd < 0 ? -1 : lineEnd - pos);
+        const qsizetype st = line.indexOf("(server time ");
+        double server = 0;
+        if (st >= 0) {
+            const QByteArrayView rest = line.mid(st + 13); // "45.292187)"
+            const qsizetype close = rest.indexOf(')');
+            server = rest.left(close < 0 ? rest.size() : close).toDouble();
+        }
+        if (server > 0) { // server time 0 = começo da fase de compra; > 0 = o round passou a valer
+            const qsizetype ls = tail.lastIndexOf('\n', pos) + 1;
+            // [2026.11.08-16.02.46:107]
+            const QByteArray stamp = tail.mid(ls, 25).toByteArray();
+            const QDateTime dt = QDateTime::fromString(QString::fromLatin1(stamp), "'['yyyy.MM.dd-HH.mm.ss:zzz']'");
+            if (!dt.isValid())
+                return std::nullopt;
+            return QDateTime(dt.date(), dt.time(), QTimeZone::UTC).toMSecsSinceEpoch();
+        }
+        pos += kKey.size();
+    }
+    return std::nullopt;
+}
 
 QString clipKey(const QString &fileName, qint64 size)
 {

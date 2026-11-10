@@ -117,11 +117,15 @@ dele (o fim de um round é o começo do seguinte), desde que o trecho dentro do 
 anterior. No modo Rápido o I encaixa no keyframe mais próximo (sem o aviso "o clipe vai começar X s antes") e nunca cai no
 começo corrompido. Só acontece se você ainda não mexeu em I, O ou nos trechos apagados, e Ctrl+Z desfaz.
 
-O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]` e somando ~104 s
-(os horários da API ficam cerca de 100 s antes do vídeo, e esse tanto muda de partida para partida). Para acertar: pause no
-quadro de uma kill e aperte **K** — a marca mais próxima passa a cair ali, para esse clipe e para os outros da mesma
-partida (fica em `matches/<id>.json`, campo `offsetSec`). O padrão geral, se quiser mudar, fica em `HKCU\Software\Shear\Shear`, valor `valorant/offsetSec` (segundos; positivo
-= as marcas aparecem mais tarde no clipe). O `metrics.log` mostra quantos eventos caíram no clipe e o offset usado.
+O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]`, mais um deslocamento. Os
+horários da API ficam de 60 a 110 s antes do vídeo, e esse tanto muda de partida para partida (a API marca o início da
+seleção de agentes; o jogo grava no `ShooterGame.log` o instante real em que o round 0 passa a valer, linha
+`Gameplay started at ... (server time 45.x)`, logo depois de `[Match Load Times] MatchId: <id>`). O shear lê esse log
+(o atual e os backups em `%LOCALAPPDATA%\VALORANT\Saved\Logs`, uma vez por partida), calcula o deslocamento exato (±0,1 s;
+conferido em 6 partidas contra o seu ajuste com K) e guarda em `matches/<id>.json` (`autoOffsetSec`). Se o log daquela
+partida já não existir, vale o padrão de 104 s. Para acertar à mão: pause no quadro de uma kill e aperte **K** — a marca
+mais próxima passa a cair ali, para esse clipe e os outros da mesma partida (`offsetSec`, que tem prioridade sobre o
+automático). O `metrics.log` mostra o que foi usado.
 
 ### Overlay da NVIDIA
 O shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não

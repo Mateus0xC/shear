@@ -43,6 +43,7 @@ private:
     void step4(std::shared_ptr<Ctx> c);
     void stepHistory(std::shared_ptr<Ctx> c);
     void stepDetails(std::shared_ptr<Ctx> c);
+    void startAutoOffset(std::shared_ptr<Ctx> c, const QString &matchId);
     void loadKnownEvents(std::shared_ptr<Ctx> c);
     void proceed(std::shared_ptr<Ctx> c);
     void applyDetails(std::shared_ptr<Ctx> c, const QString &matchId, const QByteArray &body, std::function<void()> then);

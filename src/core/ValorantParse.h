@@ -1,5 +1,7 @@
 #pragma once
 #include <QByteArray>
+#include <QByteArrayView>
+#include <optional>
 #include <QString>
 
 // Funções puras (sem rede e sem disco) que interpretam o que a API local do Valorant devolve.
@@ -50,6 +52,11 @@ MatchSummary parseMatchDetails(const QByteArray &json, const QString &puuid);
 // Devolve "" se o ID for desconhecido (nunca o ID cru).
 QString mapNameFor(const QByteArray &json, const QString &mapUrl);
 QString agentNameFor(const QByteArray &json, const QString &uuid);
+
+// Início REAL (ms desde 1970; o log está em UTC) do round 0 de uma partida, lido de um ShooterGame.log: a primeira linha
+// "Gameplay started at local time X (server time Y)" com Y > 0 depois de "[Match Load Times] MatchId: <id>". Comparado com o
+// início do round 0 da API, dá o deslocamento exato entre os horários da API e o relógio do PC (±0,1 s).
+std::optional<qint64> findRound0StartMs(QByteArrayView log, const QByteArray &matchId);
 
 // Chave do clipe que sobrevive a mover o arquivo de pasta: nome + tamanho.
 QString clipKey(const QString &fileName, qint64 size);

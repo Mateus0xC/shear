@@ -9,9 +9,9 @@
 // Eventos do jogador numa partida do Valorant e sua conversão para o tempo do clipe (puro: sem rede nem disco).
 namespace shear::valorant {
 
-// Os horários da API ficam ~100 s antes do que aparece no vídeo (gameStartMillis parece marcar o começo da seleção de
-// agentes/carregamento, não o do primeiro round) e esse tanto muda de partida para partida: medido 109,5 s e 98,4 s em duas
-// partidas. O padrão é a média; a tecla K do editor acerta o offset de cada partida (fica salvo em matches/<id>.json).
+// Os horários da API ficam 60 a 110 s antes do que aparece no vídeo e esse tanto muda de partida para partida. Normalmente
+// o shear acha o valor exato no ShooterGame.log (autoOffsetSec); este padrão (média de partidas medidas) só vale quando o
+// log da partida não existe mais. A tecla K do editor ainda acerta à mão (fica salvo em matches/<id>.json).
 inline constexpr double kDefaultClipOffsetSec = 104.0;
 
 struct MatchEvent {
@@ -34,7 +34,8 @@ struct MatchData {
     QVector<MatchEvent> events;
     QVector<qint64> roundStartsMs; // início de cada round (ms absoluto), em ordem; o fim de um round é o início do seguinte
     qint64 endMs = 0;              // fim da partida (início + duração)
-    double offsetSec = qQNaN();    // ajuste de alinhamento calibrado para a partida (NaN = nunca calibrada)
+    double offsetSec = qQNaN();    // ajuste que VOCÊ calibrou com a tecla K (NaN = nunca calibrada)
+    double autoOffsetSec = qQNaN(); // ajuste calculado sozinho a partir do ShooterGame.log (NaN = não achou)
 };
 
 // Início de cada round em /match-details: gameStartMillis + (gameTime − roundTime) de qualquer kill do round.

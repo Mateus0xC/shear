@@ -2,6 +2,7 @@
 #include "ValorantStore.h"
 #include "core/ValorantParse.h"
 #include "util/Metrics.h"
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -53,6 +54,8 @@ static MatchData matchDataFromJson(const QString &id, const QJsonObject &m)
     d.endMs = qint64(m.value("startMs").toDouble()) + qint64(m.value("lengthMs").toDouble());
     if (m.contains("offsetSec"))
         d.offsetSec = m.value("offsetSec").toDouble();
+    if (m.contains("autoOffsetSec"))
+        d.autoOffsetSec = m.value("autoOffsetSec").toDouble();
     return d;
 }
 
@@ -165,7 +168,7 @@ void ValorantService::loadKnownEvents(std::shared_ptr<Ctx> c)
         if (match.contains("events")) {
             emit matchDataReady(c->clipPath, matchDataFromJson(c->matchId, match));
             if (match.contains("rounds"))
-                return;
+                return startAutoOffset(c, c->matchId);
         }
         // sem eventos (partida estava em andamento) ou sem os rounds (guardado numa versão anterior): baixa de novo
         c->detailsOnly = true;
@@ -288,9 +291,69 @@ void ValorantService::applyDetails(std::shared_ptr<Ctx> c, const QString &matchI
             return matchDataFromJson(matchId, store::loadMatch(matchId));
         },
         [this, c, matchId, then](MatchData d) {
-            if (!stale(*c) && !c->clipPath.isEmpty() && matchId == c->matchId)
+            if (!stale(*c) && !c->clipPath.isEmpty() && matchId == c->matchId) {
                 emit matchDataReady(c->clipPath, d);
+                startAutoOffset(c, matchId);
+            }
             then();
+        });
+}
+
+// Deslocamento exato entre os horários da API e o relógio do PC, lido do ShooterGame.log (uma vez por partida; o resultado,
+// ou o fato de não ter achado, fica em matches/<id>.json). Os logs são procurados do mais novo para o mais antigo.
+static std::optional<double> autoOffsetFromLogs(const QString &matchId, qint64 apiRound0Ms)
+{
+    QDir dir(qEnvironmentVariable("LOCALAPPDATA") + "/VALORANT/Saved/Logs");
+    QStringList files{"ShooterGame.log"};
+    QStringList backups = dir.entryList({"ShooterGame-backup-*.log"}, QDir::Files, QDir::Name | QDir::Reversed);
+    files += backups;
+    for (const QString &name : files) {
+        QFile f(dir.filePath(name));
+        if (!f.open(QIODevice::ReadOnly | QIODevice::ExistingOnly))
+            continue;
+        QByteArray owned;
+        const uchar *p = f.map(0, f.size());
+        QByteArrayView view;
+        if (p) {
+            view = QByteArrayView(reinterpret_cast<const char *>(p), f.size());
+        } else {
+            owned = f.readAll();
+            view = owned;
+        }
+        if (const auto t = findRound0StartMs(view, matchId.toLatin1())) {
+            const double off = double(*t - apiRound0Ms) / 1000.0;
+            if (off > 0 && off < 400) // bem fora disso é outra coisa (ex.: a API não trouxe o round 0)
+                return off;
+            return std::nullopt;
+        }
+    }
+    return std::nullopt;
+}
+
+void ValorantService::startAutoOffset(std::shared_ptr<Ctx> c, const QString &matchId)
+{
+    runAsync(
+        this,
+        [matchId] {
+            std::optional<MatchData> out;
+            const QJsonObject m = store::loadMatch(matchId);
+            const QJsonArray rounds = m.value("rounds").toArray();
+            if (m.contains("autoOffsetTried") || rounds.isEmpty())
+                return out;
+            const auto off = autoOffsetFromLogs(matchId, qint64(rounds.first().toDouble()));
+            QJsonObject upd{{"autoOffsetTried", true}};
+            if (off)
+                upd.insert("autoOffsetSec", *off);
+            store::saveMatch(matchId, upd);
+            if (off)
+                out = matchDataFromJson(matchId, store::loadMatch(matchId));
+            return out;
+        },
+        [this, c](std::optional<MatchData> d) {
+            if (d && !stale(*c) && !c->clipPath.isEmpty())
+                emit matchDataReady(c->clipPath, *d);
+            metrics::log(d ? QString("valorant: alinhamento automático pelo log do jogo (%1 s)").arg(d->autoOffsetSec, 0, 'f', 2)
+                           : QString("valorant: sem alinhamento automático (log da partida não encontrado ou já feito)"));
         });
 }
 

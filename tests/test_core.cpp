@@ -449,6 +449,24 @@ private slots:
         QVERIFY(!valorant::pickLastRoundSpan(starts, 1500000, 900000, 50.0, 0.0));
         QVERIFY(!valorant::pickLastRoundSpan({}, 1500000, 1200000, 100.0, 0.0));
     }
+    void valorant_round0_start_from_shootergame_log()
+    {
+        const QByteArray log =
+            "[2026.11.08-16.00.10:217][  0]LogGameFlowStateManager: Pregame\n"
+            "[2026.11.08-16.02.01:411][  1]LogLoadTimeMetrics: Display: [Match Load Times] MatchId: abc-123, LoadingScreenTime: 17.08\n"
+            "[2026.11.08-16.02.30:919][  2]LogRNetVoiceManager: Warning: algo\n"
+            "[2026.11.08-16.01.00:000][  3]LogShooterGameState: Warning: Gameplay started at local time 0.0 (server time 0.0)\n"
+            "[2026.11.08-16.02.46:107][  4]LogShooterGameState: Warning: Gameplay started at local time 45.101562 (server time 45.292187)\n"
+            "[2026.11.08-16.03.47:491][  5]LogShooterGameState: Warning: Gameplay started at local time 99.0 (server time 0.0)\n";
+        const auto t = valorant::findRound0StartMs(log, "abc-123");
+        QVERIFY(t.has_value());
+        // 16:02:46.107 UTC de 08/11/2026
+        QCOMPARE(*t, QDateTime(QDate(2026, 11, 8), QTime(16, 2, 46, 107), QTimeZone::UTC).toMSecsSinceEpoch());
+        QVERIFY(!valorant::findRound0StartMs(log, "outra-partida").has_value());
+        QVERIFY(!valorant::findRound0StartMs(log, "").has_value());
+        // partida achada, mas o log termina antes do round 0 começar
+        QVERIFY(!valorant::findRound0StartMs(log.left(log.indexOf("[2026.11.08-16.02.30")), "abc-123").has_value());
+    }
 };
 
 QTEST_APPLESS_MAIN(CoreTest)

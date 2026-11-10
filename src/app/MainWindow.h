@@ -186,6 +186,7 @@ private:
     void applyAutoRange(double dur, double offset);  // I/O = último round capturado
     void calibrateEvents();                          // K: a marca mais próxima do ponto atual passa a cair aqui
     QString m_matchId;
+    double m_autoOffset = std::numeric_limits<double>::quiet_NaN(); // alinhamento achado no log do jogo (NaN = não achou)
     double m_matchOffset = std::numeric_limits<double>::quiet_NaN(); // ajuste da partida (NaN = padrão)
     double currentOffset() const;
     valorant::ValorantService *ensureValorant();     // cria e liga o serviço na primeira vez

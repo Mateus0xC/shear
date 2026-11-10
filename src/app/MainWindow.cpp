@@ -389,7 +389,6 @@ protected:
         m->setUrls(urls);
         return m;
     }
-    Qt::DropActions supportedDragActions() const override { return Qt::CopyAction; }
 };
 
 } // namespace shear

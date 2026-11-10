@@ -11,7 +11,7 @@ marcar início e fim, exportar e colar no Discord.
    (Ctrl+V no Discord).
 3. **Os clipes exportados são temporários**: ficam em `%TEMP%\Shear-exports` e são apagados ao fechar o shear
    (e as sobras de uma sessão que travou são apagadas na próxima abertura). Para guardar um clipe, clique em
-   **Manter clipe**: ele é movido para a pasta configurada (ou a do vídeo original) e aparece o botão **Apagar original** (manda só o vídeo de origem para a Lixeira, com confirmação). **Apagar original e clipe** apaga os dois (confirma antes). Segurando **Shift**, o Manter vira "Manter e apagar original" (mantém o clipe e manda o original para a Lixeira, com confirmação). O ícone de cópia ao lado copia o clipe de novo para a área de transferência; clicar no nome do arquivo abre a pasta. Ao voltar para a lista de clipes ou fechar, o clipe não mantido é apagado.
+   **Manter clipe**: ele é movido para a pasta configurada (ou a do vídeo original) e aparece o botão **Apagar original** (manda só o vídeo de origem para a Lixeira, com confirmação). **Apagar original e clipe** apaga os dois (confirma antes). Segurando **Shift**, o Manter vira "Manter e apagar original" (mantém o clipe e manda o original para a Lixeira, com confirmação). O ícone de cópia ao lado copia o clipe de novo para a área de transferência; clicar no nome do arquivo abre o clipe no shear (botão direito: abrir local do arquivo). Ao voltar para a lista de clipes ou fechar, o clipe não mantido é apagado.
 
 | Tecla | Ação |
 |---|---|
@@ -119,7 +119,8 @@ nunca apaga.
 
 **Nome do arquivo no topo:** clicar nele abre a pasta do arquivo no Explorer (sublinha só ao passar o mouse). Também dá para
 **arrastar** o nome (no editor, no clipe exportado ou a linha na lista de clipes) para o Discord, o Explorer ou o próprio shear: vai o
-arquivo. **Botão direito** no nome do arquivo (editor) ou na linha da lista abre um menu: *Abrir local do arquivo* (só na lista) e
+arquivo (no clipe exportado, o clique abre o clipe no shear e o botão direito tem *Abrir local do arquivo*). **Botão direito** no nome
+do arquivo (editor) ou na linha da lista abre um menu: *Abrir local do arquivo* (só na lista) e
 *Excluir* na lista (no editor, *Apagar original*); vai para a Lixeira, com confirmação.
 
 **Imagens:** o ícone do agente e uma faixa do mapa (do valorant-api.com) aparecem no topo do editor (a imagem do mapa ao fundo de toda a barra, bem apagada, e o ícone do agente ao lado do nome), nos menus

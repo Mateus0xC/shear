@@ -957,11 +957,23 @@ QWidget *MainWindow::buildEditor()
     m_fileLink->setFlat(true);
     m_fileLink->setCursor(Qt::PointingHandCursor);
     m_fileLink->setFocusPolicy(Qt::NoFocus);
-    m_fileLink->setToolTip("Abrir a pasta do clipe");
+    m_fileLink->setToolTip("Abrir o clipe no shear (botão direito: abrir local do arquivo)");
     m_fileLink->setStyleSheet("QPushButton { border: none; padding: 0 2px; } QPushButton:hover { text-decoration: underline; }");
     fileLink->dragFile = [this] { return m_lastOutput; };
+    fileLink->onContext = [this](const QPoint &g) {
+        if (m_lastOutput.isEmpty()) return;
+        QMenu menu(this);
+        auto *reveal = menu.addAction("Abrir local do arquivo");
+        connect(reveal, &QAction::triggered, this, [this] { revealInExplorer(m_lastOutput); });
+        menu.exec(g);
+    };
     m_fileLink->hide();
-    connect(m_fileLink, &QPushButton::clicked, this, [this] { revealInExplorer(m_lastOutput); });
+    connect(m_fileLink, &QPushButton::clicked, this, [this] {
+        if (m_job || m_lastOutput.isEmpty() || !QFileInfo::exists(m_lastOutput)) return;
+        // clipe ainda temporário (não mantido): abrir no shear não pode fazê-lo sumir ao voltar para a lista
+        m_tempFiles.removeAll(m_lastOutput);
+        openFile(m_lastOutput);
+    });
     connect(m_deleteBothBtn, &QPushButton::clicked, this, &MainWindow::deleteBoth);
     hideResultButtons();
     ex->addWidget(m_fileLink);
@@ -2247,7 +2259,7 @@ void MainWindow::setResultLink(const QString &path)
 {
     const QString name = QFileInfo(path).fileName();
     m_fileLink->setText(m_fileLink->fontMetrics().elidedText(name, Qt::ElideMiddle, 360));
-    m_fileLink->setToolTip("Abrir a pasta do clipe: " + name);
+    m_fileLink->setToolTip("Abrir o clipe no shear (botão direito: abrir local do arquivo): " + name);
     m_fileLink->adjustSize();
 }
 

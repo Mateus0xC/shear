@@ -103,7 +103,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"Manter clipe", "Guarda o clipe. Segure Shift para guardar e já apagar o vídeo original"},
             {"Apagar original", "Manda o vídeo original para a Lixeira"},
             {"Apagar original e clipe", "Apaga os dois"},
-            {"Nome do arquivo (embaixo)", "Abre a pasta onde o clipe está"},
+            {"Nome do arquivo exportado (embaixo)", "Abre o clipe no shear; botão direito: abrir local do arquivo"},
         }},
     };
 

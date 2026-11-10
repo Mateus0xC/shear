@@ -386,11 +386,11 @@ void ValorantService::saveMatchOffset(const QString &matchId, double offsetSec)
     runAsync(this, [matchId, offsetSec] { return store::saveMatch(matchId, {{"offsetSec", offsetSec}}); }, [](bool) {});
 }
 
-void ValorantService::saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual)
+void ValorantService::saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual, bool wait)
 {
     const QString key = clipKey(QFileInfo(clipPath).fileName(), size);
     const QString date = QFileInfo(clipPath).birthTime().toString(Qt::ISODate);
-    runAsync(this, [key, manual, date] {
+    auto work = [key, manual, date] {
         QJsonObject e = store::loadClips().value(key).toObject();
         if (manual.isEmpty())
             e.remove("manual");
@@ -399,7 +399,11 @@ void ValorantService::saveManual(const QString &clipPath, qint64 size, const QJs
         if (!e.contains("date"))
             e.insert("date", date);
         return store::saveClip(key, e);
-    }, [](bool) {});
+    };
+    if (wait)
+        work();
+    else
+        runAsync(this, work, [](bool) {});
 }
 
 void ValorantService::saveTags(const QString &clipPath, qint64 size, const QStringList &tags)

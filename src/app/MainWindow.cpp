@@ -310,9 +310,10 @@ QWidget *MainWindow::buildEditor()
     connect(m_mapBtn, &QToolButton::clicked, this, [this] { pickName("map"); });
     connect(m_agentBtn, &QToolButton::clicked, this, [this] { pickName("agent"); });
     connect(m_killsBtn, &QToolButton::clicked, this, [this] { pickKills(); });
-    top->addStretch(1);
-    // Comentário opcional (qualquer clipe), à direita, no mesmo estilo do mapa/agente/kills: texto cinza clicável; o clique
-    // troca o texto por um campo (Enter grava, Esc descarta).
+    // Comentário opcional (qualquer clipe), no mesmo estilo do mapa/agente/kills: ícone de editar (ou o texto), cinza e
+    // clicável; o clique troca por um campo (Enter grava, Esc descarta). Também grava ao voltar para a lista e ao sair.
+    m_commentSep = new QLabel("·");
+    m_commentSep->setForegroundRole(QPalette::PlaceholderText);
     m_commentBtn = new QToolButton;
     m_commentBtn->setAutoRaise(true);
     m_commentBtn->setFocusPolicy(Qt::NoFocus);
@@ -336,17 +337,12 @@ QWidget *MainWindow::buildEditor()
     m_commentEdit->setStyleSheet("QLineEdit { border: none; border-bottom: 1px solid palette(mid); background: transparent; }");
     m_commentEdit->hide();
     m_commentEdit->installEventFilter(this); // Esc sai do campo
-    connect(m_commentEdit, &QLineEdit::returnPressed, m_commentEdit, [this] { m_commentEdit->clearFocus(); });
-    connect(m_commentEdit, &QLineEdit::editingFinished, this, [this] {
-        const QString c = m_commentEdit->text().trimmed();
-        if (c != m_manual.value("comment").toString() && !m_file.isEmpty()) {
-            if (c.isEmpty()) m_manual.remove("comment"); else m_manual.insert("comment", c);
-            commitManual();
-        }
-        refreshInfoBar(); // volta o texto cinza no lugar do campo
-    });
+    connect(m_commentEdit, &QLineEdit::returnPressed, this, [this] { commitComment(); });
+    connect(m_commentEdit, &QLineEdit::editingFinished, this, [this] { commitComment(); });
+    top->addWidget(m_commentSep);
     top->addWidget(m_commentBtn);
     top->addWidget(m_commentEdit);
+    top->addStretch(1);
     // Velocidade do preview: botão com menu (também as teclas - e +, Backspace volta a 1×)
     m_speedBtn = new QToolButton;
     m_speedBtn->setText("1×");
@@ -898,12 +894,23 @@ void MainWindow::refreshInfoBar()
         m_commentEdit->hide();
         m_commentBtn->show();
     }
-    QFont cf = m_commentBtn->font();
-    cf.setItalic(comment.isEmpty());
-    m_commentBtn->setFont(cf);
-    m_commentBtn->setText(comment.isEmpty() ? QStringLiteral("comentário")
-                                            : QFontMetrics(cf).elidedText(comment, Qt::ElideRight, 320));
-    m_commentBtn->setToolTip(comment.isEmpty() ? QStringLiteral("Clique para adicionar um comentário") : comment);
+    if (comment.isEmpty()) { // só o ícone de editar (glifo E70F da fonte de ícones do Windows; sem ela, ✎)
+        if (const QString family = iconFontFamily(); !family.isEmpty()) {
+            QFont f(family);
+            f.setPixelSize(13);
+            m_commentBtn->setFont(f);
+            m_commentBtn->setText(QString(QChar(0xE70F)));
+        } else {
+            m_commentBtn->setFont(font());
+            m_commentBtn->setText(QString::fromUcs4(U"✎"));
+        }
+        m_commentBtn->setToolTip("Clique para adicionar um comentário");
+    } else {
+        m_commentBtn->setFont(font());
+        m_commentBtn->setText(QFontMetrics(font()).elidedText(comment, Qt::ElideRight, 320));
+        m_commentBtn->setToolTip(comment);
+    }
+    m_commentSep->setVisible(true);
 }
 
 static QStringList cachedNames(const QByteArray &json, bool onlyPlayable)
@@ -968,11 +975,27 @@ void MainWindow::pickKills()
 }
 
 // Guarda no clips.json (campo "manual") e atualiza a tela. Vale para qualquer clipe.
-void MainWindow::commitManual()
+void MainWindow::commitManual(bool wait)
 {
     if (m_file.isEmpty()) return;
-    ensureValorant()->saveManual(m_file, m_clipSize ? m_clipSize : QFileInfo(m_file).size(), m_manual);
+    ensureValorant()->saveManual(m_file, m_clipSize ? m_clipSize : QFileInfo(m_file).size(), m_manual, wait);
     refreshInfoBar();
+}
+
+// Grava o comentário que está sendo digitado (Enter, sair do campo, voltar para a lista, abrir outro clipe ou fechar o app).
+// Sem campo aberto, não faz nada. `wait`: grava na hora (ao fechar/voltar não dá para esperar a thread de fundo).
+void MainWindow::commitComment(bool wait)
+{
+    if (!m_commentEdit || !m_commentEdit->isVisible()) return;
+    const QString c = m_commentEdit->text().trimmed();
+    m_commentEdit->hide(); // antes de gravar, para o refreshInfoBar já mostrar o ícone no lugar do campo
+    if (c != m_manual.value("comment").toString() && !m_file.isEmpty()) {
+        if (c.isEmpty()) m_manual.remove("comment"); else m_manual.insert("comment", c);
+        commitManual(wait);
+    } else {
+        refreshInfoBar();
+    }
+    m_commentEdit->clearFocus();
 }
 
 void MainWindow::detectNvenc()
@@ -1001,6 +1024,7 @@ struct RecentItem { QString path; QDateTime created; qint64 size; QString info; 
 
 void MainWindow::showHome()
 {
+    commitComment(true); // o comentário em edição não se perde ao voltar para a lista
     // Saiu do vídeo: para tudo, senão o áudio continuaria tocando em segundo plano.
     m_scrubbing = false;
     m_resumeAfterDrag = false;
@@ -1167,6 +1191,7 @@ void MainWindow::openFile(const QString &path)
         raise();
         return;
     }
+    commitComment(true); // abrindo outro clipe com um comentário em edição: grava no clipe de antes
     m_openClock.start();
     m_fileSize = QFileInfo(path).size();
     if (!m_editor) {
@@ -1830,10 +1855,17 @@ void MainWindow::dropEvent(QDropEvent *e)
 // Roda do mouse sobre o botão de velocidade: para cima acelera, para baixo desacelera (um passo por "clique" da roda).
 bool MainWindow::eventFilter(QObject *obj, QEvent *e)
 {
-    if (obj == m_commentEdit && e->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(e)->key() == Qt::Key_Escape) {
-        m_commentEdit->setText(m_manual.value("comment").toString()); // descarta o que foi digitado
-        m_commentEdit->clearFocus(); // (editingFinished volta o texto cinza)
-        return true;
+    if (obj == m_commentEdit && e->type() == QEvent::KeyPress) {
+        const int key = static_cast<QKeyEvent *>(e)->key();
+        if (key == Qt::Key_Escape) {
+            m_commentEdit->setText(m_manual.value("comment").toString()); // descarta o que foi digitado
+            commitComment();
+            return true;
+        }
+        if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+            commitComment(); // grava e sai do campo
+            return true;
+        }
     }
     if (obj == m_speedBtn && e->type() == QEvent::Wheel) {
         auto *w = static_cast<QWheelEvent *>(e);
@@ -1851,6 +1883,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *e)
 
 void MainWindow::closeEvent(QCloseEvent *e)
 {
+    commitComment(true); // nem ao sair do programa
     if (m_job) m_job->cancel();
     cleanupTemp(false);
     if (m_scanner) {

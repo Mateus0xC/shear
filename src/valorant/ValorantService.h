@@ -26,7 +26,8 @@ public:
     // Guarda as tags (2k, 3k, 4k...) do clipe no clips.json.
     void saveTags(const QString &clipPath, qint64 size, const QStringList &tags);
     // Dados digitados à mão ({map, agent, kills, comment}); objeto vazio apaga. Valem para qualquer clipe, com ou sem Riot.
-    void saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual);
+    // `wait`: grava agora, na thread de quem chamou (ao fechar o app ou voltar para a lista; é um arquivo pequeno).
+    void saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual, bool wait = false);
     // Guarda o ajuste de alinhamento da partida (vale para todos os clipes dela).
     void saveMatchOffset(const QString &matchId, double offsetSec);
 

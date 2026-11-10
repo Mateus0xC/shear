@@ -178,6 +178,7 @@ private:
     QToolButton *m_mapBtn = nullptr, *m_agentBtn = nullptr, *m_killsBtn = nullptr;
     QLabel *m_sep[3] = {nullptr, nullptr, nullptr};
     QToolButton *m_commentBtn = nullptr;             // "comentário" (mesmo estilo do mapa/agente/kills), à direita
+    QLabel *m_commentSep = nullptr;
     QLineEdit *m_commentEdit = nullptr;              // aparece no lugar do botão enquanto você digita
     valorant::ValorantService *m_valorant = nullptr; // criado só na primeira consulta
     QVector<shear::valorant::MatchEvent> m_vEvents;  // meus kills/mortes da partida (horário absoluto)
@@ -189,7 +190,8 @@ private:
     void refreshInfoBar();                           // atualiza os textos do topo
     void pickName(const QString &field);             // menu para escolher "map" ou "agent"
     void pickKills();                                // menu para escolher o número de kills
-    void commitManual();                             // guarda o que foi digitado/escolhido à mão
+    void commitManual(bool wait = false);
+    void commitComment(bool wait = false);           // grava o comentário em edição (Enter, voltar, trocar de clipe, sair)                             // guarda o que foi digitado/escolhido à mão
     void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline
     void jumpToEvent(int dir);
     QVector<qint64> m_roundStarts;                   // início de cada round da partida (ms absoluto)

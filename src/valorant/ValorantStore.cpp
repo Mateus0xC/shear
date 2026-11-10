@@ -64,6 +64,17 @@ bool saveMatch(const QString &matchId, const QJsonObject &fields)
     return writeAtomic(dir() + "/matches/" + matchId + ".json", QJsonDocument(all).toJson(QJsonDocument::Indented));
 }
 
+bool eraseMatchField(const QString &matchId, const QString &key)
+{
+    if (!safeId(matchId))
+        return false;
+    QJsonObject all = loadMatch(matchId);
+    if (!all.contains(key))
+        return true;
+    all.remove(key);
+    return writeAtomic(dir() + "/matches/" + matchId + ".json", QJsonDocument(all).toJson(QJsonDocument::Indented));
+}
+
 QByteArray readCache(const QString &name)
 {
     QFile f(dir() + "/" + name);

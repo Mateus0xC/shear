@@ -532,6 +532,7 @@ MainWindow::MainWindow()
     sc(QKeySequence(Qt::SHIFT | Qt::Key_E), gotoEnd);
     // Q / E: evento (kill ou morte) anterior / próximo, quando o clipe tem eventos do Valorant
     sc(Qt::Key_K, [=, this] { if (inEditor()) calibrateEvents(); }); // calibra: o evento mais próximo cai no ponto atual
+    sc(QKeySequence(Qt::SHIFT | Qt::Key_K), [=, this] { if (inEditor()) resetCalibration(); }); // desfaz o K (Ctrl+Z também)
     sc(Qt::Key_Q, [=, this] { if (inEditor()) jumpToEvent(-1); });
     sc(Qt::Key_E, [=, this] { if (inEditor()) jumpToEvent(+1); });
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
@@ -1164,11 +1165,27 @@ void MainWindow::calibrateEvents()
         m_status->setText("Nenhuma kill/morte a menos de 60 s do ponto atual.");
         return;
     }
+    pushUndo(currentState()); // Ctrl+Z desfaz
     m_matchOffset = cur + (pos - bestT);
     applyValorantEvents();
     if (m_valorant && !m_matchId.isEmpty())
         m_valorant->saveMatchOffset(m_matchId, m_matchOffset);
     m_status->setText(QString("Marcas alinhadas (ajuste %1 s, guardado para esta partida).").arg(m_matchOffset, 0, 'f', 1));
+}
+
+// Shift+K: desfaz a calibração (K) desta partida e volta ao ajuste automático (ou ao padrão).
+void MainWindow::resetCalibration()
+{
+    if (std::isnan(m_matchOffset)) {
+        m_status->setText("As marcas já estão no ajuste automático.");
+        return;
+    }
+    pushUndo(currentState()); // Ctrl+Z traz o ajuste de volta
+    m_matchOffset = std::numeric_limits<double>::quiet_NaN();
+    if (m_valorant && !m_matchId.isEmpty())
+        m_valorant->clearMatchOffset(m_matchId);
+    applyValorantEvents();
+    m_status->setText("Marcas de volta ao ajuste automático.");
 }
 
 // Q / E: vai para a parada anterior / seguinte, que pode ser um evento (kill/morte) ou o ponto I / O. Paradas a menos de
@@ -1860,7 +1877,7 @@ void MainWindow::markEnd(double t)
 MainWindow::EditState MainWindow::currentState() const
 {
     return {m_timeline->start(), m_timeline->end(), m_micFader ? m_micFader->value() : 0, m_timeline->gaps(),
-            m_timeline->pendingGap().value_or(-1.0)};
+            m_timeline->pendingGap().value_or(-1.0), m_matchOffset};
 }
 
 void MainWindow::pushUndo(const EditState &s)
@@ -1870,7 +1887,9 @@ void MainWindow::pushUndo(const EditState &s)
     m_redo.clear(); // uma alteração nova depois de desfazer invalida o "refazer"
     if (!m_undo.empty()) {
         const EditState &b = m_undo.back();
-        if (b.start == s.start && b.end == s.end && b.micGain == s.micGain && b.gaps == s.gaps && b.pending == s.pending)
+        const bool sameOffset = (std::isnan(b.matchOffset) && std::isnan(s.matchOffset)) || b.matchOffset == s.matchOffset;
+        if (b.start == s.start && b.end == s.end && b.micGain == s.micGain && b.gaps == s.gaps && b.pending == s.pending &&
+            sameOffset)
             return;
     }
     m_undo.push_back(s);
@@ -1888,6 +1907,16 @@ void MainWindow::applyState(const EditState &s)
     if (m_micFader)
         m_micFader->setValue(s.micGain);
     m_restoring = false;
+    // ajuste das marcas do Valorant (K / Shift+K): volta ao que era, na tela e no arquivo da partida
+    const bool offsetChanged = !((std::isnan(s.matchOffset) && std::isnan(m_matchOffset)) || s.matchOffset == m_matchOffset);
+    if (offsetChanged) {
+        m_matchOffset = s.matchOffset;
+        if (m_valorant && !m_matchId.isEmpty()) {
+            if (std::isnan(m_matchOffset)) m_valorant->clearMatchOffset(m_matchId);
+            else m_valorant->saveMatchOffset(m_matchId, m_matchOffset);
+        }
+        applyValorantEvents();
+    }
     m_micClock.invalidate(); // o próximo ajuste do mic começa um gesto novo
     updateInfo();
     applyPreviewAudio();

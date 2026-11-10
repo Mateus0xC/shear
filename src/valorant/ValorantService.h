@@ -37,6 +37,8 @@ public:
     void saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual, bool wait = false);
     // Guarda o ajuste de alinhamento da partida (vale para todos os clipes dela).
     void saveMatchOffset(const QString &matchId, double offsetSec);
+    // Volta ao ajuste automático (apaga o que foi calibrado com K).
+    void clearMatchOffset(const QString &matchId);
 
 signals:
     void identified(const QString &clipPath, const QString &map, const QString &agent);

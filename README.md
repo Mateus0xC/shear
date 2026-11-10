@@ -143,7 +143,8 @@ seleção de agentes; o jogo grava no `ShooterGame.log` o instante real em que o
 conferido em 6 partidas contra o seu ajuste com K) e guarda em `matches/<id>.json` (`autoOffsetSec`). Se o log daquela
 partida já não existir, vale o padrão de 104 s. Para acertar à mão: pause no quadro de uma kill e aperte **K** — a marca
 mais próxima passa a cair ali, para esse clipe e os outros da mesma partida (`offsetSec`, que tem prioridade sobre o
-automático). O `metrics.log` mostra o que foi usado.
+automático). **Shift+K** desfaz a calibração (as marcas voltam ao ajuste automático) e **Ctrl+Z** também desfaz o K. O
+`metrics.log` mostra o que foi usado.
 
 ### Overlay da NVIDIA
 O shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não

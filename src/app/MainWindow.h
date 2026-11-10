@@ -74,6 +74,7 @@ private:
         int micGain = 0;
         std::vector<std::pair<double, double>> gaps;
         double pending = -1; // início de um trecho do meio ainda sem fim (X apertado uma vez); < 0 = nenhum
+        double matchOffset = std::numeric_limits<double>::quiet_NaN(); // ajuste das marcas do Valorant calibrado com K (NaN = nenhum)
     };
     void syncModeWithGaps();                // com trechos apagados o modo é Exato (forçado); sem eles, volta ao que era
     bool m_syncingMode = false, m_fastBeforeGaps = false;
@@ -204,7 +205,8 @@ private:
     std::optional<std::pair<double, double>> m_autoRange; // I/O que o shear pôs sozinho (para refazer se recalibrar)
     bool m_userPaused = false;                       // você pausou/despausou neste vídeo (o shear não mexe mais)
     void applyAutoRange(double dur, double offset);  // I/O = último round capturado
-    void calibrateEvents();                          // K: a marca mais próxima do ponto atual passa a cair aqui
+    void calibrateEvents();
+    void resetCalibration();                         // Shift+K: volta ao ajuste automático                          // K: a marca mais próxima do ponto atual passa a cair aqui
     QString m_matchId;
     double m_autoOffset = std::numeric_limits<double>::quiet_NaN(); // alinhamento achado no log do jogo (NaN = não achou)
     double m_matchOffset = std::numeric_limits<double>::quiet_NaN(); // ajuste da partida (NaN = padrão)

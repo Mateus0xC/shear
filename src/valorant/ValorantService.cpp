@@ -382,6 +382,11 @@ void ValorantService::backfill()
     });
 }
 
+void ValorantService::clearMatchOffset(const QString &matchId)
+{
+    runAsync(this, [matchId] { return store::eraseMatchField(matchId, "offsetSec"); }, [](bool) {});
+}
+
 void ValorantService::saveMatchOffset(const QString &matchId, double offsetSec)
 {
     runAsync(this, [matchId, offsetSec] { return store::saveMatch(matchId, {{"offsetSec", offsetSec}}); }, [](bool) {});

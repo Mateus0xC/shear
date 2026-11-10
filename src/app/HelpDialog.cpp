@@ -130,6 +130,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"F1", "Abre esta ajuda"},
             {"← Clipes", "Volta para a lista de clipes (o clipe que você não guardou é apagado)"},
             {"Engrenagem", "Abre as Configurações"},
+            {"F2 · botão ✎ Dados", "Digita à mão o mapa, o agente, as kills e um comentário do clipe (vale no lugar do que vem do jogo)"},
             {"Mapa · Agente (ao lado do título)", "Clipes do Valorant: aparece sozinho se o jogo estiver aberto (ou se o clipe já foi identificado antes)"},
             {"Arrastar um vídeo para a janela", "Abre o vídeo"},
             {"Cortar com shear (botão direito num vídeo)", "Abre o vídeo no shear; para ativar, vá em Configurações → Menu do Windows"},

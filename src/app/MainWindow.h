@@ -4,6 +4,7 @@
 #include "core/MatchEvents.h"
 #include "util/Settings.h"
 #include <QElapsedTimer>
+#include <QJsonObject>
 #include <limits>
 #include <optional>
 #include <QMainWindow>
@@ -176,7 +177,11 @@ private:
     valorant::ValorantService *m_valorant = nullptr; // criado só na primeira consulta
     QVector<shear::valorant::MatchEvent> m_vEvents;  // meus kills/mortes da partida (horário absoluto)
     qint64 m_clipEndMs = 0, m_clipSize = 0;          // fim do clipe (data de criação) e tamanho, para alinhar e guardar
-    QString m_gameText;                              // "Mapa · Agente" sem as tags
+    QString m_gameText;                              // "Mapa · Agente" que veio do jogo (sem as tags)
+    QString m_apiMap, m_apiAgent;                    // mapa e agente que vieram do jogo
+    QJsonObject m_manual;                            // o que foi digitado à mão: {map, agent, kills, comment}
+    int m_autoKills = 0;                             // kills achadas sozinhas no clipe (maior número num mesmo round)
+    void editClipInfo();                             // F2: mapa, agente, kills e comentário à mão
     void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline
     void jumpToEvent(int dir);
     QVector<qint64> m_roundStarts;                   // início de cada round da partida (ms absoluto)

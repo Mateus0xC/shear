@@ -55,10 +55,12 @@
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
+#include "ClipInfoDialog.h"
 #include "valorant/ValorantService.h"
 #include "valorant/ValorantStore.h"
 #include "core/ValorantParse.h"
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
 
@@ -142,6 +144,7 @@ MainWindow::MainWindow()
         connect(s, &QShortcut::activated, this, fn);
     };
     auto inEditor = [this] { return m_stack->currentIndex() == 1; };
+    sc(Qt::Key_F2, [=, this] { if (inEditor()) editClipInfo(); }); // mapa, agente, kills e comentário à mão
     sc(Qt::Key_F1, [=, this] { openHelp(); }); // ajuda com todos os atalhos (vale na lista de clipes e no editor)
     sc(Qt::Key_Space, [=, this] { if (inEditor()) userTogglePause(); });
     // X: apaga um trecho do MEIO (1º X = onde começa, 2º X = onde termina); o que sobra é emendado na exportação.
@@ -288,6 +291,11 @@ QWidget *MainWindow::buildEditor()
     m_gameInfo = new QLabel;
     m_gameInfo->setForegroundRole(QPalette::PlaceholderText); // discreto
     top->addWidget(m_gameInfo, 1);
+    auto *infoBtn = new QPushButton("✎ Dados");
+    infoBtn->setToolTip("Mapa, agente, kills e comentário do clipe, à mão (F2)");
+    infoBtn->setFocusPolicy(Qt::NoFocus);
+    connect(infoBtn, &QPushButton::clicked, this, &MainWindow::editClipInfo);
+    top->addWidget(infoBtn);
     // Velocidade do preview: botão com menu (também as teclas - e +, Backspace volta a 1×)
     m_speedBtn = new QToolButton;
     m_speedBtn->setText("1×");
@@ -648,7 +656,15 @@ valorant::ValorantService *MainWindow::ensureValorant()
                 if (!map.isEmpty()) parts << map;
                 if (!agent.isEmpty()) parts << agent;
                 m_gameText = parts.join(" · ");
+                m_apiMap = map;
+                m_apiAgent = agent;
                 applyValorantEvents(); // atualiza o rótulo (com as tags, se já houver eventos)
+            });
+    connect(m_valorant, &valorant::ValorantService::manualLoaded, this,
+            [this](const QString &path, const QJsonObject &manual) {
+                if (path != m_file) return;
+                m_manual = manual;
+                applyValorantEvents();
             });
     connect(m_valorant, &valorant::ValorantService::matchDataReady, this,
             [this](const QString &path, const valorant::MatchData &d) {
@@ -789,10 +805,46 @@ void MainWindow::applyValorantEvents()
     }
     m_timeline->setEvents(std::move(marks));
     applyAutoRange(dur, currentOffset());
+    m_autoKills = 0;
+    if (!tags.isEmpty()) m_autoKills = tags.first().chopped(1).toInt();
+    // O que foi digitado à mão vale no lugar do que veio do jogo.
+    const QString map = m_manual.value("map").toString().isEmpty() ? m_apiMap : m_manual.value("map").toString();
+    const QString agent = m_manual.value("agent").toString().isEmpty() ? m_apiAgent : m_manual.value("agent").toString();
     QStringList parts;
-    if (!m_gameText.isEmpty()) parts << m_gameText;
+    if (!map.isEmpty()) parts << map;
+    if (!agent.isEmpty()) parts << agent;
+    if (const int k = m_manual.value("kills").toInt(0); k > 0)
+        tags = k >= 2 ? QStringList{QString("%1k").arg(k)} : QStringList{};
     parts << tags;
-    m_gameInfo->setText(parts.isEmpty() ? QString() : "·  " + parts.join(" · "));
+    const QString comment = m_manual.value("comment").toString();
+    m_gameInfo->setText(parts.isEmpty() && comment.isEmpty() ? QString() : "·  " + parts.join(" · "));
+    m_gameInfo->setToolTip(comment.isEmpty() ? QString() : "Comentário: " + comment);
+    if (!comment.isEmpty() && parts.isEmpty())
+        m_gameInfo->setText("·  " + comment);
+}
+
+// F2: dados do clipe à mão (vale para qualquer clipe; sem Riot, sem jogo).
+void MainWindow::editClipInfo()
+{
+    if (m_file.isEmpty() || m_stack->currentIndex() != 1)
+        return;
+    auto names = [](const QByteArray &json, bool onlyPlayable) {
+        QStringList out;
+        for (const auto &v : QJsonDocument::fromJson(json).object().value("data").toArray()) {
+            const QJsonObject o = v.toObject();
+            if (onlyPlayable && !o.value("isPlayableCharacter").toBool(true)) continue;
+            if (const QString n = o.value("displayName").toString(); !n.isEmpty() && !out.contains(n)) out << n;
+        }
+        out.sort(Qt::CaseInsensitive);
+        return out;
+    };
+    ClipInfoDialog d(names(valorant::store::readCache("maps.json"), false),
+                     names(valorant::store::readCache("agents.json"), true), m_manual, m_apiMap, m_apiAgent, m_autoKills, this);
+    if (d.exec() != QDialog::Accepted)
+        return;
+    m_manual = d.result();
+    ensureValorant()->saveManual(m_file, m_clipSize ? m_clipSize : QFileInfo(m_file).size(), m_manual);
+    applyValorantEvents();
 }
 
 void MainWindow::detectNvenc()
@@ -866,12 +918,21 @@ void MainWindow::refreshRecent(bool autoOpen)
         if (!known.isEmpty())
             for (auto &r : v) {
                 const QJsonObject e = known.value(valorant::clipKey(QFileInfo(r.path).fileName(), r.size)).toObject();
+                const QJsonObject man = e.value("manual").toObject();
                 QStringList parts;
-                for (const char *k : {"map", "agent"})
-                    if (const QString s = e.value(k).toString(); !s.isEmpty()) parts << s;
-                for (const auto &t : e.value("tags").toArray())
-                    parts << t.toString();
+                for (const char *k : {"map", "agent"}) {
+                    const QString s = man.value(k).toString().isEmpty() ? e.value(k).toString() : man.value(k).toString();
+                    if (!s.isEmpty()) parts << s;
+                }
+                if (const int kills = man.value("kills").toInt(0); kills > 0) {
+                    if (kills >= 2) parts << QString("%1k").arg(kills);
+                } else {
+                    for (const auto &t : e.value("tags").toArray())
+                        parts << t.toString();
+                }
                 r.info = parts.join(" · ");
+                if (const QString c = man.value("comment").toString(); !c.isEmpty())
+                    r.info += (r.info.isEmpty() ? "" : "  —  ") + QString("“%1”").arg(c);
             }
         QMetaObject::invokeMethod(this, [this, v, autoOpen] {
             const QDateTime now = QDateTime::currentDateTime();
@@ -988,6 +1049,10 @@ void MainWindow::openFile(const QString &path)
     m_title->setText(QFileInfo(path).fileName());
     m_gameInfo->clear();
     m_gameText.clear();
+    m_apiMap.clear();
+    m_apiAgent.clear();
+    m_manual = QJsonObject();
+    m_autoKills = 0;
     m_vTags.clear();
     m_userPaused = false;
     m_roundStarts.clear();

@@ -133,16 +133,17 @@ void ValorantService::identify(const QString &clipPath, const QDateTime &created
     c->key = clipKey(QFileInfo(clipPath).fileName(), size);
     c->clock.start();
 
-    if (!looksLikeValorantClip(clipPath)) { // clipe de outro jogo: nem toca na rede
-        metrics::log("valorant: ignorado (o caminho do clipe não contém \"valorant\")");
-        return;
-    }
-
     // Já associado antes (vale mesmo com o jogo fechado) ou ainda dá para associar à partida em andamento?
     runAsync(this, [c] { return store::loadClips().value(c->key).toObject(); }, [this, c](QJsonObject known) {
         if (stale(*c))
             return;
-        if (!known.isEmpty()) {
+        // dados digitados à mão valem para qualquer clipe (também os de outros jogos)
+        emit manualLoaded(c->clipPath, known.value("manual").toObject());
+        if (!looksLikeValorantClip(c->clipPath)) { // clipe de outro jogo: nem toca na rede
+            metrics::log("valorant: ignorado (o caminho do clipe não contém \"valorant\")");
+            return;
+        }
+        if (!known.value("matchId").toString().isEmpty()) {
             const QString map = known.value("map").toString(), agent = known.value("agent").toString();
             if (!map.isEmpty() || !agent.isEmpty())
                 emit identified(c->clipPath, map, agent);
@@ -385,6 +386,22 @@ void ValorantService::saveMatchOffset(const QString &matchId, double offsetSec)
     runAsync(this, [matchId, offsetSec] { return store::saveMatch(matchId, {{"offsetSec", offsetSec}}); }, [](bool) {});
 }
 
+void ValorantService::saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual)
+{
+    const QString key = clipKey(QFileInfo(clipPath).fileName(), size);
+    const QString date = QFileInfo(clipPath).birthTime().toString(Qt::ISODate);
+    runAsync(this, [key, manual, date] {
+        QJsonObject e = store::loadClips().value(key).toObject();
+        if (manual.isEmpty())
+            e.remove("manual");
+        else
+            e.insert("manual", manual);
+        if (!e.contains("date"))
+            e.insert("date", date);
+        return store::saveClip(key, e);
+    }, [](bool) {});
+}
+
 void ValorantService::saveTags(const QString &clipPath, qint64 size, const QStringList &tags)
 {
     const QString key = clipKey(QFileInfo(clipPath).fileName(), size);
@@ -478,9 +495,16 @@ void ValorantService::resolveNames(std::shared_ptr<Ctx> c)
                                         {"modeId", c->game.modeId},
                                         {"savedAt", QDateTime::currentDateTime().toString(Qt::ISODate)}};
                 store::saveMatch(c->matchId, match);
-                store::saveClip(c->key, {{"matchId", c->matchId}, {"mapId", c->game.mapId}, {"map", c->mapName},
-                                         {"agentId", c->game.agentId}, {"agent", c->agentName},
-                                         {"date", c->created.toString(Qt::ISODate)}, {"tags", QJsonArray()}});
+                // junta ao que já existe: não apaga o que foi digitado à mão nem as tags já calculadas
+                QJsonObject e = store::loadClips().value(c->key).toObject();
+                const QJsonObject fresh{{"matchId", c->matchId}, {"mapId", c->game.mapId}, {"map", c->mapName},
+                                        {"agentId", c->game.agentId}, {"agent", c->agentName},
+                                        {"date", c->created.toString(Qt::ISODate)}};
+                for (auto it = fresh.begin(); it != fresh.end(); ++it)
+                    e.insert(it.key(), it.value());
+                if (!e.contains("tags"))
+                    e.insert("tags", QJsonArray());
+                store::saveClip(c->key, e);
                 return true;
             },
             [this, c](bool) {

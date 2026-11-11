@@ -1,13 +1,13 @@
 # Shear
 
 App desktop Windows (C++20, CMake + Ninja, Qt 6.8 Widgets, libmpv, ffmpeg.exe) para **cortar clipes** de vídeo. O shear base é só
-o cortador; recursos de jogos ficam em **plugins** (hoje, o do Valorant) que não vêm instalados. O `README.md` descreve o uso.
+o cortador; recursos de jogos ficam em **plugins** (hoje, o do Valorant) que não vêm instalados. O `README.md` é a porta de entrada; a documentação detalhada está em `docs/` (site via `mkdocs.yml`).
 
 ## Regras do projeto
 - **Commits**: mensagem em português, no estilo dos existentes (curta, no indicativo, diz o que mudou para o usuário). **Sem
   `Co-Authored-By`** nem qualquer outra linha de coautoria nos commits e PRs. Não altere `user.name` / `user.email` do Git.
 - **Só commitar/dar push/publicar quando o usuário pedir.** Release, upload de assets e `push --force` são ações dele; confirme antes.
-- **Interface, mensagens e comentários em português do Brasil.** Textos novos de interface vão também para `HelpDialog.cpp` (F1) e `README.md`.
+- **Interface, mensagens e comentários em português do Brasil.** Textos novos de interface vão também para `HelpDialog.cpp` (F1) , `README.md` e `docs/`.
 - `src/core/` é **puro** (sem GUI/rede/disco), com testes em `tests/`. Lógica nova que dê para ser pura vai para lá (ou para o
   código puro do plugin) e ganha teste.
 

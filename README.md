@@ -1,251 +1,59 @@
-# shear
+<p align="center">
+  <img src="resources/logo.png" alt="shear" width="128">
+</p>
 
-Cortador de clipes de vídeo para Windows, feito para ser rápido: abrir o clipe do ShadowPlay,
-marcar início e fim, exportar e colar no Discord.
+<h1 align="center">shear</h1>
 
-## Uso
+<p align="center">Cortador de clipes de vídeo para Windows: rápido, leve e feito para clipes de jogos.</p>
 
-1. Abra um vídeo: argumento de linha de comando, arrastar e soltar na janela, botão **Abrir vídeo…**
-   ou a lista de clipes recentes da pasta do ShadowPlay.
-2. Marque o trecho e exporte com `Enter`. O arquivo exportado já fica na área de transferência
-   (Ctrl+V no Discord).
-3. **Os clipes exportados são temporários**: ficam em `%TEMP%\Shear-exports` e são apagados ao fechar o shear
-   (e as sobras de uma sessão que travou são apagadas na próxima abertura). Para guardar um clipe, clique em
-   **Manter clipe**: ele é movido para a pasta configurada (ou a do vídeo original) e aparece o botão **Apagar original** (manda só o vídeo de origem para a Lixeira, com confirmação). **Apagar original e clipe** apaga os dois (confirma antes). Segurando **Shift**, o Manter vira "Manter e apagar original" (mantém o clipe e manda o original para a Lixeira, com confirmação). O ícone de cópia ao lado copia o clipe de novo para a área de transferência; clicar no nome do arquivo abre o clipe no shear (botão direito: abrir local do arquivo). Ao voltar para a lista de clipes ou fechar, o clipe não mantido é apagado.
+---
+
+## O que faz
+
+- Abre o clipe na hora, você marca o início e o fim e exporta com **Enter**.
+- **Corte rápido** (copia o vídeo, sem recodificar) ou **exato** (no quadro certo).
+- Apaga trechos do meio, liga e desliga o som do desktop e do microfone, e comprime para **até 20 MB**.
+- Timeline com **zoom de precisão**, tela cheia, desfazer e refazer.
+- **Plugins** opcionais para recursos de jogos. Nenhum vem instalado.
+
+## Instalar
+
+Baixe o **`shear-setup.exe`** na página de [Releases](https://github.com/Mateus0xC/shear/releases) (na versão `v0.x`).
+Funciona no Windows 10 e 11 (64 bits), não precisa de administrador e se atualiza sem reinstalar.
+
+## Como usar
+
+1. **Abra um vídeo**: arraste para a janela, use **Abrir vídeo…**, escolha um clipe da lista ou clique com o botão direito num
+   vídeo e escolha **Cortar com shear** (ative em Configurações → Menu do Windows).
+2. **Marque o trecho** com `I` (início) e `O` (fim), ou arraste os marcadores na timeline.
+3. **Exporte** com `Enter`. O arquivo exportado já fica na área de transferência (`Ctrl+V` cola).
+4. **Guarde** o clipe com **Manter clipe**. Clipes que você não guardar são apagados ao fechar.
+
+### Atalhos principais
 
 | Tecla | Ação |
 |---|---|
-| `F1` (ou **Configurações → Atalhos e controles…**) | abre a ajuda "Atalhos e controles", com abas explicando todas as teclas, gestos do mouse, painéis e Configurações |
-| `F5` ou `Ctrl+R` (na lista de clipes) | relê a pasta e atualiza a lista de clipes |
-| `F` (ou duplo clique no vídeo) | tela cheia: ficam só o vídeo e a timeline; `F` ou `Esc` voltam |
-| `Espaço` ou clique no vídeo | play/pause (com uma animação rápida sobre o vídeo; pular também mostra "+5 s", "−0,5 s"…). Ao chegar na marca de fim (`O`) a reprodução **para**, como se o vídeo tivesse acabado; play de novo (no `O` ou no fim do vídeo) **recomeça do `I`** |
-| `Ctrl` + roda do mouse sobre o vídeo | zoom no vídeo (até 8×); com zoom, arraste com o botão esquerdo para mover a imagem; `Ctrl` + `0` volta a 1× |
-| `[` / `]`, `-` / `+` (ou o botão **1×** no topo) | velocidade do preview: 0,25× a 3× (não muda o arquivo exportado); `Backspace` volta a 1× |
-| `I` / `O` ou `Z` / `C` | marca início / fim (no modo Rápido o `I`/`Z` encaixa no keyframe e o playback vai para lá) |
-| `←` `→` ou `A` `D` | pula 1 s para trás / frente, sem pausar o vídeo (segurando, repete) |
-| `Shift` + `←` `→` / `A` `D` | 0,3 s (passo fino) |
-| `Ctrl` + `←` `→` / `A` `D` | 5 s |
-| `Ctrl` + `Shift` + `←` `→` / `A` `D` | 15 s |
-| `Alt` + `←` `→` / `A` `D` (ou `,` `.`) | 1 frame (pausa o vídeo para mostrar o quadro) |
-| `Home` / `End` | início / fim do vídeo |
-| `J` / `L` | −5 s / +5 s |
-| `X` | apaga um trecho do **meio**: o 1º `X` marca onde ele começa, o 2º onde termina (`Esc` cancela). O trecho fica hachurado em laranja na timeline, o preview pula por cima dele, e na exportação o que sobra é emendado (com trechos apagados o modo **Exato** é selecionado à força e o **Rápido** fica desabilitado, porque o vídeo é recodificado; quando todos os trechos somem, volta ao modo de antes). Botão direito num trecho apagado traz ele de volta; `Ctrl+Z` desfaz um passo de cada vez (o 2º `X` sai, o início continua marcado) |
-| caixa **Até 20 MB** (ao lado de Rápido/Exato) | comprime o clipe para ficar com até 20 MB: o bitrate é calculado pela duração (vídeo + áudio em AAC), a resolução cai (720p, 540p ou 360p) e o vídeo vai para 30 quadros/s quando o bitrate é baixo; se o resultado passar do limite o shear tenta de novo, até 2 vezes, com bitrate menor. Recodifica (o modo fica Exato). Em **Configurações → Tamanho** dá para fazer cada vídeo já começar com ela ligada |
-| **Configurações → Emendas** | "Suavizar as emendas" (ligado por padrão): nas emendas dos trechos apagados o vídeo esmaece rapidinho (0,2 s) e o áudio faz **crossfade**; o começo e o fim do vídeo ficam como estão |
-| `Q` / `E` | vai para o ponto de início (`I`) / de fim (`O`); o `E` com o vídeo rodando **pausa em cima do `O`** |
-| `0` a `9` | pula para 0% a 90% do vídeo (como no YouTube) |
-| `↑` / `↓` ou `W` / `S` ou roda do mouse sobre o vídeo | volume do preview (estilo VLC; não muda o arquivo) |
-| `Ctrl` + `Z` | desfaz: marcadores de início/fim e volume do mic |
-| `Ctrl` + `Y` (ou `Ctrl` + `Shift` + `Z`) | refaz o que foi desfeito |
+| `Espaço` ou clique no vídeo | play / pause |
+| `I` / `O` | marca início / fim |
+| `←` `→` | pula 1 s (com `Shift` 0,3 s, `Ctrl` 5 s, `Alt` 1 quadro) |
+| `X` | apaga um trecho do meio (1º `X` marca onde começa, 2º onde termina) |
+| `F` ou duplo clique no vídeo | tela cheia (`F` ou `Esc` voltam) |
+| `Ctrl+Z` / `Ctrl+Y` | desfaz / refaz |
 | `Enter` | exporta |
-| `Esc` | cancela o trecho do `X` que está sendo marcado (para voltar à lista de clipes use o botão **← Clipes**) |
-| puxar o mouse para baixo ao arrastar na timeline | régua ampliada (zoom de precisão); em tela cheia, quando falta espaço até a borda da tela, as faixas de zoom ficam mais estreitas e a régua aparece acima da timeline |
-| roda do mouse na timeline | pula como as setas: 1 s por clique (Shift 0,3 s, Ctrl 5 s, Ctrl+Shift 15 s, Alt 1 quadro); para cima avança |
+| `F1` | abre a ajuda com **todas** as teclas e gestos |
 
-### Menu de contexto do Explorer
-Em **Configurações → Menu do Windows** (caixa de seleção) o item “Cortar com shear” passa a aparecer ao clicar com o botão direito em
-vídeos (mp4, mkv, mov, webm, avi). Não precisa de administrador. No Windows 11 o item fica em **Mostrar mais opções** (Shift+F10),
-a menos que você use o menu clássico do Windows. Quem instalou o menu numa versão antiga é migrado sozinho ao abrir o app.
+## Plugins e atualizações
 
-### Clipes recém-salvos
-- **Começo corrompido:** se o vídeo tem o início quebrado (quadros que não decodificam, como em alguns clipes do ShadowPlay), o shear detecta ao abrir, pula esse trecho (hachurado em vermelho na timeline) e começa no primeiro keyframe sadio. O trecho não pode ser marcado nem exportado. A checagem olha só os primeiros 0,5 s (rápido, não atrasa o primeiro quadro); só se houver problema ele amostra o vídeo de 3 em 3 s, em paralelo, com um decodificador novo por amostra (um quadro quebrado "envenena" o decodificador e faz parecer que o resto todo está ruim). Isso leva uns 2 a 3 s, com tela preta e "Verificando o início do vídeo…" para não mostrar quadros quebrados; o resultado fica guardado por arquivo, e na próxima abertura é imediato.
-- Se você salvou um clipe há **até 15 s** (conta desde a **criação do arquivo**, não a duração do vídeo, na pasta do ShadowPlay) e abre o shear sem
-  indicar um arquivo, ele **já abre direto nesse clipe**. Se o shear já estiver aberto e for chamado de novo, também.
-- O **clipe mais recente**, se o arquivo foi criado há **até 5 minutos**, fica no topo da lista de recentes, destacado (cor de fundo, negrito e
-  "NOVO · há N min"). Só ele é destacado, não todos os dos últimos 5 minutos.
+- **Plugins** acrescentam recursos ao shear (o primeiro é o do Valorant). Ao abrir um clipe que combina com um plugin, o shear
+  sugere instalar; também dá para gerenciar em **Configurações → Plugins…**. O plugin é conferido por fingerprint antes de ligar.
+- **Atualizações:** uma vez por dia o shear verifica se há versão nova e **só avisa**; nada é instalado sem você clicar em
+  **Atualizar**. Baixa apenas o que mudou (em geral ~1 MB).
 
-### Modo de corte (botões Rápido | Exato)
-- **Rápido**: copia o vídeo sem recodificar (instantâneo). O corte só pode começar num keyframe, então o marcador de
-  **início encaixa nos keyframes** (as marcas na timeline) ao arrastar, ao apertar `I` e ao trocar para este modo.
-  O fim pode ficar em qualquer frame.
-- **Exato**: corta no frame certo recodificando o vídeo (NVENC, ou `libx264` sem NVENC). É mais lento.
-  O smart cut, que só recodifica o começo, está planejado para a Fase 2.
+## Documentação
 
-### Áudio
-Com **uma única faixa** não há painel lateral: só um alto-falante na barra de cima, ao lado da engrenagem, que liga/desliga o som (preview e vídeo exportado).
-Com **duas ou mais**, um painel à direita tem um botão por faixa (aceso = ligada) e um fader de volume só para o **Mic**
-(−30 a +30 dB, com escala; duplo clique ou o botão com o valor zera). O desktop não tem ajuste de volume.
-
-- **Ligada** = você ouve a faixa no preview **e** ela vai no arquivo exportado (o que você ouve é o que sai).
-- **Padrão:** só o **Desktop** (faixa 1) fica ligado; o **Mic** começa desligado.
-- **Ligando o Mic**, as faixas são **juntadas em uma só**: o desktop mantém o nível original e o mic passa por
-  highpass/lowpass/gate e ganha +20 dB (mais o que você ajustar no fader). A mixagem usa `amix` sem normalização (o desktop
-  não muda de volume ao ligar o mic) e um limitador contra clipping. Saída em AAC 320k.
-- Com uma só faixa ligada, o áudio é **copiado sem recodificar**.
-- Nenhuma faixa ligada: o clipe sai sem áudio.
-
-O volume do preview (roda do mouse / setas) é independente e só serve para você ouvir.
-
-### Precisão na timeline
-Ao arrastar o cursor ou os marcadores de início/fim, **puxe o mouse para baixo**: aparece uma régua ampliada abaixo da timeline,
-centrada na posição atual. Quanto mais para baixo, maior o zoom (janela de ~12 s até ~0,4 s) e mais fino fica o movimento
-horizontal. Soltar o botão fecha a régua.
-
-### Controle preciso (puxar o mouse para baixo)
-Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para baixo**:
-- Abre uma régua ampliada logo abaixo da timeline, e uma moldura mostra na timeline qual trecho está ampliado.
-- O zoom tem **4 níveis fixos** (janelas de 20 s, 5 s, 1,5 s e 0,4 s); quanto mais para baixo, mais zoom. O nível atual fica
-  destacado na régua e há uma pequena folga para ele não ficar trocando na borda.
-- O ponto sob o mouse fica na mesma coluna da régua, e a linha branca mostra o tempo exato. Entrar no zoom ou trocar de nível
-  não faz o marcador pular. Nos dois níveis mais finos o marcador anda de frame em frame (taxa de quadros do vídeo).
-- Voltar com o mouse para dentro da timeline sai do zoom. Uma etiqueta abaixo da timeline lembra do gesto durante o arrasto.
-- **Enquanto o botão do mouse está pressionado na timeline, o vídeo fica pausado e parado**; ao soltar, volta a tocar se estava
-  tocando.
-- **Som ao arrastar:** a cada posição nova toca um trecho curto de áudio (o vídeo fica parado). Quanto maior o zoom, mais curto o
-  trecho (de ~0,16 s sem zoom até ~0,05 s no zoom mais fino). Toca quando o **frame muda**: mexer o mouse dentro do mesmo frame,
-  ou subir e descer para trocar o nível de zoom, não dispara som. Dá para desligar em **Configurações → Som ao arrastar**.
-
-### Plugins
-O shear base é só um cortador de clipes. Recursos de jogos ficam em **plugins**, que **não vêm instalados**: o primeiro é o do
-**Valorant** (mapa, agente, kills e mortes, marcas na timeline, I/O no último round, nome do arquivo, lista com banner, K / Shift+K).
-
-- **Instalar:** ao abrir um clipe cujo nome ou pasta tem "valorant", aparece um aviso discreto no topo do editor com **Instalar**,
-  **Agora não** e **Não perguntar de novo**. Também dá para instalar, atualizar e remover em **Configurações → Plugins…**. A instalação
-  é por usuário (sem administrador) e o plugin liga na hora, sem reiniciar. Remover um plugin em uso vale na próxima abertura.
-- **Fingerprint:** o catálogo (`plugins/catalog.json` no repositório) traz o SHA-256 de cada arquivo do plugin. O shear confere
-  cada arquivo baixado e **recusa** a instalação se algum não bater; ao instalar grava um `installed.json` com os hashes e os
-  reconfere **a cada abertura**, antes de carregar a DLL (arquivo trocado = plugin não carrega).
-- **Compatibilidade (não precisa ser a mesma versão do shear):** a API de plugins tem versão `MAIOR.MENOR`. Plugin e shear se
-  entendem se a MAIOR for igual e o shear tiver a MENOR que o plugin pede (`minHostApiMinor`). Recursos novos da API entram só
-  como MENOR (no fim das interfaces), então um plugin antigo continua funcionando num shear mais novo, e o catálogo oferece a
-  versão mais nova do plugin que o seu shear consegue usar.
-- **Onde ficam:** `%LOCALAPPDATA%\Shear\plugins\<id>\` (e, para desenvolvimento, `plugins\<id>\` ao lado do `shear.exe`).
-  `SHEAR_PLUGINS_DIR` troca a pasta e `SHEAR_PLUGIN_CATALOG` troca o catálogo (aceita `file:///...`, para testar sem rede).
-- **Publicar um plugin:** `powershell -File scripts\make-plugin-package.ps1 -Id valorant` gera `dist\plugins\valorant\` e atualiza o
-  catálogo; os arquivos vão como assets da Release `plugin-valorant-<versão>` e o `plugins/catalog.json` é commitado.
-- O instalador do shear não leva nenhum plugin (leva a pasta `tls\` do Qt: o shear baixa plugins e atualizações por HTTPS).
-
-### Atualizações (sem reinstalar)
-O shear e os plugins se atualizam sozinhos **só quando você clica**. Uma vez por dia, em segundo plano e depois de a janela aparecer,
-o shear consulta um manifesto pequeno (poucos KB). Se houver versão nova, aparece uma faixa verde no topo: **Atualizar** ou **Depois**.
-Também dá para pedir em **Configurações → Plugins… → Verificar atualizações agora**.
-
-- **Só baixa o que mudou:** o manifesto lista todos os arquivos com SHA-256 e tamanho; o shear compara com os seus e baixa apenas os
-  diferentes. O que pesa (libmpv e DLLs do FFmpeg, ~300 MB) quase nunca muda; uma atualização típica é o `shear.exe` (~1 MB).
-- **Fingerprint:** cada arquivo baixado é conferido (tamanho e SHA-256) antes de ser usado; se algum não bater, nada é trocado.
-- **Troca com o shear aberto:** o Windows não deixa sobrescrever um `.exe` em uso, mas deixa renomear. O arquivo atual vira
-  `<nome>.old`, o novo entra no lugar e, se algo falhar no meio, tudo volta ao que era. Depois é só **Reiniciar agora** (o novo shear
-  espera o antigo fechar); os `.old` somem na abertura. Atualização de plugin sem DLL em uso vale na hora.
-- **Plugins:** são consultados junto (a versão mais nova que o seu shear consegue usar) e atualizados no mesmo clique.
-- Se o shear estiver numa pasta sem permissão de escrita (instalado para todos os usuários), ele avisa para usar o instalador.
-- **Publicar uma versão:** suba `version` em `CMakeLists.txt`, compile, rode
-  `powershell -File scripts\make-update-manifest.ps1 -Notes "o que mudou"`, publique o conteúdo de `dist\update\v<versão>\` como assets
-  da Release `v<versão>` (só vão os arquivos alterados; os iguais reaproveitam a URL antiga) e faça commit de `updates/manifest.json`.
-  `SHEAR_UPDATE_MANIFEST` (aceita `file:///...`) troca o manifesto, para testar sem rede.
-
-### Valorant: mapa e agente
-*(recursos do plugin do Valorant; veja "Plugins" acima para instalar)*
-
-Com o Valorant (ou o Riot Client) aberto, o shear mostra "Mapa · Agente" ao lado do título dos clipes do Valorant (nome ou
-pasta com "valorant"). Usa a API local não oficial do cliente, só leitura, sem configurar nada: lê o `lockfile` da Riot, pede
-os tokens ao servidor local, acha a partida (a em andamento, para clipe recente; senão pelo `match-history`, comparando o
-horário do clipe com o da partida) e traduz os IDs com o valorant-api.com (cache local). Tudo roda depois do primeiro quadro,
-em segundo plano, com limite de 2 s por requisição; se o jogo estiver fechado ou algo falhar, nada aparece e nada muda.
-O resultado fica em `%LOCALAPPDATA%\Shear\Shearalorant\` (`clips.json`, `matches/`). Tokens e senha nunca vão para o disco.
-Clipes já identificados continuam mostrando mapa e agente com o jogo fechado.
-
-### Valorant: kills e mortes na timeline
-Depois que a partida acaba, o shear baixa o `match-details` dela (em segundo plano, uma partida de cada vez, ao abrir o app ou
-o clipe) e guarda os seus kills e mortes em `matches/<id>.json`. No clipe, eles aparecem como losangos no alto da timeline
-(**verde = kill, roxo = morte**, bem diferentes dos tracinhos cinza dos keyframes), e o rótulo ao lado do título ganha as tags
-(`2k`, `3k`, `4k`, `5k`, `6k`... conforme o maior número de kills num mesmo round dentro do clipe; morte não vira tag, aparece só na timeline). **Q** e **E** pulam para a parada anterior e a seguinte (os eventos e também os pontos I e O; uma parada que já está em cima do ponto atual é ignorada); **Shift + Q** e **Shift + E**
-vão direto para os pontos I e O.
-
-**Dados à mão:** o que o jogo identificou (mapa, agente, kills) aparece como texto e não dá para mudar. O que ele não sabe
-aparece como "mapa", "agente" ou "kills" em cinza e itálico ao lado do título, e é clicável: o clique abre um menu para escolher
-(mapas e agentes vêm da lista do valorant-api.com; "Outro…" aceita qualquer nome; kills de 1k a 10k; só aparece quando o jogo não achou kills no clipe). Depois deles há um ícone de editar (✎) para um
-comentário opcional, em qualquer clipe: clique, digite e aperte Enter (Esc descarta). O comentário também é gravado ao voltar
-para a lista de clipes, ao abrir outro clipe e ao sair do programa; enquanto você digita, os atalhos do editor ficam desligados. Tudo isso fica em `clips.json` (campo `manual`), aparece na lista de clipes e a identificação automática
-nunca apaga.
-
-**Nome do arquivo no topo:** clicar nele abre a pasta do arquivo no Explorer (sublinha só ao passar o mouse). Também dá para
-**arrastar** o nome (no editor, no clipe exportado ou a linha na lista de clipes) para o Discord, o Explorer ou o próprio shear: vai o
-arquivo (no clipe exportado, o clique abre o clipe no shear e o botão direito tem *Abrir local do arquivo*). **Botão direito** no nome
-do arquivo (editor) ou na linha da lista abre um menu: *Abrir local do arquivo* (só na lista) e
-*Excluir* na lista (no editor, *Apagar original*); vai para a Lixeira, com confirmação.
-
-**Imagens:** o ícone do agente e uma faixa do mapa (do valorant-api.com) aparecem no topo do editor (a imagem do mapa ao fundo de toda a barra, bem apagada, e o ícone do agente ao lado do nome), nos menus
-de escolha e na lista de clipes (ícone do agente à esquerda da linha e a faixa do mapa esmaecendo à direita). Elas são baixadas uma vez,
-reduzidas e guardadas em `valorant/img/` (só as que você usa; ao abrir um menu, as que faltam são baixadas para a próxima vez).
-No menu de mapas cada item é a imagem do mapa ao fundo com o nome por cima, e ficam só os do modo bomba; os demais (treino, mata-mata etc.) ficam no submenu "Outros modos".
-
-**Nome do clipe exportado:** com dados do Valorant o arquivo se chama `Valorant aaaa.mm.dd - Mapa_Agente_Nk.mp4`, por exemplo
-`Valorant 2026.11.08 - Ascent_Jett_4k.mp4` (o `Nk`, logo depois do agente, é o maior número de kills num mesmo round no trecho
-exportado e some se não houver; a data é a do clipe original; se só o mapa ou só o agente for conhecido, só ele
-entra). Se já existir um arquivo com esse nome na pasta, acrescenta `_2`, `_3`, `_4`... Sem mapa nem agente (outro jogo), o nome é
-`<original>_shear.mp4` (também com `_2`, `_3`... se repetir). Ao clicar em **Manter**, o clipe novo entra no `clips.json` com mapa, agente, tag,
-comentário, o que você digitou à mão e os kills/mortes já no tempo dele: ao reabri-lo, tudo aparece de novo (inclusive as marcas
-na timeline) sem consultar a Riot, e a lista de clipes também mostra.
-
-**Lista de clipes:** cada linha mostra o ícone do agente, o nome do arquivo, a data, a tag de kills (`5k`), o comentário e,
-à direita, o nome do mapa em cima da imagem dele (lido do `clips.json`, sem rede); um clipe só ganha esses dados depois de ser aberto uma vez com o Riot Client logado.
-
-**I e O automáticos:** se o clipe tem rounds conhecidos, o shear põe o I no começo do último round capturado e o O no fim
-dele (o fim de um round é o começo do seguinte), desde que o trecho dentro do clipe tenha 10 s ou mais; senão, usa o round
-anterior. No modo Rápido o I encaixa no keyframe mais próximo (sem o aviso "o clipe vai começar X s antes") e nunca cai no
-começo corrompido. Só acontece se você ainda não mexeu em I, O ou nos trechos apagados, e Ctrl+Z desfaz.
-
-O clipe é alinhado à partida supondo que ele cobre `[data de criação − duração, data de criação]`, mais um deslocamento. Os
-horários da API ficam de 60 a 110 s antes do vídeo, e esse tanto muda de partida para partida (a API marca o início da
-seleção de agentes; o jogo grava no `ShooterGame.log` o instante real em que o round 0 passa a valer, linha
-`Gameplay started at ... (server time 45.x)`, logo depois de `[Match Load Times] MatchId: <id>`). O shear lê esse log
-(o atual e os backups em `%LOCALAPPDATA%\VALORANT\Saved\Logs`, uma vez por partida), calcula o deslocamento exato (±0,1 s;
-conferido em 6 partidas contra o seu ajuste com K) e guarda em `matches/<id>.json` (`autoOffsetSec`). Se o log daquela
-partida já não existir, vale o padrão de 104 s. Para acertar à mão: pause no quadro de uma kill e aperte **K** — a marca
-mais próxima passa a cair ali, para esse clipe e os outros da mesma partida (`offsetSec`, que tem prioridade sobre o
-automático). **Shift+K** desfaz a calibração (as marcas voltam ao ajuste automático) e **Ctrl+Z** também desfaz o K. O
-`metrics.log` mostra o que foi usado.
-
-### Overlay da NVIDIA
-O shear pinta o preview por software (sem OpenGL/D3D) e decodifica com `nvdec-copy`. Em testes nesta máquina, isso não
-aciona o aviso "pressione ... para abrir" do overlay da NVIDIA, enquanto `d3d11va`/`dxva2` acionam. Em Configurações dá para
-desligar o NVDEC e usar só a CPU.
-
-O ffmpeg roda com prioridade abaixo do normal para não derrubar o FPS do jogo.
-
-## Compilar
-
-Requisitos: Windows 11 x64, Visual Studio 2022 Build Tools (carga de trabalho C++), CMake, Ninja, Python (para o aqtinstall).
-
-```powershell
-winget install Microsoft.VisualStudio.2022.BuildTools Kitware.CMake Ninja-build.Ninja
-pip install aqtinstall
-python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -O D:\Qt      # Qt 6.8.3 pré-compilado
-powershell -File scripts\setup-deps.ps1      # baixa libmpv e ffmpeg (GPL, shared) em third_party/
-```
-
-Em um prompt “x64 Native Tools” (ou depois de `vcvars64.bat`):
-
-```
-cmake --preset release
-cmake --build build
-ctest --test-dir build        # testes unitários (Qt Test)
-```
-
-Se o Qt estiver em outro lugar, ajuste `CMAKE_PREFIX_PATH` em `CMakePresets.json`.
-O build já copia Qt, `libmpv-2.dll`, as DLLs do ffmpeg e o `ffmpeg.exe` para `build\src\app\`;
-essa pasta é portátil (copie-a inteira ou compacte em .zip).
-
-### Instalador
-
-`winget install JRSoftware.InnoSetup` (uma vez) e depois, com o projeto compilado, `scripts\make-installer.ps1` gera `dist\shear-setup.exe` (~140 MB, já inclui o runtime do Visual C++). Instala só para o usuário (sem administrador) em `%LOCALAPPDATA%\Programs\shear`, com atalho no menu Iniciar (e na área de trabalho, se marcado) e desinstalador. Uma caixa do instalador (marcada por padrão) instala o item **Cortar com shear** do botão direito; o mesmo item também liga e desliga em Configurações → Menu do Windows, e o desinstalador o remove.
-
-### Dependências
-| Dependência | Origem |
+| | |
 |---|---|
-| Qt 6.8 (Widgets) | binários oficiais via `aqtinstall` |
-| libmpv | [zhongfly/mpv-winbuild](https://github.com/zhongfly/mpv-winbuild/releases) (`mpv-dev-lgpl-x86_64`, build não oficial) |
-| libavformat e `ffmpeg.exe` | [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) (GPL, shared; o GPL inclui `libx264` para o fallback) |
-
-## Medições
-
-O app grava em `%LOCALAPPDATA%\shear\shear\metrics.log` o tempo até a janela aparecer, até o primeiro frame,
-até os keyframes ficarem prontos e o tempo de cada exportação. Para medir as exportações:
-
-```
-build\bench_export.exe third_party\ffmpeg\bin\ffmpeg.exe clipe.mp4 <início> <fim> <keyframe_anterior>
-```
-
-## Estrutura
-`src/core` (funções puras: comandos do ffmpeg, bitrate, planejamento do corte, nomes) · `src/player` (libmpv) ·
-`src/timeline` (widget e leitura de keyframes via libavformat) · `src/export` (QProcess) · `src/platform` (registro, área de transferência) · `src/app` (janelas) · `tests`.
+| [Guia de uso](docs/uso.md) | todos os atalhos, modos de corte, som, timeline, lista de clipes e comentários |
+| [Plugins e atualizações](docs/plugins.md) | como funcionam, segurança, compatibilidade e como publicar |
+| [Plugin do Valorant](docs/valorant.md) | mapa, agente, kills, marcas na timeline e nome do clipe |
+| [Desenvolvimento](docs/desenvolvimento.md) | compilar, instalador, dependências, medições e estrutura do código |

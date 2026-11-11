@@ -1,0 +1,20 @@
+site_name: shear
+site_description: Cortador de clipes de vídeo para Windows
+repo_url: https://github.com/Mateus0xC/shear
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: pt-BR
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  palette:
+    scheme: slate
+
+nav:
+  - Início: index.md
+  - Guia de uso: uso.md
+  - Plugins e atualizações: plugins.md
+  - Plugin do Valorant: valorant.md
+  - Desenvolvimento: desenvolvimento.md

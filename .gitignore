@@ -6,5 +6,5 @@ CMakeUserPresets.json
 *.user
 testdata/
 aqtinstall.log
-CLAUD*.md
 dist/
+CLAUDE.local.md

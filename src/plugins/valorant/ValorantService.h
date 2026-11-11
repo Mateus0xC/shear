@@ -1,5 +1,5 @@
 #pragma once
-#include "core/MatchEvents.h"
+#include "MatchEvents.h"
 #include <QDateTime>
 #include <QJsonObject>
 #include <QHash>
@@ -12,6 +12,9 @@
 class QNetworkAccessManager;
 
 namespace shear::valorant {
+
+// Para onde vai o log do plugin (o plugin liga isso ao metrics.log do shear).
+void setLogSink(std::function<void(const QString &)> sink);
 
 // Descobre mapa e agente de um clipe do Valorant pela API local não oficial do cliente (somente GET, somente leitura).
 // Tudo assíncrono; qualquer falha termina em silêncio (sem sinal). Tokens ficam só na memória, nunca em disco/log.
@@ -33,6 +36,7 @@ public:
     // guardadas em valorant/img/. `imageFile` devolve o caminho se já está guardada (senão ""); `requestImages` baixa as que
     // faltam em segundo plano e avisa com `imageReady`.
     QString imageFile(const QString &kind, const QString &name);
+    static QString imageFileFor(const QString &kind, const QString &uuid); // caminho (existindo ou não); thread-safe
     void requestImages(const QString &kind, const QStringList &names);
     // Dados digitados à mão ({map, agent, kills, comment}); objeto vazio apaga. Valem para qualquer clipe, com ou sem Riot.
     // `wait`: grava agora, na thread de quem chamou (ao fechar o app ou voltar para a lista; é um arquivo pequeno).

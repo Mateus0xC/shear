@@ -69,9 +69,7 @@
 #include <QPainter>
 #include <QSet>
 #include <QStyledItemDelegate>
-#include "valorant/ValorantService.h"
-#include "valorant/ValorantStore.h"
-#include "core/ValorantParse.h"
+#include "ClipMeta.h"
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -125,7 +123,7 @@ private:
 };
 
 // Papéis de dados de cada linha da lista de clipes (ver ClipRowDelegate)
-enum ClipRole { RoleBanner = Qt::UserRole + 1, RoleMap, RoleTags, RoleComment, RoleDate, RoleFresh };
+enum ClipRole { RoleBanner = Qt::UserRole + 1, RoleMap, RoleTags, RoleComment, RoleDate, RoleFresh, RoleTagHot };
 
 // Linha da lista de clipes, em colunas alinhadas:
 //   [ícone do agente]  nome do arquivo ........  data   tags   comentário   [faixa do mapa com o nome dele por cima]
@@ -230,7 +228,7 @@ public:
             tf.setBold(true);
             p->setFont(tf);
             // 5k ou mais: amarelo (as demais seguem a cor de destaque)
-            const bool big = tags.chopped(1).toInt() >= 5;
+            const bool big = idx.data(RoleTagHot).toBool();
             p->setPen(big && !sel ? QColor(255, 204, 51) : accent);
             p->drawText(col(tagsX, tagsW), Qt::AlignLeft | Qt::AlignVCenter, tags);
         }
@@ -526,6 +524,7 @@ static const char *kVideoGlobs[] = {"*.mp4", "*.mkv", "*.mov", "*.webm", "*.avi"
 
 MainWindow::MainWindow()
 {
+    m_plugins = new PluginManager(this, this); // os plugins são carregados depois da janela aparecer (deferredInit)
     setWindowTitle("shear");
     resize(1100, 740);
     setAcceptDrops(true);
@@ -600,8 +599,6 @@ MainWindow::MainWindow()
     sc(QKeySequence(Qt::SHIFT | Qt::Key_Q), gotoStart);
     sc(QKeySequence(Qt::SHIFT | Qt::Key_E), gotoEnd);
     // Q / E: evento (kill ou morte) anterior / próximo, quando o clipe tem eventos do Valorant
-    sc(Qt::Key_K, [=, this] { if (inEditor()) calibrateEvents(); }); // calibra: o evento mais próximo cai no ponto atual
-    sc(QKeySequence(Qt::SHIFT | Qt::Key_K), [=, this] { if (inEditor()) resetCalibration(); }); // desfaz o K (Ctrl+Z também)
     sc(Qt::Key_Q, [=, this] { if (inEditor()) jumpToEvent(-1); });
     sc(Qt::Key_E, [=, this] { if (inEditor()) jumpToEvent(+1); });
     sc(QKeySequence::Undo, [=, this] { if (inEditor()) undo(); });
@@ -705,28 +702,12 @@ QWidget *MainWindow::buildEditor()
     connect(settingsBtn, &QPushButton::clicked, this, &MainWindow::openSettings);
     top->addWidget(back);
     top->addWidget(m_title);
-    // "· Mapa · Agente · 3k": discreto; cada parte que o jogo não informou é clicável (abre um menu para escolher)
-    auto makeInfoBtn = [this, top](QToolButton *&btn, QLabel *&sep) {
-        sep = new QLabel("·");
-        sep->setForegroundRole(QPalette::PlaceholderText);
-        btn = new QToolButton;
-        btn->setAutoRaise(true);
-        btn->setFocusPolicy(Qt::NoFocus);
-        QPalette pal = btn->palette();
-        for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
-            pal.setColor(role, palette().color(QPalette::PlaceholderText)); // com ícone o texto usa outro papel de cor
-        btn->setPalette(pal);
-        top->addWidget(sep);
-        top->addWidget(btn);
-        sep->hide();
-        btn->hide();
-    };
-    makeInfoBtn(m_mapBtn, m_sep[0]);
-    makeInfoBtn(m_agentBtn, m_sep[1]);
-    makeInfoBtn(m_killsBtn, m_sep[2]);
-    connect(m_mapBtn, &QToolButton::clicked, this, [this] { pickName("map"); });
-    connect(m_agentBtn, &QToolButton::clicked, this, [this] { pickName("agent"); });
-    connect(m_killsBtn, &QToolButton::clicked, this, [this] { pickKills(); });
+    // Textos dos plugins ("· Mapa · Agente · 3k"): discretos; os que o plugin deixa editar são clicáveis (abrem um menu)
+    m_chipsBox = new QWidget;
+    m_chipsLayout = new QHBoxLayout(m_chipsBox);
+    m_chipsLayout->setContentsMargins(0, 0, 0, 0);
+    m_chipsLayout->setSpacing(4);
+    top->addWidget(m_chipsBox);
     // Comentário opcional (qualquer clipe), no mesmo estilo do mapa/agente/kills: ícone de editar (ou o texto), cinza e
     // clicável; o clique troca por um campo (Enter grava, Esc descarta). Também grava ao voltar para a lista e ao sair.
     m_commentSep = new QLabel("·");
@@ -742,7 +723,7 @@ QWidget *MainWindow::buildEditor()
     }
     connect(m_commentBtn, &QToolButton::clicked, this, [this] {
         m_commentBtn->hide();
-        m_commentEdit->setText(m_manual.value("comment").toString());
+        m_commentEdit->setText(m_comment);
         m_commentEdit->show();
         m_commentEdit->setFocus();
         m_commentEdit->selectAll();
@@ -1020,20 +1001,14 @@ QWidget *MainWindow::buildEditor()
     });
     connect(m_mpv, &MpvWidget::durationChanged, this, [this](double d) {
         m_timeline->setDuration(d);
-        applyValorantEvents();
+        if (m_plugins) m_plugins->durationChanged(d);
+        applySuggestedRange();
         updateInfo();
     });
     connect(m_mpv, &MpvWidget::firstFrame, this, [this] {
         metrics::log(QString("primeiro frame: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
-        // Valorant (mapa e agente): só depois do primeiro quadro, assíncrono, e em silêncio se algo falhar.
-        QTimer::singleShot(0, this, [this] {
-            if (m_file.isEmpty()) return;
-            const QFileInfo fi(m_file);
-            const QDateTime created = fi.birthTime().isValid() ? fi.birthTime() : fi.lastModified();
-            m_clipEndMs = created.toMSecsSinceEpoch();
-            m_clipSize = fi.size();
-            ensureValorant()->identify(m_file, created, fi.size());
-        });
+        // Plugins: só depois do primeiro quadro (nada disso atrasa a abertura do vídeo)
+        QTimer::singleShot(0, this, [this] { notifyClipOpened(); });
     });
     connect(m_timeline, &TimelineWidget::dragStarted, this, [this] { m_commentEdit->clearFocus(); }); // sai do campo de comentário
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
@@ -1119,82 +1094,128 @@ void MainWindow::deferredInit()
 {
     cleanupTemp(true); // sobras de uma sessão anterior que travou
     migrateLegacyContextMenu(QCoreApplication::applicationFilePath()); // menu de contexto da versão antiga
+    clipmeta::migrateFromValorant(); // comentários que a versão anterior guardava no clips.json do Valorant
+    m_plugins->loadAll();            // plugins instalados (a lista de clipes já usa os dados deles)
+    rebuildPluginShortcuts();
     refreshRecent(m_autoOpenFresh);
     detectNvenc();
-    // Valorant: baixa, em segundo plano e uma de cada vez, os detalhes das partidas já associadas que ainda não os têm.
-    QTimer::singleShot(3000, this, [this] {
-        ensureValorant()->backfill();
-    });
+    if (!m_file.isEmpty()) notifyClipOpened(); // clipe aberto antes de os plugins carregarem
 }
 
-valorant::ValorantService *MainWindow::ensureValorant()
+// ---------------------------------------------------------------------------------------------------------------------
+// Comentário (shear base)
+
+void MainWindow::refreshCommentUi()
 {
-    if (m_valorant)
-        return m_valorant;
-    m_valorant = new valorant::ValorantService(this);
-    connect(m_valorant, &valorant::ValorantService::identified, this,
-            [this](const QString &path, const QString &map, const QString &agent) {
-                if (path != m_file) return;
-                QStringList parts;
-                if (!map.isEmpty()) parts << map;
-                if (!agent.isEmpty()) parts << agent;
-                m_gameText = parts.join(" · ");
-                m_apiMap = map;
-                m_apiAgent = agent;
-                applyValorantEvents(); // atualiza o rótulo (com as tags, se já houver eventos)
-            });
-    connect(m_valorant, &valorant::ValorantService::imageReady, this, [this] {
-        refreshInfoBar();
-        if (m_stack->currentIndex() == 0 && !m_imgRefreshQueued) { // junta várias imagens num só redesenho da lista
-            m_imgRefreshQueued = true;
-            QTimer::singleShot(300, this, [this] {
-                m_imgRefreshQueued = false;
-                if (m_stack->currentIndex() == 0) refreshRecent(false);
-            });
+    if (!m_commentBtn) return;
+    // o campo só existe enquanto você digita; fora disso, o ícone ✎ (ou o texto do comentário)
+    if (!m_commentEdit->hasFocus()) {
+        m_commentEdit->hide();
+        m_commentBtn->show();
+    }
+    if (m_comment.isEmpty()) { // só o ícone de editar (glifo E70F da fonte de ícones do Windows; sem ela, ✎)
+        if (const QString family = iconFontFamily(); !family.isEmpty()) {
+            QFont f(family);
+            f.setPixelSize(13);
+            m_commentBtn->setFont(f);
+            m_commentBtn->setText(QString(QChar(0xE70F)));
+        } else {
+            m_commentBtn->setFont(font());
+            m_commentBtn->setText(QString::fromUcs4(U"✎"));
         }
-    });
-    connect(m_valorant, &valorant::ValorantService::keptLoaded, this,
-            [this](const QString &path, const QJsonObject &entry) {
-                if (path != m_file) return;
-                m_keptEvents.clear();
-                for (const auto &v : entry.value("events").toArray()) {
-                    const QJsonObject o = v.toObject();
-                    valorant::ClipEvent e;
-                    e.kind = o.value("k").toString() == "kill" ? valorant::MatchEvent::Kill : valorant::MatchEvent::Death;
-                    e.t = o.value("t").toDouble();
-                    e.round = o.value("round").toInt();
-                    e.weaponId = o.value("weapon").toString();
-                    m_keptEvents.push_back(e);
-                }
-                m_keptTags.clear();
-                for (const auto &t : entry.value("tags").toArray()) m_keptTags << t.toString();
-                applyValorantEvents();
-            });
-    connect(m_valorant, &valorant::ValorantService::manualLoaded, this,
-            [this](const QString &path, const QJsonObject &manual) {
-                if (path != m_file) return;
-                m_manual = manual;
-                applyValorantEvents();
-            });
-    connect(m_valorant, &valorant::ValorantService::matchDataReady, this,
-            [this](const QString &path, const valorant::MatchData &d) {
-                if (path != m_file) return;
-                m_matchId = d.matchId;
-                m_matchOffset = d.offsetSec;
-                m_autoOffset = d.autoOffsetSec;
-                m_vEvents = d.events;
-                m_roundStarts = d.roundStartsMs;
-                m_matchEndMs = d.endMs;
-                applyValorantEvents();
-            });
-    return m_valorant;
+        m_commentBtn->setToolTip("Clique para adicionar um comentário");
+    } else {
+        m_commentBtn->setFont(font());
+        m_commentBtn->setText(QFontMetrics(font()).elidedText(m_comment, Qt::ElideRight, 320));
+        m_commentBtn->setToolTip(m_comment);
+    }
+    QPalette pal = m_commentBtn->palette();
+    const QColor c = palette().color(m_comment.isEmpty() ? QPalette::PlaceholderText : QPalette::WindowText);
+    for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
+        pal.setColor(role, c);
+    m_commentBtn->setPalette(pal);
+    m_commentSep->setVisible(true);
 }
 
-// I e O no último round capturado (se ele tiver 10 s ou mais no clipe; senão, o anterior). Só mexe se você ainda não mexeu
-// em I/O/trechos; se você calibrar (K) depois, refaz, desde que I/O ainda sejam os que o shear pôs. Ctrl+Z desfaz.
-void MainWindow::applyAutoRange(double dur, double offset)
+// Grava o comentário que está sendo digitado (Enter, sair do campo, voltar para a lista, abrir outro clipe ou fechar o app).
+// Sem campo aberto, não faz nada. (O arquivo é pequeno: grava na hora, então ao fechar nada se perde.)
+void MainWindow::commitComment(bool /*wait*/)
 {
-    if (m_roundStarts.isEmpty() || dur <= 0 || m_clipEndMs <= 0 || m_job)
+    if (!m_commentEdit || !m_commentEdit->isVisible()) return;
+    const QString c = m_commentEdit->text().trimmed();
+    m_commentEdit->hide(); // antes de gravar, para o refreshCommentUi já mostrar o ícone no lugar do campo
+    if (c != m_comment && !m_file.isEmpty()) {
+        m_comment = c;
+        const QFileInfo fi(m_file);
+        clipmeta::setComment(clipmeta::key(fi.fileName(), fi.size()), c);
+    }
+    refreshCommentUi();
+    m_commentEdit->clearFocus();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Plugins: o que o shear oferece (IHostBackend) e como mostra o que eles mandam
+
+double MainWindow::position() const { return m_mpv ? m_mpv->position() : 0.0; }
+double MainWindow::duration() const { return m_timeline ? m_timeline->duration() : 0.0; }
+QString MainWindow::dataDir() const { return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation); }
+void MainWindow::log(const QString &line) { metrics::log(line); }
+void MainWindow::showStatus(const QString &text) { m_status->setText(text); }
+void MainWindow::pushUndo() { pushUndo(currentState()); }
+
+void MainWindow::setInfoChips(const QString &pluginId, const QVector<plugin::InfoChip> &chips)
+{
+    for (ChipSet &set : m_chipSets)
+        if (set.pluginId == pluginId) {
+            set.chips = chips;
+            rebuildChips();
+            return;
+        }
+    m_chipSets.push_back({pluginId, chips});
+    rebuildChips();
+}
+
+void MainWindow::setBackdrop(const QString &pluginId, const QString &imagePath)
+{
+    m_backdrops.insert(pluginId, imagePath);
+    QString first;
+    for (const QString &p : std::as_const(m_backdrops))
+        if (!p.isEmpty()) { first = p; break; }
+    if (m_topBanner) static_cast<BannerBar *>(m_topBanner)->setBanner(first);
+}
+
+void MainWindow::setMarkers(const QString &pluginId, const QVector<plugin::Marker> &markers)
+{
+    m_markers.insert(pluginId, markers);
+    std::vector<TimelineWidget::Event> all;
+    for (const auto &v : std::as_const(m_markers))
+        for (const plugin::Marker &m : v)
+            all.push_back({m.t, m.primary});
+    m_timeline->setEvents(std::move(all));
+}
+
+void MainWindow::suggestRange(const QString &, double start, double end)
+{
+    m_suggested = std::make_pair(start, end);
+    applySuggestedRange();
+}
+
+void MainWindow::refreshList()
+{
+    if (m_listRefreshQueued) return; // junta vários pedidos num só redesenho
+    m_listRefreshQueued = true;
+    QTimer::singleShot(300, this, [this] {
+        m_listRefreshQueued = false;
+        if (m_stack->currentIndex() == 0) refreshRecent(false);
+    });
+}
+
+// I e O sugeridos por um plugin (ex.: o último round capturado). Só mexe se você ainda não mexeu em I/O/trechos; se o plugin
+// sugerir outro depois (ex.: recalibrou), refaz, desde que I/O ainda sejam os que o shear pôs. Ctrl+Z desfaz.
+void MainWindow::applySuggestedRange()
+{
+    const double dur = m_timeline->duration();
+    if (!m_suggested || dur <= 0 || m_job)
         return;
     const double s0 = m_timeline->start(), e0 = m_timeline->end();
     const bool untouched =
@@ -1203,19 +1224,17 @@ void MainWindow::applyAutoRange(double dur, double offset)
                      : (s0 <= 0.01 && e0 >= dur - 0.01));
     if (!untouched)
         return;
-    const auto span = valorant::pickLastRoundSpan(m_roundStarts, m_matchEndMs, m_clipEndMs, dur, offset);
-    if (!span)
-        return;
     // Modo Rápido: o início só existe em keyframes; encaixa nele para não aparecer o aviso "o clipe vai começar X s antes".
     // (Os keyframes chegam aos poucos: esta função é chamada de novo a cada lote, e o encaixe se refina.) O início também
     // não pode cair no trecho corrompido do começo.
-    const double start = snapIfFast(std::max(span->first, m_timeline->damagedUntil()));
-    if (std::abs(start - s0) < 0.001 && std::abs(span->second - e0) < 0.001)
+    const double start = snapIfFast(std::max(m_suggested->first, m_timeline->damagedUntil()));
+    const double end = std::min(m_suggested->second, dur);
+    if (std::abs(start - s0) < 0.001 && std::abs(end - e0) < 0.001)
         return;
     const std::optional<std::pair<double, double>> prev = m_autoRange;
     if (!prev)
         pushUndo(currentState()); // um só Ctrl+Z desfaz (os refinamentos seguintes não empilham)
-    m_timeline->setRange(start, span->second);
+    m_timeline->setRange(start, end);
     // Ao entrar no vídeo ele começa no I (e não no começo do arquivo). Só se o ponto de reprodução ainda estiver antes do I e
     // você não tiver ido a outro lugar: na primeira aplicação, ou se ele ainda estava parado no I anterior (refino do encaixe).
     const double pos = m_mpv->position();
@@ -1225,65 +1244,121 @@ void MainWindow::applyAutoRange(double dur, double offset)
             m_mpv->setPaused(false); // entra tocando (a não ser que você mesmo tenha pausado)
     }
     m_autoRange = std::make_pair(m_timeline->start(), m_timeline->end());
-    metrics::log(QString("valorant: I/O automáticos no último round: %1 a %2 s").arg(m_timeline->start(), 0, 'f', 1)
-                     .arg(m_timeline->end(), 0, 'f', 1));
+    metrics::log(QString("I/O sugeridos por plugin: %1 a %2 s").arg(m_timeline->start(), 0, 'f', 1).arg(m_timeline->end(), 0, 'f', 1));
     updateInfo();
 }
 
-// Ajuste do alinhamento: o da partida (tecla K), senão o do registro (valorant/offsetSec), senão o padrão.
-double MainWindow::currentOffset() const
+// Refaz os textos ao lado do título a partir do que os plugins mandaram.
+void MainWindow::rebuildChips()
 {
-    if (!std::isnan(m_matchOffset))
-        return m_matchOffset; // o que você acertou com a tecla K
-    if (!std::isnan(m_autoOffset))
-        return m_autoOffset;  // o que o shear achou no log do jogo
-    return QSettings().value("valorant/offsetSec", valorant::kDefaultClipOffsetSec).toDouble();
-}
-
-// K: o evento mais próximo do ponto atual (até 60 s) passa a cair exatamente aqui. Vale para a partida toda.
-void MainWindow::calibrateEvents()
-{
-    const double dur = m_timeline->duration();
-    if (m_vEvents.isEmpty() || dur <= 0 || m_clipEndMs <= 0) {
-        m_status->setText("Sem kills/mortes do Valorant neste clipe para calibrar.");
-        return;
+    if (!m_chipsLayout) return;
+    while (QLayoutItem *it = m_chipsLayout->takeAt(0)) {
+        if (QWidget *w = it->widget()) w->deleteLater();
+        delete it;
     }
-    const double pos = m_mpv->position(), cur = currentOffset();
-    // tempos sem o corte em [0, duração]: a marca certa pode estar fora do clipe se o offset estiver muito errado
-    const double clipStartMs = double(m_clipEndMs) - dur * 1000.0;
-    double best = 1e18, bestT = 0;
-    for (const auto &e : m_vEvents) {
-        const double t = (double(e.absMs) - clipStartMs) / 1000.0 + cur;
-        if (std::abs(t - pos) < best) {
-            best = std::abs(t - pos);
-            bestT = t;
+    for (const ChipSet &set : std::as_const(m_chipSets))
+        for (const plugin::InfoChip &chip : set.chips) {
+            auto *sep = new QLabel("·");
+            sep->setForegroundRole(QPalette::PlaceholderText);
+            auto *btn = new QToolButton;
+            btn->setAutoRaise(true);
+            btn->setFocusPolicy(Qt::NoFocus);
+            btn->setText(chip.text.isEmpty() ? chip.placeholder : chip.text);
+            QPalette pal = btn->palette();
+            // texto claro quando tem valor; cinza (e itálico) só nas dicas ("mapa", "agente", "kills"...)
+            const QColor c = palette().color(chip.text.isEmpty() ? QPalette::PlaceholderText : QPalette::WindowText);
+            for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
+                pal.setColor(role, c);
+            btn->setPalette(pal);
+            QFont f = btn->font();
+            f.setItalic(chip.text.isEmpty());
+            btn->setFont(f);
+            if (!chip.iconPath.isEmpty()) {
+                btn->setIcon(QIcon(chip.iconPath));
+                btn->setIconSize(QSize(20, 20));
+                btn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+            }
+            btn->setToolTip(chip.tooltip);
+            btn->setAttribute(Qt::WA_TransparentForMouseEvents, !chip.editable);
+            btn->setCursor(chip.editable ? Qt::PointingHandCursor : Qt::ArrowCursor);
+            if (chip.editable)
+                connect(btn, &QToolButton::clicked, this, [this, pid = set.pluginId, chip, btn] { showChipMenu(pid, chip, btn); });
+            m_chipsLayout->addWidget(sep);
+            m_chipsLayout->addWidget(btn);
         }
-    }
-    if (best > 60.0) {
-        m_status->setText("Nenhuma kill/morte a menos de 60 s do ponto atual.");
-        return;
-    }
-    pushUndo(currentState()); // Ctrl+Z desfaz
-    m_matchOffset = cur + (pos - bestT);
-    applyValorantEvents();
-    if (m_valorant && !m_matchId.isEmpty())
-        m_valorant->saveMatchOffset(m_matchId, m_matchOffset);
-    m_status->setText(QString("Marcas alinhadas (ajuste %1 s, guardado para esta partida).").arg(m_matchOffset, 0, 'f', 1));
 }
 
-// Shift+K: desfaz a calibração (K) desta partida e volta ao ajuste automático (ou ao padrão).
-void MainWindow::resetCalibration()
+// Menu de escolha de um chip (o plugin diz o que mostrar; o shear desenha e devolve a escolha).
+void MainWindow::showChipMenu(const QString &pluginId, const plugin::InfoChip &chip, QToolButton *btn)
 {
-    if (std::isnan(m_matchOffset)) {
-        m_status->setText("As marcas já estão no ajuste automático.");
-        return;
+    const plugin::ChoiceMenu cm = m_plugins->chipMenu(pluginId, chip.id);
+    QMenu menu(this);
+    auto choose = [this, pluginId, id = chip.id](const QString &value) { m_plugins->chipChosen(pluginId, id, value); };
+    if (!cm.clearTitle.isEmpty()) {
+        connect(menu.addAction(cm.clearTitle), &QAction::triggered, this, [choose] { choose(QString()); });
+        menu.addSeparator();
     }
-    pushUndo(currentState()); // Ctrl+Z traz o ajuste de volta
-    m_matchOffset = std::numeric_limits<double>::quiet_NaN();
-    if (m_valorant && !m_matchId.isEmpty())
-        m_valorant->clearMatchOffset(m_matchId);
-    applyValorantEvents();
-    m_status->setText("Marcas de volta ao ajuste automático.");
+    auto addChoice = [&](QMenu *m, const plugin::Choice &c) {
+        const QString label = c.label.isEmpty() ? c.value : c.label;
+        if (!c.bannerPath.isEmpty()) { // item com a imagem de fundo e o nome por cima
+            auto *wa = new QWidgetAction(m);
+            wa->setDefaultWidget(new MapMenuItem(label, c.bannerPath, c.checked, [choose, v = c.value] { choose(v); }));
+            m->addAction(wa);
+            return;
+        }
+        auto *a = m->addAction(label);
+        if (!c.iconPath.isEmpty()) a->setIcon(QIcon(c.iconPath));
+        a->setCheckable(true);
+        a->setChecked(c.checked);
+        connect(a, &QAction::triggered, this, [choose, v = c.value] { choose(v); });
+    };
+    for (const plugin::Choice &c : cm.items)
+        addChoice(&menu, c);
+    if (!cm.moreItems.isEmpty()) {
+        QMenu *more = menu.addMenu(cm.moreTitle);
+        for (const plugin::Choice &c : cm.moreItems)
+            addChoice(more, c);
+    }
+    if (!cm.customTitle.isEmpty()) {
+        if (!menu.isEmpty()) menu.addSeparator();
+        connect(menu.addAction(cm.customTitle), &QAction::triggered, this, [this, cm, chip, choose] {
+            bool ok = false;
+            const QString t = QInputDialog::getText(this, chip.placeholder, cm.customPrompt, QLineEdit::Normal,
+                                                    cm.customCurrent, &ok).trimmed();
+            if (ok) choose(t);
+        });
+    }
+    menu.exec(btn->mapToGlobal(btn->rect().bottomLeft()));
+}
+
+// Atalhos que os plugins registram (só valem no editor e não enquanto você digita o comentário).
+void MainWindow::rebuildPluginShortcuts()
+{
+    qDeleteAll(m_pluginShortcuts);
+    m_pluginShortcuts.clear();
+    if (!m_plugins) return;
+    for (const PluginManager::PluginAction &pa : m_plugins->actions()) {
+        auto *sc = new QShortcut(pa.action.keys, this);
+        connect(sc, &QShortcut::activated, this, [this, pa] {
+            if (m_stack->currentIndex() != 1 || (m_commentEdit && m_commentEdit->hasFocus())) return;
+            m_plugins->triggerAction(pa.pluginId, pa.action.id);
+        });
+        m_pluginShortcuts << sc;
+    }
+}
+
+// Depois do primeiro quadro: comentário do clipe e aviso aos plugins (que consultam o jogo, etc. em segundo plano).
+void MainWindow::notifyClipOpened()
+{
+    if (m_file.isEmpty()) return;
+    const QFileInfo fi(m_file);
+    m_clipCreated = fi.birthTime().isValid() ? fi.birthTime() : fi.lastModified();
+    m_comment = clipmeta::comment(clipmeta::key(fi.fileName(), fi.size()));
+    refreshCommentUi();
+    if (m_plugins) {
+        m_plugins->clipOpened({m_file, m_clipCreated, fi.size()});
+        m_plugins->durationChanged(m_timeline->duration());
+    }
 }
 
 // Q / E: vai para a parada anterior / seguinte, que pode ser um evento (kill/morte) ou o ponto I / O. Paradas a menos de
@@ -1310,240 +1385,6 @@ void MainWindow::jumpToEvent(int dir)
     m_mpv->seek(*target);
 }
 
-// Alinha os eventos da partida ao clipe (que cobre ~[fim − duração, fim] + offset) e mostra: marcas, tags e rótulo.
-void MainWindow::applyValorantEvents()
-{
-    const double dur = m_timeline->duration();
-    std::vector<TimelineWidget::Event> marks;
-    QStringList tags;
-    if (!m_vEvents.isEmpty() && dur > 0 && m_clipEndMs > 0) {
-        const double offset = currentOffset();
-        const auto aligned = valorant::alignToClip(m_vEvents, m_clipEndMs, dur, offset);
-        for (const auto &e : aligned)
-            marks.push_back({e.t, e.kind == valorant::MatchEvent::Kill});
-        tags = valorant::makeTags(aligned);
-        metrics::log(QString("valorant: %1 de %2 eventos caem no clipe (duração %3 s, offset %4 s)")
-                         .arg(aligned.size()).arg(m_vEvents.size()).arg(dur, 0, 'f', 1).arg(offset));
-        if (m_valorant && !m_file.isEmpty() && tags != m_vTags) {
-            m_vTags = tags;
-            m_valorant->saveTags(m_file, m_clipSize, tags);
-        }
-    }
-    if (m_vEvents.isEmpty() && !m_keptEvents.isEmpty()) { // clipe mantido: eventos e tags já no tempo/nome dele
-        marks.clear();
-        for (const auto &e : m_keptEvents)
-            if (e.t >= 0 && (dur <= 0 || e.t <= dur))
-                marks.push_back({e.t, e.kind == valorant::MatchEvent::Kill});
-        tags = m_keptTags;
-    }
-    m_timeline->setEvents(std::move(marks));
-    applyAutoRange(dur, currentOffset());
-    m_autoTags = tags;
-    refreshInfoBar();
-}
-
-// Textos do topo: o que o jogo informou aparece como texto; o que ele não sabe fica clicável e vale o que você escolher.
-void MainWindow::refreshInfoBar()
-{
-    if (!m_mapBtn) return;
-    const bool vclip = valorant::looksLikeValorantClip(m_file);
-    // Só fica fixo o que o jogo achou (2k ou mais no clipe). Se ele não achou kills (sem partida, ou com 0 ou 1 kill dentro
-    // do clipe), dá para escolher à mão, de 1k em diante.
-    const bool killsEditable = m_autoTags.isEmpty();
-    QString killsText;
-    if (!killsEditable)
-        killsText = m_autoTags.first();
-    else if (const int k = m_manual.value("kills").toInt(0); k >= 1)
-        killsText = QString("%1k").arg(k);
-    {   // imagem do mapa ao fundo da barra de cima (some se não há mapa ou se a imagem ainda não foi baixada)
-        const QString mapName = m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap;
-        QString mapImg;
-        if (!mapName.isEmpty() && m_valorant) {
-            mapImg = m_valorant->imageFile("map", mapName);
-            if (mapImg.isEmpty()) m_valorant->requestImages("map", {mapName});
-        }
-        static_cast<BannerBar *>(m_topBanner)->setBanner(mapImg);
-    }
-    struct Slot { QToolButton *btn; QLabel *sep; QString value; bool editable; QString hint; QString tip; QString kind; };
-    const Slot items[] = {
-        {m_mapBtn, m_sep[0], m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap, m_apiMap.isEmpty(), "mapa",
-         "Clique para escolher o mapa", "map"},
-        {m_agentBtn, m_sep[1], m_apiAgent.isEmpty() ? m_manual.value("agent").toString() : m_apiAgent, m_apiAgent.isEmpty(),
-         "agente", "Clique para escolher o agente", "agent"},
-        {m_killsBtn, m_sep[2], killsText, killsEditable, "kills", "Clique para dizer quantas kills (no mesmo round)", QString()}};
-    for (const Slot &s : items) {
-        const bool show = !s.value.isEmpty() || (s.editable && vclip);
-        s.btn->setVisible(show);
-        s.sep->setVisible(show);
-        if (!show) continue;
-        s.btn->setText(s.value.isEmpty() ? s.hint : s.value);
-        {   // texto claro quando tem valor; cinza (e itálico) só nas dicas "mapa" / "agente" / "kills"
-            QPalette pal = s.btn->palette();
-            const QColor c = palette().color(s.value.isEmpty() ? QPalette::PlaceholderText : QPalette::WindowText);
-            for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
-                pal.setColor(role, c);
-            s.btn->setPalette(pal);
-        }
-        QString img;
-        if (s.kind == "agent" && !s.value.isEmpty() && m_valorant) {
-            img = m_valorant->imageFile(s.kind, s.value);
-            if (img.isEmpty()) m_valorant->requestImages(s.kind, {s.value});
-        }
-        s.btn->setIcon(img.isEmpty() ? QIcon() : QIcon(img));
-        s.btn->setIconSize(QSize(20, 20));
-        s.btn->setToolButtonStyle(img.isEmpty() ? Qt::ToolButtonTextOnly : Qt::ToolButtonTextBesideIcon);
-        QFont f = s.btn->font();
-        f.setItalic(s.value.isEmpty()); // "mapa" / "agente" / "kills" ainda sem valor
-        s.btn->setFont(f);
-        s.btn->setAttribute(Qt::WA_TransparentForMouseEvents, !s.editable);
-        s.btn->setCursor(s.editable ? Qt::PointingHandCursor : Qt::ArrowCursor);
-        s.btn->setToolTip(s.editable ? s.tip : QStringLiteral("Identificado pelo jogo"));
-    }
-    // comentário: texto cinza clicável (itálico enquanto vazio); o campo só existe enquanto você digita
-    const QString comment = m_manual.value("comment").toString();
-    if (!m_commentEdit->hasFocus()) {
-        m_commentEdit->hide();
-        m_commentBtn->show();
-    }
-    if (comment.isEmpty()) { // só o ícone de editar (glifo E70F da fonte de ícones do Windows; sem ela, ✎)
-        if (const QString family = iconFontFamily(); !family.isEmpty()) {
-            QFont f(family);
-            f.setPixelSize(13);
-            m_commentBtn->setFont(f);
-            m_commentBtn->setText(QString(QChar(0xE70F)));
-        } else {
-            m_commentBtn->setFont(font());
-            m_commentBtn->setText(QString::fromUcs4(U"✎"));
-        }
-        m_commentBtn->setToolTip("Clique para adicionar um comentário");
-    } else {
-        m_commentBtn->setFont(font());
-        m_commentBtn->setText(QFontMetrics(font()).elidedText(comment, Qt::ElideRight, 320));
-        m_commentBtn->setToolTip(comment);
-    }
-    {   // comentário escrito: texto claro; só o ícone de editar fica cinza
-        QPalette pal = m_commentBtn->palette();
-        const QColor c = palette().color(comment.isEmpty() ? QPalette::PlaceholderText : QPalette::WindowText);
-        for (const auto role : {QPalette::ButtonText, QPalette::WindowText, QPalette::Text})
-            pal.setColor(role, c);
-        m_commentBtn->setPalette(pal);
-    }
-    m_commentSep->setVisible(true);
-}
-
-struct NameEntry { QString name; bool bomb; }; // bomb = mapa do modo bomba (os de competitivo/padrão)
-
-static QVector<NameEntry> cachedNames(const QByteArray &json, bool onlyPlayable, bool isMap)
-{
-    QVector<NameEntry> out;
-    QSet<QString> seen;
-    for (const auto &v : QJsonDocument::fromJson(json).object().value("data").toArray()) {
-        const QJsonObject o = v.toObject();
-        if (onlyPlayable && !o.value("isPlayableCharacter").toBool(true)) continue;
-        const QString n = o.value("displayName").toString();
-        if (n.isEmpty() || seen.contains(n)) continue;
-        seen.insert(n);
-        // os mapas do modo bomba têm "A/B Sites" (ou "A/B/C Sites"); Range, Skirmish, Team Deathmatch etc. não
-        out.push_back({n, !isMap || !o.value("tacticalDescription").toString().isEmpty()});
-    }
-    std::sort(out.begin(), out.end(), [](const NameEntry &a, const NameEntry &b) { return a.name.compare(b.name, Qt::CaseInsensitive) < 0; });
-    return out;
-}
-
-void MainWindow::pickName(const QString &field)
-{
-    const bool isMap = field == "map";
-    const QString kind = isMap ? "map" : "agent";
-    QToolButton *btn = isMap ? m_mapBtn : m_agentBtn;
-    const QString current = m_manual.value(field).toString();
-    auto *svc = ensureValorant();
-    QMenu menu(this);
-    if (!current.isEmpty()) {
-        auto *clear = menu.addAction(isMap ? "Limpar o mapa" : "Limpar o agente");
-        connect(clear, &QAction::triggered, this, [this, field] { m_manual.remove(field); commitManual(); });
-        menu.addSeparator();
-    }
-    const QVector<NameEntry> names = cachedNames(valorant::store::readCache(isMap ? "maps.json" : "agents.json"), !isMap, isMap);
-    QStringList missing;
-    auto addEntry = [&](QMenu *m, const QString &n) {
-        const QString img = svc->imageFile(kind, n);
-        if (img.isEmpty()) missing << n;
-        if (isMap && !img.isEmpty()) { // mapa com imagem: o item é a própria imagem, com o nome por cima
-            auto *wa = new QWidgetAction(m);
-            wa->setDefaultWidget(new MapMenuItem(n, img, n == current, [this, field, n] { m_manual.insert(field, n); commitManual(); }));
-            m->addAction(wa);
-            return;
-        }
-        auto *a = m->addAction(n);
-        if (!img.isEmpty()) a->setIcon(QIcon(img));
-        a->setCheckable(true);
-        a->setChecked(n == current);
-        connect(a, &QAction::triggered, this, [this, field, n] { m_manual.insert(field, n); commitManual(); });
-    };
-    for (const NameEntry &n : names)
-        if (n.bomb) addEntry(&menu, n.name);
-    QMenu *others = nullptr; // mapas de outros modos (treino, mata-mata...) ficam num submenu
-    for (const NameEntry &n : names)
-        if (!n.bomb) {
-            if (!others) others = menu.addMenu("Outros modos");
-            addEntry(others, n.name);
-        }
-    svc->requestImages(kind, missing); // o que ainda não tem imagem é baixado para a próxima vez
-    if (!names.isEmpty()) menu.addSeparator();
-    auto *other = menu.addAction("Outro…");
-    connect(other, &QAction::triggered, this, [this, field, isMap, current] {
-        bool ok = false;
-        const QString t = QInputDialog::getText(this, isMap ? "Mapa" : "Agente", isMap ? "Nome do mapa:" : "Nome do agente:",
-                                                QLineEdit::Normal, current, &ok).trimmed();
-        if (!ok) return;
-        if (t.isEmpty()) m_manual.remove(field); else m_manual.insert(field, t);
-        commitManual();
-    });
-    menu.exec(btn->mapToGlobal(btn->rect().bottomLeft()));
-}
-
-void MainWindow::pickKills()
-{
-    const int current = m_manual.value("kills").toInt(0);
-    QMenu menu(this);
-    if (current > 0) {
-        auto *clear = menu.addAction("Limpar");
-        connect(clear, &QAction::triggered, this, [this] { m_manual.remove("kills"); commitManual(); });
-        menu.addSeparator();
-    }
-    for (int k = 1; k <= 10; ++k) {
-        auto *a = menu.addAction(QString("%1k").arg(k));
-        a->setCheckable(true);
-        a->setChecked(k == current);
-        connect(a, &QAction::triggered, this, [this, k] { m_manual.insert("kills", k); commitManual(); });
-    }
-    menu.exec(m_killsBtn->mapToGlobal(m_killsBtn->rect().bottomLeft()));
-}
-
-// Guarda no clips.json (campo "manual") e atualiza a tela. Vale para qualquer clipe.
-void MainWindow::commitManual(bool wait)
-{
-    if (m_file.isEmpty()) return;
-    ensureValorant()->saveManual(m_file, m_clipSize ? m_clipSize : QFileInfo(m_file).size(), m_manual, wait);
-    refreshInfoBar();
-}
-
-// Grava o comentário que está sendo digitado (Enter, sair do campo, voltar para a lista, abrir outro clipe ou fechar o app).
-// Sem campo aberto, não faz nada. `wait`: grava na hora (ao fechar/voltar não dá para esperar a thread de fundo).
-void MainWindow::commitComment(bool wait)
-{
-    if (!m_commentEdit || !m_commentEdit->isVisible()) return;
-    const QString c = m_commentEdit->text().trimmed();
-    m_commentEdit->hide(); // antes de gravar, para o refreshInfoBar já mostrar o ícone no lugar do campo
-    if (c != m_manual.value("comment").toString() && !m_file.isEmpty()) {
-        if (c.isEmpty()) m_manual.remove("comment"); else m_manual.insert("comment", c);
-        commitManual(wait);
-    } else {
-        refreshInfoBar();
-    }
-    m_commentEdit->clearFocus();
-}
-
 void MainWindow::detectNvenc()
 {
     auto *p = new QProcess(this);
@@ -1566,11 +1407,12 @@ QString MainWindow::ffmpegPath() const
 }
 
 // `created`: quando o arquivo foi CRIADO (é o que vale para "clipado há N min"); a data de modificação é só reserva.
-struct RecentItem { QString path; QDateTime created; qint64 size; QString mapName, agentName, tags, comment; /* Valorant */ };
+struct RecentItem { QString path; QDateTime created; qint64 size; QString iconPath, bannerPath, bannerText, tag, comment; bool tagHot = false; };
 
 void MainWindow::showHome()
 {
     commitComment(true); // o comentário em edição não se perde ao voltar para a lista
+    if (m_plugins) m_plugins->clipClosed();
     // Saiu do vídeo: para tudo, senão o áudio continuaria tocando em segundo plano.
     m_scrubbing = false;
     m_resumeAfterDrag = false;
@@ -1611,42 +1453,36 @@ void MainWindow::refreshRecent(bool autoOpen)
         }
         std::sort(v.begin(), v.end(), [](auto &a, auto &b) { return a.created > b.created; });
         if (v.size() > 40) v.resize(40);
-        // Valorant: mapa, agente e tags dos clipes que o shear já identificou (só lê o clips.json; sem rede)
-        const QJsonObject known = valorant::store::loadClips();
-        if (!known.isEmpty())
-            for (auto &r : v) {
-                const QJsonObject e = known.value(valorant::clipKey(QFileInfo(r.path).fileName(), r.size)).toObject();
-                const QJsonObject man = e.value("manual").toObject();
-                for (const char *k : {"map", "agent"}) {
-                    const QString s = man.value(k).toString().isEmpty() ? e.value(k).toString() : man.value(k).toString();
-                    (QByteArray(k) == "map" ? r.mapName : r.agentName) = s;
-                }
-                if (const int kills = man.value("kills").toInt(0); kills > 0) {
-                    r.tags = QString("%1k").arg(kills); // à mão vale até 1k; só as achadas sozinhas exigem 2k ou mais
-                } else {
-                    for (const auto &t : e.value("tags").toArray())
-                        if (const QString tag = t.toString(); tag.endsWith('k') && tag.chopped(1).toInt() >= 2)
-                            r.tags = tag; // só "Nk" (guardados de versões antigas podem ter "morreu"/"ace")
-                }
-                r.comment = man.value("comment").toString();
-            }
+        // Dados que os plugins têm de cada clipe (ícone, faixa, tag; só leitura de arquivos, sem rede) e o comentário
+        const QJsonObject metas = clipmeta::loadAll();
+        QVector<plugin::RowQuery> queries;
+        for (const auto &r : v) queries.push_back({r.path, r.size});
+        const QVector<plugin::RowInfo> infos = m_plugins ? m_plugins->rowInfos(queries) : QVector<plugin::RowInfo>(queries.size());
+        for (size_t i = 0; i < v.size(); ++i) {
+            RecentItem &r = v[i];
+            const plugin::RowInfo &info = infos[int(i)];
+            r.iconPath = info.iconPath;
+            r.bannerPath = info.bannerPath;
+            r.bannerText = info.bannerText;
+            r.tag = info.tag;
+            r.tagHot = info.tagHot;
+            r.comment = metas.value(clipmeta::key(QFileInfo(r.path).fileName(), r.size)).toObject().value("comment").toString();
+        }
         QMetaObject::invokeMethod(this, [this, v, autoOpen] {
             const QDateTime now = QDateTime::currentDateTime();
             const QColor accent = palette().color(QPalette::Highlight);
             m_recent->clear();
-            // ícone do agente e faixa do mapa (só os que já estão guardados; os outros são baixados e a lista se atualiza)
-            auto *svc = ensureValorant();
             QPixmap blank(28, 28);
-            blank.fill(Qt::transparent); // linhas sem agente ficam alinhadas com as que têm
-            QSet<QString> needAgents, needMaps;
+            blank.fill(Qt::transparent); // linhas sem ícone ficam alinhadas com as que têm
             for (const auto &r : v) {
                 const qint64 age = r.created.secsTo(now);
                 const bool fresh = &r == &v.front() && age <= kFreshHighlightSec; // só o ÚLTIMO clipe, se tiver até 5 min
                 auto *i = new QListWidgetItem(QFileInfo(r.path).fileName()); // o ClipRowDelegate desenha a linha em colunas
                 i->setData(RoleDate, r.created.toString("dd/MM/yyyy HH:mm"));
-                i->setData(RoleTags, r.tags);
+                i->setData(RoleTags, r.tag);
+                i->setData(RoleTagHot, r.tagHot);
                 i->setData(RoleComment, r.comment);
-                i->setData(RoleMap, r.mapName);
+                i->setData(RoleMap, r.bannerText);
                 if (fresh) { // o clipe mais recente (salvo há até 5 min): destaque; a lista já vem do mais novo para o mais antigo
                     QColor bg = accent;
                     bg.setAlpha(70);
@@ -1655,16 +1491,10 @@ void MainWindow::refreshRecent(bool autoOpen)
                 }
                 i->setData(Qt::UserRole, r.path);
                 i->setToolTip(r.path);
-                const QString agentImg = r.agentName.isEmpty() ? QString() : svc->imageFile("agent", r.agentName);
-                const QString mapImg = r.mapName.isEmpty() ? QString() : svc->imageFile("map", r.mapName);
-                i->setIcon(agentImg.isEmpty() ? QIcon(blank) : QIcon(agentImg));
-                i->setData(RoleBanner, mapImg);
-                if (agentImg.isEmpty() && !r.agentName.isEmpty()) needAgents.insert(r.agentName);
-                if (mapImg.isEmpty() && !r.mapName.isEmpty()) needMaps.insert(r.mapName);
+                i->setIcon(r.iconPath.isEmpty() ? QIcon(blank) : QIcon(r.iconPath));
+                i->setData(RoleBanner, r.bannerPath);
                 m_recent->addItem(i);
             }
-            svc->requestImages("agent", needAgents.values());
-            svc->requestImages("map", needMaps.values());
             if (v.empty())
                 m_recent->addItem("Nenhum clipe encontrado em " + m_cfg.effectiveShadowPlayDir());
             else if (autoOpen && !m_job && v.front().created.secsTo(now) <= kFreshOpenSec && v.front().path != m_file)
@@ -1754,25 +1584,19 @@ void MainWindow::openFile(const QString &path)
     }
     m_file = path;
     m_title->setText(QFileInfo(path).fileName());
-    m_gameText.clear();
-    m_autoTags.clear();
-    m_keptEvents.clear();
-    m_keptTags.clear();
+    if (m_plugins) m_plugins->clipClosed(); // os plugins largam o clipe anterior
+    m_chipSets.clear();
+    m_backdrops.clear();
+    m_markers.clear();
+    rebuildChips();
+    setBackdrop(QString(), QString());
+    m_comment.clear();
     m_commentEdit->clear();
     m_commentEdit->hide();
-    m_apiMap.clear();
-    m_apiAgent.clear();
-    m_manual = QJsonObject();
-    m_vTags.clear();
+    refreshCommentUi();
     m_userPaused = false;
-    m_roundStarts.clear();
-    m_matchEndMs = 0;
+    m_suggested.reset();
     m_autoRange.reset();
-    m_matchId.clear();
-    m_matchOffset = std::numeric_limits<double>::quiet_NaN();
-    m_autoOffset = std::numeric_limits<double>::quiet_NaN();
-    m_vEvents.clear();
-    m_clipEndMs = 0;
     setWindowTitle("shear"); // o título da janela é sempre só o nome do app
     m_timeline->reset(0);
     m_undo.clear();
@@ -1808,13 +1632,13 @@ void MainWindow::openFile(const QString &path)
     connect(m_scanner, &KeyframeScanner::keyframes, this, [this](QVector<double> b) {
         m_timeline->addKeyframes(b);
         if (m_damageT > 0) applyDamageFloor();
-        applyAutoRange(m_timeline->duration(), currentOffset());
+        applySuggestedRange();
         updateInfo();
     });
     connect(m_scanner, &QThread::finished, this, [this] {
         m_timeline->setScanDone(true);
         applyDamageFloor(); // com todos os keyframes lidos, o início utilizável cai num keyframe de verdade
-        applyAutoRange(m_timeline->duration(), currentOffset());
+        applySuggestedRange();
         metrics::log(QString("keyframes lidos: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
         updateInfo();
     });
@@ -1993,7 +1817,7 @@ void MainWindow::markEnd(double t)
 MainWindow::EditState MainWindow::currentState() const
 {
     return {m_timeline->start(), m_timeline->end(), m_micFader ? m_micFader->value() : 0, m_timeline->gaps(),
-            m_timeline->pendingGap().value_or(-1.0), m_matchOffset};
+            m_timeline->pendingGap().value_or(-1.0), m_plugins ? m_plugins->saveState() : QVariantMap()};
 }
 
 void MainWindow::pushUndo(const EditState &s)
@@ -2003,9 +1827,8 @@ void MainWindow::pushUndo(const EditState &s)
     m_redo.clear(); // uma alteração nova depois de desfazer invalida o "refazer"
     if (!m_undo.empty()) {
         const EditState &b = m_undo.back();
-        const bool sameOffset = (std::isnan(b.matchOffset) && std::isnan(s.matchOffset)) || b.matchOffset == s.matchOffset;
         if (b.start == s.start && b.end == s.end && b.micGain == s.micGain && b.gaps == s.gaps && b.pending == s.pending &&
-            sameOffset)
+            b.pluginState == s.pluginState)
             return;
     }
     m_undo.push_back(s);
@@ -2023,16 +1846,7 @@ void MainWindow::applyState(const EditState &s)
     if (m_micFader)
         m_micFader->setValue(s.micGain);
     m_restoring = false;
-    // ajuste das marcas do Valorant (K / Shift+K): volta ao que era, na tela e no arquivo da partida
-    const bool offsetChanged = !((std::isnan(s.matchOffset) && std::isnan(m_matchOffset)) || s.matchOffset == m_matchOffset);
-    if (offsetChanged) {
-        m_matchOffset = s.matchOffset;
-        if (m_valorant && !m_matchId.isEmpty()) {
-            if (std::isnan(m_matchOffset)) m_valorant->clearMatchOffset(m_matchId);
-            else m_valorant->saveMatchOffset(m_matchId, m_matchOffset);
-        }
-        applyValorantEvents();
-    }
+    if (m_plugins) m_plugins->restoreState(s.pluginState); // estado dos plugins (ex.: calibração das marcas)
     m_micClock.invalidate(); // o próximo ajuste do mic começa um gesto novo
     updateInfo();
     applyPreviewAudio();
@@ -2193,30 +2007,15 @@ void MainWindow::startExport()
     const auto plan = planCut(r);
     const QString dir = tempDir(); // exports são temporários até o usuário clicar em Manter
     QDir().mkpath(dir);
-    // Dados do Valorant: o nome leva mapa e agente e os eventos viram os do arquivo exportado
-    m_exportMeta = {};
-    m_exportMeta.map = m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap;
-    m_exportMeta.agent = m_apiAgent.isEmpty() ? m_manual.value("agent").toString() : m_apiAgent;
-    if (!m_vEvents.isEmpty() && m_timeline->duration() > 0 && m_clipEndMs > 0) {
-        const auto aligned = valorant::alignToClip(m_vEvents, m_clipEndMs, m_timeline->duration(), currentOffset());
-        QVector<std::pair<double, double>> gaps;
-        for (const auto &g : r.gaps) gaps.push_back(g);
-        m_exportMeta.events = valorant::toExported(aligned, plan.actualStartSec, r.endSec, gaps); // modo Rápido: começa no keyframe
-        if (const auto tags = valorant::makeTags(m_exportMeta.events); !tags.isEmpty())
-            m_exportMeta.tag = tags.first();
-    } else if (!m_keptEvents.isEmpty()) { // reexportando um clipe mantido: os eventos dele, recortados de novo
-        QVector<std::pair<double, double>> gaps;
-        for (const auto &g : r.gaps) gaps.push_back(g);
-        m_exportMeta.events = valorant::toExported(m_keptEvents, plan.actualStartSec, r.endSec, gaps);
-        if (const auto tags = valorant::makeTags(m_exportMeta.events); !tags.isEmpty())
-            m_exportMeta.tag = tags.first();
-    }
-    if (m_exportMeta.tag.isEmpty()) // sem kills achadas: vale o que foi escolhido à mão
-        if (const int k = m_manual.value("kills").toInt(0); k >= 1)
-            m_exportMeta.tag = QString("%1k").arg(k);
-    // Nome: "Valorant aaaa.mm.dd - Mapa_Agente_Nk" (a data é a do clipe original); sem mapa e agente (outro jogo), "<original>_shear".
-    const QDate clipDate = m_clipEndMs > 0 ? QDateTime::fromMSecsSinceEpoch(m_clipEndMs).date() : QDate::currentDate();
-    m_exportStem = valorantStem(clipDate, m_exportMeta.map, m_exportMeta.agent, m_exportMeta.tag);
+    // Nome: um plugin pode dar o nome (ex.: "Valorant aaaa.mm.dd - Mapa_Agente_Nk"); senão, "<original>_shear"
+    plugin::ExportContext ec;
+    ec.clipPath = m_file;
+    ec.clipCreated = m_clipCreated;
+    ec.start = plan.actualStartSec; // modo Rápido: o arquivo começa no keyframe
+    ec.end = r.endSec;
+    ec.duration = m_timeline->duration();
+    for (const auto &g : r.gaps) ec.gaps.push_back({g.first, g.second});
+    m_exportStem = m_plugins ? m_plugins->exportStem(ec) : QString();
     if (m_exportStem.isEmpty())
         m_exportStem = fallbackStem(QFileInfo(m_file).completeBaseName());
     r.outputPath = uniquePath(dir, m_exportStem, [](const QString &p) { return QFileInfo::exists(p); });
@@ -2415,19 +2214,12 @@ void MainWindow::keepLastOutput(bool deleteOriginalToo)
     }
     m_tempFiles.removeAll(m_lastOutput);
     m_lastOutput = dest;
-    // clips.json: o clipe mantido guarda mapa, agente, tags, comentário e os eventos já no tempo dele
-    if (!m_exportMeta.map.isEmpty() || !m_exportMeta.agent.isEmpty() || !m_exportMeta.tag.isEmpty() ||
-        !m_manual.isEmpty()) {
-        QJsonArray evs;
-        for (const auto &e : m_exportMeta.events)
-            evs.push_back(QJsonObject{{"k", e.kind == valorant::MatchEvent::Kill ? "kill" : "death"}, {"t", e.t},
-                                      {"round", e.round}, {"weapon", e.weaponId}});
-        QJsonObject entry{{"kept", true}, {"map", m_exportMeta.map}, {"agent", m_exportMeta.agent},
-                          {"date", QDateTime::currentDateTime().toString(Qt::ISODate)},
-                          {"tags", m_exportMeta.tag.isEmpty() || m_exportMeta.events.isEmpty() ? QJsonArray() : QJsonArray{m_exportMeta.tag}},
-                          {"events", evs}};
-        if (!m_manual.isEmpty()) entry.insert("manual", m_manual);
-        ensureValorant()->saveKept(dest, QFileInfo(dest).size(), entry);
+    // o clipe mantido leva os dados dos plugins (já no tempo dele) e o comentário
+    const QFileInfo destInfo(dest);
+    if (m_plugins) m_plugins->exportKept(dest, destInfo.size());
+    if (!m_file.isEmpty()) {
+        const QFileInfo orig(m_file);
+        clipmeta::copyComment(clipmeta::key(orig.fileName(), orig.size()), clipmeta::key(destInfo.fileName(), destInfo.size()));
     }
     copyFileToClipboard(dest); // o Ctrl+V passa a apontar para o arquivo mantido
     m_keepBtn->hide();
@@ -2512,7 +2304,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *e)
     if (obj == m_commentEdit && e->type() == QEvent::KeyPress) {
         const int key = static_cast<QKeyEvent *>(e)->key();
         if (key == Qt::Key_Escape) {
-            m_commentEdit->setText(m_manual.value("comment").toString()); // descarta o que foi digitado
+            m_commentEdit->setText(m_comment); // descarta o que foi digitado
             commitComment();
             return true;
         }

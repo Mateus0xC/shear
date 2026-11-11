@@ -1,10 +1,12 @@
 #pragma once
 #include "core/CutTypes.h"
 #include "core/ExportEstimate.h"
-#include "core/MatchEvents.h"
+#include "PluginManager.h"
 #include "util/Settings.h"
 #include <QElapsedTimer>
-#include <QJsonObject>
+#include <QDateTime>
+#include <QMap>
+#include <QVariantMap>
 #include <limits>
 #include <optional>
 #include <QMainWindow>
@@ -29,7 +31,6 @@ class QStackedWidget;
 
 namespace shear {
 
-namespace valorant { class ValorantService; }
 class ExportJob;
 class DamagePrefetch;
 class DamageScanner;
@@ -39,7 +40,7 @@ class MpvWidget;
 class TimelineWidget;
 class VerticalFader;
 
-class MainWindow : public QMainWindow {
+class MainWindow : public QMainWindow, public IHostBackend {
     Q_OBJECT
 public:
     MainWindow();
@@ -74,7 +75,7 @@ private:
         int micGain = 0;
         std::vector<std::pair<double, double>> gaps;
         double pending = -1; // início de um trecho do meio ainda sem fim (X apertado uma vez); < 0 = nenhum
-        double matchOffset = std::numeric_limits<double>::quiet_NaN(); // ajuste das marcas do Valorant calibrado com K (NaN = nenhum)
+        QVariantMap pluginState; // estado que os plugins querem no desfazer (ex.: calibração das marcas)
     };
     void syncModeWithGaps();                // com trechos apagados o modo é Exato (forçado); sem eles, volta ao que era
     bool m_syncingMode = false, m_fastBeforeGaps = false;
@@ -176,51 +177,53 @@ private:
     double m_holdUntilPos = 0;         // com dano: segura a imagem até o playback chegar aqui           // o início utilizável vira o primeiro keyframe depois do trecho corrompido
     ExportJob *m_job = nullptr;
     QElapsedTimer m_openClock;
-    // Ao lado do título: "· Mapa · Agente · 3k". O que o jogo identificou é só texto; o que ele não sabe é clicável (menu).
-    QToolButton *m_mapBtn = nullptr, *m_agentBtn = nullptr, *m_killsBtn = nullptr;
-    QLabel *m_sep[3] = {nullptr, nullptr, nullptr};
-    QToolButton *m_commentBtn = nullptr;             // "comentário" (mesmo estilo do mapa/agente/kills), à direita
+    // --- plugins ---
+    PluginManager *m_plugins = nullptr;
+    struct ChipSet {
+        QString pluginId;
+        QVector<plugin::InfoChip> chips;
+    };
+    QVector<ChipSet> m_chipSets;                     // textos ao lado do título, um conjunto por plugin
+    QWidget *m_chipsBox = nullptr;
+    QHBoxLayout *m_chipsLayout = nullptr;
+    QMap<QString, QString> m_backdrops;              // imagem de fundo da barra de cima, por plugin
+    QMap<QString, QVector<plugin::Marker>> m_markers; // marcas da timeline, por plugin
+    std::optional<std::pair<double, double>> m_suggested; // último I/O sugerido por um plugin
+    std::optional<std::pair<double, double>> m_autoRange; // I/O que o shear pôs sozinho (para refazer se o plugin sugerir outro)
+    QVector<QShortcut *> m_pluginShortcuts;
+    bool m_listRefreshQueued = false;
+    QDateTime m_clipCreated;                         // data de criação do clipe aberto
+    bool m_userPaused = false;                       // você pausou/despausou neste vídeo (o shear não mexe mais)
+    void rebuildChips();
+    void showChipMenu(const QString &pluginId, const plugin::InfoChip &chip, QToolButton *btn);
+    void applySuggestedRange();                      // aplica o I/O sugerido por um plugin (se você ainda não mexeu)
+    void rebuildPluginShortcuts();
+    void notifyClipOpened();                         // avisa os plugins que o clipe abriu (depois do primeiro quadro)
+    // Comentário (do shear base, vale para qualquer clipe): ícone ✎ ao lado dos textos dos plugins
+    QToolButton *m_commentBtn = nullptr;
     QLabel *m_commentSep = nullptr;
     QLineEdit *m_commentEdit = nullptr;              // aparece no lugar do botão enquanto você digita
-    valorant::ValorantService *m_valorant = nullptr; // criado só na primeira consulta
-    QVector<shear::valorant::MatchEvent> m_vEvents;  // meus kills/mortes da partida (horário absoluto)
-    qint64 m_clipEndMs = 0, m_clipSize = 0;          // fim do clipe (data de criação) e tamanho, para alinhar e guardar
-    QString m_gameText;                              // "Mapa · Agente" que veio do jogo (sem as tags)
-    QString m_apiMap, m_apiAgent;                    // mapa e agente que vieram do jogo
-    QJsonObject m_manual;                            // o que foi digitado à mão: {map, agent, kills, comment}
-    bool m_imgRefreshQueued = false;
-    // Dados do clipe que está sendo exportado (calculados ao exportar, usados no nome e ao manter)
-    struct ExportMeta {
-        QString map, agent, tag;
-        QVector<valorant::ClipEvent> events; // já no tempo do arquivo exportado (descontando início e trechos apagados)
-    } m_exportMeta;
-    QString m_exportStem; // nome-base (sem extensão) do último export: "Valorant aaaa.mm.dd - Mapa_Agente"
-    QVector<valorant::ClipEvent> m_keptEvents; // eventos de um clipe MANTIDO que foi reaberto (já no tempo dele)
-    QStringList m_keptTags;
-    QStringList m_autoTags;                          // tag de kills achada sozinha (ex.: "3k")
-    void refreshInfoBar();                           // atualiza os textos do topo
-    void pickName(const QString &field);             // menu para escolher "map" ou "agent"
-    void pickKills();                                // menu para escolher o número de kills
+    QString m_comment;
+    void refreshCommentUi();
+    void commitComment(bool wait = false);           // grava o comentário em edição (Enter, voltar, trocar de clipe, sair)
+    void jumpToEvent(int dir);                       // Q / E
     void showListMenu(const QPoint &pos);            // botão direito numa linha da lista de clipes
     void showTitleMenu(const QPoint &global);        // botão direito no nome do arquivo do editor
     void trashFromList(const QString &path);         // manda um vídeo da lista para a Lixeira
-    void commitManual(bool wait = false);
-    void commitComment(bool wait = false);           // grava o comentário em edição (Enter, voltar, trocar de clipe, sair)                             // guarda o que foi digitado/escolhido à mão
-    void applyValorantEvents();                      // alinha os eventos ao clipe e desenha na timeline
-    void jumpToEvent(int dir);
-    QVector<qint64> m_roundStarts;                   // início de cada round da partida (ms absoluto)
-    qint64 m_matchEndMs = 0;
-    std::optional<std::pair<double, double>> m_autoRange; // I/O que o shear pôs sozinho (para refazer se recalibrar)
-    bool m_userPaused = false;                       // você pausou/despausou neste vídeo (o shear não mexe mais)
-    void applyAutoRange(double dur, double offset);  // I/O = último round capturado
-    void calibrateEvents();
-    void resetCalibration();                         // Shift+K: volta ao ajuste automático                          // K: a marca mais próxima do ponto atual passa a cair aqui
-    QString m_matchId;
-    double m_autoOffset = std::numeric_limits<double>::quiet_NaN(); // alinhamento achado no log do jogo (NaN = não achou)
-    double m_matchOffset = std::numeric_limits<double>::quiet_NaN(); // ajuste da partida (NaN = padrão)
-    double currentOffset() const;
-    valorant::ValorantService *ensureValorant();     // cria e liga o serviço na primeira vez
-    QStringList m_vTags;                             // últimas tags guardadas para o clipe aberto
+    QString m_exportStem;                            // nome-base (sem extensão) do último export
+
+    // --- IHostBackend: o que os plugins podem pedir ---
+    double position() const override;
+    double duration() const override;
+    QString dataDir() const override;
+    void log(const QString &line) override;
+    void showStatus(const QString &text) override;
+    void pushUndo() override;
+    void setInfoChips(const QString &pluginId, const QVector<plugin::InfoChip> &chips) override;
+    void setBackdrop(const QString &pluginId, const QString &imagePath) override;
+    void setMarkers(const QString &pluginId, const QVector<plugin::Marker> &markers) override;
+    void suggestRange(const QString &pluginId, double start, double end) override;
+    void refreshList() override;
 };
 
 } // namespace shear

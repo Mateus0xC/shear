@@ -1,7 +1,6 @@
 #include "ValorantService.h"
 #include "ValorantStore.h"
-#include "core/ValorantParse.h"
-#include "util/Metrics.h"
+#include "ValorantParse.h"
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -16,6 +15,14 @@
 #include <QThread>
 
 namespace shear::valorant {
+
+static std::function<void(const QString &)> g_logSink;
+void setLogSink(std::function<void(const QString &)> sink) { g_logSink = std::move(sink); }
+static void logLine(const QString &line)
+{
+    if (g_logSink)
+        g_logSink(line);
+}
 
 struct ValorantService::Ctx {
     int gen = 0;
@@ -122,7 +129,7 @@ void ValorantService::get(const QString &url, const Headers &headers, bool local
 
 void ValorantService::finish(std::shared_ptr<Ctx> c, const QString &why)
 {
-    metrics::log(QString("valorant: %1 (%2 ms)").arg(why).arg(c->clock.elapsed()));
+    logLine(QString("valorant: %1 (%2 ms)").arg(why).arg(c->clock.elapsed()));
 }
 
 void ValorantService::identify(const QString &clipPath, const QDateTime &created, qint64 size)
@@ -148,7 +155,7 @@ void ValorantService::identify(const QString &clipPath, const QDateTime &created
             return finish(c, "clipe mantido (dados guardados)");
         }
         if (!looksLikeValorantClip(c->clipPath)) { // clipe de outro jogo: nem toca na rede
-            metrics::log("valorant: ignorado (o caminho do clipe não contém \"valorant\")");
+            logLine("valorant: ignorado (o caminho do clipe não contém \"valorant\")");
             return;
         }
         if (!known.value("matchId").toString().isEmpty()) {
@@ -361,7 +368,7 @@ void ValorantService::startAutoOffset(std::shared_ptr<Ctx> c, const QString &mat
         [this, c](std::optional<MatchData> d) {
             if (d && !stale(*c) && !c->clipPath.isEmpty())
                 emit matchDataReady(c->clipPath, *d);
-            metrics::log(d ? QString("valorant: alinhamento automático pelo log do jogo (%1 s)").arg(d->autoOffsetSec, 0, 'f', 2)
+            logLine(d ? QString("valorant: alinhamento automático pelo log do jogo (%1 s)").arg(d->autoOffsetSec, 0, 'f', 2)
                            : QString("valorant: sem alinhamento automático (log da partida não encontrado ou já feito)"));
         });
 }
@@ -424,6 +431,8 @@ static QString imagePath(const QString &kind, const QString &uuid)
 {
     return store::dir() + "/img/" + kind + "_" + uuid + ".png";
 }
+
+QString ValorantService::imageFileFor(const QString &kind, const QString &uuid) { return imagePath(kind, uuid); }
 
 QString ValorantService::imageFile(const QString &kind, const QString &name)
 {

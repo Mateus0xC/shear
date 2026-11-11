@@ -1,0 +1,11 @@
+{
+  "id": "valorant",
+  "name": "Valorant",
+  "version": "1.0.0",
+  "description": "Mostra mapa, agente, kills e mortes dos clipes do Valorant (pela API local do cliente), marca as kills na timeline, ajusta I/O ao último round e dá nome ao clipe.",
+  "library": "valorant.dll",
+  "apiMajor": 1,
+  "apiMinor": 0,
+  "minHostApiMinor": 0,
+  "appliesTo": ["valorant"]
+}

@@ -42,6 +42,7 @@ class TimelineWidget;
 class VerticalFader;
 
 class PluginInstaller;
+class Updater;
 
 class MainWindow : public QMainWindow, public IHostBackend {
     Q_OBJECT
@@ -194,6 +195,21 @@ private:
     std::optional<std::pair<double, double>> m_suggested; // último I/O sugerido por um plugin
     std::optional<std::pair<double, double>> m_autoRange; // I/O que o shear pôs sozinho (para refazer se o plugin sugerir outro)
     QVector<QShortcut *> m_pluginShortcuts;
+    // --- atualização do shear e dos plugins (só avisa; você clica em "Atualizar") ---
+    Updater *m_updater = nullptr;
+    PluginInstaller *m_updPlugins = nullptr;          // consulta/instala as atualizações de plugins
+    QFrame *m_updateBanner = nullptr;                 // acima das duas telas
+    QLabel *m_updateText = nullptr;
+    QPushButton *m_ubUpdate = nullptr, *m_ubLater = nullptr, *m_ubRestart = nullptr;
+    bool m_updBusy = false, m_updManual = false, m_updRestartNeeded = false;
+    QString m_updVersion, m_updNotes, m_updLastError;
+    QStringList m_updQueue;                           // plugins a consultar / a atualizar
+    QMap<QString, QString> m_updPluginVersions;       // id -> versão nova
+    void startUpdateCheck(bool manual);
+    void finishUpdateCheck();
+    void runUpdate();
+    void updateNextPlugin();
+    void finishUpdate();
     QFrame *m_pluginBanner = nullptr;                // sugestão de instalar um plugin
     QLabel *m_pluginBannerText = nullptr;
     QPushButton *m_pbInstall = nullptr, *m_pbLater = nullptr, *m_pbNever = nullptr;

@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QIcon>
 #include <QTimer>
+#include <windows.h>
 
 int main(int argc, char **argv)
 {
@@ -19,8 +20,16 @@ int main(int argc, char **argv)
     QApplication::setWindowIcon(QIcon(":/logo.png")); // ícone no canto da janela e na barra de tarefas
 
     QString path;
-    for (const QString &a : app.arguments().mid(1))
-        if (!a.startsWith('-')) { path = QFileInfo(a).absoluteFilePath(); break; }
+    for (const QString &a : app.arguments().mid(1)) {
+        if (a.startsWith("--after-restart=")) { // reinício depois de uma atualização: espera o shear anterior fechar
+            if (HANDLE h = OpenProcess(SYNCHRONIZE, FALSE, a.mid(16).toUInt())) {
+                WaitForSingleObject(h, 10000);
+                CloseHandle(h);
+            }
+        } else if (!a.startsWith('-') && path.isEmpty()) {
+            path = QFileInfo(a).absoluteFilePath();
+        }
+    }
 
     if (shear::SingleInstance::sendToRunning(path))
         return 0;

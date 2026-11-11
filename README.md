@@ -114,6 +114,24 @@ O shear base é só um cortador de clipes. Recursos de jogos ficam em **plugins*
   catálogo; os arquivos vão como assets da Release `plugin-valorant-<versão>` e o `plugins/catalog.json` é commitado.
 - O instalador do shear não leva nenhum plugin (nem o `tls\`, que só o plugin do Valorant usa).
 
+### Atualizações (sem reinstalar)
+O shear e os plugins se atualizam sozinhos **só quando você clica**. Uma vez por dia, em segundo plano e depois de a janela aparecer,
+o shear consulta um manifesto pequeno (poucos KB). Se houver versão nova, aparece uma faixa verde no topo: **Atualizar** ou **Depois**.
+Também dá para pedir em **Configurações → Plugins… → Verificar atualizações agora**.
+
+- **Só baixa o que mudou:** o manifesto lista todos os arquivos com SHA-256 e tamanho; o shear compara com os seus e baixa apenas os
+  diferentes. O que pesa (libmpv e DLLs do FFmpeg, ~300 MB) quase nunca muda; uma atualização típica é o `shear.exe` (~1 MB).
+- **Fingerprint:** cada arquivo baixado é conferido (tamanho e SHA-256) antes de ser usado; se algum não bater, nada é trocado.
+- **Troca com o shear aberto:** o Windows não deixa sobrescrever um `.exe` em uso, mas deixa renomear. O arquivo atual vira
+  `<nome>.old`, o novo entra no lugar e, se algo falhar no meio, tudo volta ao que era. Depois é só **Reiniciar agora** (o novo shear
+  espera o antigo fechar); os `.old` somem na abertura. Atualização de plugin sem DLL em uso vale na hora.
+- **Plugins:** são consultados junto (a versão mais nova que o seu shear consegue usar) e atualizados no mesmo clique.
+- Se o shear estiver numa pasta sem permissão de escrita (instalado para todos os usuários), ele avisa para usar o instalador.
+- **Publicar uma versão:** suba `version` em `CMakeLists.txt`, compile, rode
+  `powershell -File scripts\make-update-manifest.ps1 -Notes "o que mudou"`, publique o conteúdo de `dist\update\v<versão>\` como assets
+  da Release `v<versão>` (só vão os arquivos alterados; os iguais reaproveitam a URL antiga) e faça commit de `updates/manifest.json`.
+  `SHEAR_UPDATE_MANIFEST` (aceita `file:///...`) troca o manifesto, para testar sem rede.
+
 ### Valorant: mapa e agente
 *(recursos do plugin do Valorant; veja "Plugins" acima para instalar)*
 

@@ -38,6 +38,8 @@ public:
 
     // `installedVersion` ("" se não está instalado): se o catálogo não tem nada mais novo, termina com ok e `upToDate`.
     void install(const QString &pluginId, const QString &installedVersion = QString());
+    // Só consulta o catálogo: há versão mais nova (compatível) do plugin instalado? -> checked(id, versão nova ou "", erro)
+    void checkOnly(const QString &pluginId, const QString &installedVersion);
     bool busy() const { return m_busy; }
     bool upToDate() const { return m_upToDate; }
     QString newVersion() const { return m_version; }
@@ -45,6 +47,7 @@ public:
 signals:
     void status(const QString &text);
     void finished(const QString &pluginId, bool ok, const QString &error); // ok: preparado em stagedDir (ou já atualizado)
+    void checked(const QString &pluginId, const QString &newVersion, const QString &error);
 
 private:
     void fetch(const QUrl &url, qint64 maxBytes, std::function<void(const QByteArray &, const QString &)> done);

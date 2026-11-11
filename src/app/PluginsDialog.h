@@ -14,6 +14,7 @@ class PluginsDialog : public QDialog {
     Q_OBJECT
 public:
     PluginsDialog(PluginManager *mgr, QWidget *parent = nullptr);
+    bool wantsCheck() const { return m_wantsCheck; } // clicou em "Verificar atualizações agora"
 
 private:
     void rebuild();
@@ -24,6 +25,7 @@ private:
     PluginInstaller *m_installer;
     QVBoxLayout *m_list = nullptr;
     QLabel *m_status = nullptr;
+    bool m_wantsCheck = false;
 };
 
 } // namespace shear

@@ -49,6 +49,13 @@ add_dependencies(test_plugins valorant)
 add_test(NAME plugins COMMAND test_plugins)
 set_tests_properties(plugins PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# atualização do shear: manifesto, diff por hash, troca por renomeação com desfazer, download com SHA-256
+add_executable(test_updater tests/test_updater.cpp src/app/Updater.cpp src/app/PluginInstaller.cpp src/app/PluginManager.cpp)
+target_include_directories(test_updater PRIVATE src)
+target_compile_definitions(test_updater PRIVATE SHEAR_VERSION="0.1.0")
+target_link_libraries(test_updater PRIVATE Qt6::Gui Qt6::Network Qt6::Test)
+add_test(NAME updater COMMAND test_updater)
+
 add_executable(bench_export tests/bench_export.cpp)
 target_link_libraries(bench_export PRIVATE shear_core)
 

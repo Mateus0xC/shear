@@ -8,7 +8,7 @@ add_executable(shear WIN32
   ${S}/timeline/TimelineWidget.cpp ${S}/timeline/KeyframeScanner.cpp ${S}/timeline/DamageScanner.cpp
   ${S}/export/ExportJob.cpp
   ${S}/platform/Windows.cpp
-  PluginManager.cpp PluginInstaller.cpp PluginsDialog.cpp ClipMeta.cpp
+  PluginManager.cpp PluginInstaller.cpp PluginsDialog.cpp Updater.cpp ClipMeta.cpp
   ${S}/util/Settings.cpp ${S}/util/Metrics.cpp ${S}/util/CrashLog.cpp
   ${CMAKE_SOURCE_DIR}/resources/shear.rc ${CMAKE_SOURCE_DIR}/resources/shear.qrc) # ícone do exe (logo)
 
@@ -16,6 +16,7 @@ add_executable(shear WIN32
 set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/shear.rc PROPERTIES
   OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/resources/shear.ico)
 
+target_compile_definitions(shear PRIVATE SHEAR_VERSION="${PROJECT_VERSION}")
 target_include_directories(shear PRIVATE ${S} ${MPV_DIR}/include ${FF_DIR}/include)
 target_link_directories(shear PRIVATE ${FF_DIR}/lib)
 target_link_libraries(shear PRIVATE shear_core Qt6::Widgets Qt6::Network

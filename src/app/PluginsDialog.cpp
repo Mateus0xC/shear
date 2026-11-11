@@ -1,6 +1,7 @@
 #include "PluginsDialog.h"
 #include "PluginInstaller.h"
 #include "PluginManager.h"
+#include "Updater.h"
 #include <QDialogButtonBox>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -14,7 +15,7 @@ namespace shear {
 
 PluginsDialog::PluginsDialog(PluginManager *mgr, QWidget *parent) : QDialog(parent), m_mgr(mgr), m_installer(new PluginInstaller(this))
 {
-    setWindowTitle("Plugins");
+    setWindowTitle("Plugins e atualizações");
     setMinimumWidth(560);
     auto *root = new QVBoxLayout(this);
     auto *intro = new QLabel("Plugins acrescentam recursos ao shear (por exemplo, o do Valorant mostra mapa, agente e kills). "
@@ -28,6 +29,15 @@ PluginsDialog::PluginsDialog(PluginManager *mgr, QWidget *parent) : QDialog(pare
     m_status->setWordWrap(true);
     root->addWidget(m_status);
     auto *bb = new QDialogButtonBox(QDialogButtonBox::Close);
+    // Atualizações: o shear consulta sozinho uma vez por dia (só avisa; nada é instalado sem você clicar)
+    auto *ver = new QLabel(QString("shear %1").arg(Updater::currentVersion()));
+    ver->setForegroundRole(QPalette::PlaceholderText);
+    auto *check = bb->addButton("Verificar atualizações agora", QDialogButtonBox::ActionRole);
+    connect(check, &QPushButton::clicked, this, [this] {
+        m_wantsCheck = true;
+        reject();
+    });
+    root->addWidget(ver);
     bb->button(QDialogButtonBox::Close)->setText("Fechar");
     connect(bb, &QDialogButtonBox::rejected, this, &QDialog::reject);
     root->addWidget(bb);

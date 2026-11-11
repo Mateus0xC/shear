@@ -72,6 +72,7 @@
 #include "ClipMeta.h"
 #include "PluginInstaller.h"
 #include "PluginsDialog.h"
+#include "Updater.h"
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -543,7 +544,42 @@ MainWindow::MainWindow()
     m_stack = new QStackedWidget;
     m_stack->addWidget(buildHome());
     // O editor (com o preview do mpv) só é criado ao abrir o 1º vídeo, para a janela inicial aparecer rápido.
-    setCentralWidget(m_stack);
+    {   // aviso de atualização: fica acima das duas telas (lista e editor)
+        auto *central = new QWidget;
+        auto *cl = new QVBoxLayout(central);
+        cl->setContentsMargins(0, 0, 0, 0);
+        cl->setSpacing(0);
+        m_updateBanner = new QFrame;
+        m_updateBanner->setObjectName("updateBanner");
+        m_updateBanner->setStyleSheet("#updateBanner { background: rgba(60, 160, 100, 55); }");
+        m_updateBanner->hide();
+        auto *ubl = new QHBoxLayout(m_updateBanner);
+        ubl->setContentsMargins(14, 5, 14, 5);
+        m_updateText = new QLabel;
+        m_updateText->setWordWrap(true);
+        m_ubUpdate = new QPushButton("Atualizar");
+        m_ubLater = new QPushButton("Depois");
+        m_ubRestart = new QPushButton("Reiniciar agora");
+        for (auto *b : {m_ubUpdate, m_ubLater, m_ubRestart}) b->setFocusPolicy(Qt::NoFocus);
+        m_ubRestart->hide();
+        ubl->addWidget(m_updateText, 1);
+        ubl->addWidget(m_ubUpdate);
+        ubl->addWidget(m_ubRestart);
+        ubl->addWidget(m_ubLater);
+        cl->addWidget(m_updateBanner);
+        cl->addWidget(m_stack, 1);
+        setCentralWidget(central);
+        connect(m_ubLater, &QPushButton::clicked, this, [this] { m_updateBanner->hide(); });
+        connect(m_ubUpdate, &QPushButton::clicked, this, [this] { runUpdate(); });
+        connect(m_ubRestart, &QPushButton::clicked, this, [this] {
+            if (m_job) {
+                m_updateText->setText("Termine ou cancele a exportação antes de reiniciar.");
+                return;
+            }
+            if (Updater::startNewInstance())
+                close(); // fecha pelo caminho normal (grava o comentário e limpa os temporários); o novo shear espera
+        });
+    }
 
     auto sc = [this](const QKeySequence &k, auto fn) {
         auto *s = new QShortcut(k, this);
@@ -1157,12 +1193,162 @@ void MainWindow::deferredInit()
 {
     cleanupTemp(true); // sobras de uma sessão anterior que travou
     migrateLegacyContextMenu(QCoreApplication::applicationFilePath()); // menu de contexto da versão antiga
+    Updater::cleanupOld(QCoreApplication::applicationDirPath()); // sobras de uma atualização (arquivos .old)
+    QTimer::singleShot(6000, this, [this] { startUpdateCheck(false); }); // consulta diária (um JSON de poucos KB)
     clipmeta::migrateFromValorant(); // comentários que a versão anterior guardava no clips.json do Valorant
     m_plugins->loadAll();            // plugins instalados (a lista de clipes já usa os dados deles)
     rebuildPluginShortcuts();
     refreshRecent(m_autoOpenFresh);
     detectNvenc();
     if (!m_file.isEmpty()) notifyClipOpened(); // clipe aberto antes de os plugins carregarem
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Atualização do shear e dos plugins. Só avisa; nada é baixado sem você clicar em "Atualizar".
+
+void MainWindow::startUpdateCheck(bool manual)
+{
+    if (m_updBusy || (m_updater && m_updater->busy())) {
+        if (manual) QMessageBox::information(this, "Atualizações", "Já estou verificando. Aguarde um instante.");
+        return;
+    }
+    if (!manual) { // sozinho: no máximo uma vez por dia
+        const QDateTime last = QSettings().value("updates/lastCheck").toDateTime();
+        if (last.isValid() && last.secsTo(QDateTime::currentDateTime()) < 20 * 3600) return;
+    }
+    m_updBusy = true;
+    m_updManual = manual;
+    m_updVersion.clear();
+    m_updNotes.clear();
+    m_updLastError.clear();
+    m_updPluginVersions.clear();
+    QSettings().setValue("updates/lastCheck", QDateTime::currentDateTime());
+    if (!m_updater) {
+        m_updater = new Updater(this);
+        connect(m_updater, &Updater::status, this, [this](const QString &t) { m_updateText->setText(t); });
+        connect(m_updater, &Updater::checked, this, [this](bool available, const QString &version, const QString &notes, const QString &err) {
+            if (!err.isEmpty()) m_updLastError = err;
+            if (available) { m_updVersion = version; m_updNotes = notes; }
+            // depois do shear, consulta os plugins instalados pelo app (um por vez)
+            m_updQueue.clear();
+            for (const PluginInfo &p : m_plugins->plugins())
+                if (p.userInstalled && p.loaded) m_updQueue << p.id;
+            if (!m_updPlugins) {
+                m_updPlugins = new PluginInstaller(this);
+                connect(m_updPlugins, &PluginInstaller::checked, this, [this](const QString &id, const QString &ver, const QString &e) {
+                    if (!e.isEmpty()) m_updLastError = e;
+                    if (!ver.isEmpty()) m_updPluginVersions.insert(id, ver);
+                    if (!m_updQueue.isEmpty()) m_updQueue.removeFirst();
+                    if (m_updQueue.isEmpty()) finishUpdateCheck();
+                    else if (const PluginInfo *pi = m_plugins->info(m_updQueue.first())) m_updPlugins->checkOnly(pi->id, pi->version);
+                });
+                connect(m_updPlugins, &PluginInstaller::status, this, [this](const QString &t) { m_updateText->setText(t); });
+            }
+            if (m_updQueue.isEmpty()) return finishUpdateCheck();
+            if (const PluginInfo *pi = m_plugins->info(m_updQueue.first())) m_updPlugins->checkOnly(pi->id, pi->version);
+        });
+        connect(m_updater, &Updater::applied, this, [this](bool ok, const QString &err) {
+            if (!ok) {
+                m_updateText->setText("Não foi possível atualizar: " + err);
+                m_ubUpdate->setText("Tentar de novo");
+                m_ubUpdate->setEnabled(true);
+                m_ubLater->setEnabled(true);
+                m_updBusy = false;
+                return;
+            }
+            m_updRestartNeeded = true;
+            m_updVersion.clear(); // o shear já foi trocado; falta reiniciar
+            updateNextPlugin();
+        });
+    }
+    m_updater->check();
+}
+
+// Terminou de consultar o shear e os plugins: mostra o aviso (ou, se você pediu, diz que está tudo em dia).
+void MainWindow::finishUpdateCheck()
+{
+    m_updBusy = false;
+    QStringList what;
+    if (!m_updVersion.isEmpty()) what << QString("shear %1").arg(m_updVersion);
+    for (auto it = m_updPluginVersions.begin(); it != m_updPluginVersions.end(); ++it) {
+        const PluginInfo *pi = m_plugins->info(it.key());
+        what << QString("plugin %1 %2").arg(pi ? pi->name : it.key(), it.value());
+    }
+    if (what.isEmpty()) {
+        if (m_updManual) {
+            if (!m_updLastError.isEmpty()) QMessageBox::warning(this, "Atualizações", "Não consegui verificar: " + m_updLastError);
+            else QMessageBox::information(this, "Atualizações", QString("Tudo em dia (shear %1).").arg(Updater::currentVersion()));
+        }
+        return;
+    }
+    QString text = "Atualização disponível: " + what.join(" e ");
+    if (!m_updNotes.isEmpty()) text += " — " + m_updNotes;
+    m_updateText->setText(text);
+    m_ubUpdate->setText("Atualizar");
+    m_ubUpdate->setEnabled(true);
+    m_ubUpdate->show();
+    m_ubLater->setEnabled(true);
+    m_ubRestart->hide();
+    m_updateBanner->show();
+}
+
+// "Atualizar": baixa só o que mudou do shear (com SHA-256), depois atualiza os plugins; reiniciar só se preciso.
+void MainWindow::runUpdate()
+{
+    if (m_updBusy) return;
+    m_updBusy = true;
+    m_updRestartNeeded = false;
+    m_ubUpdate->setEnabled(false);
+    m_ubLater->setEnabled(false);
+    m_updQueue = m_updPluginVersions.keys();
+    if (!m_updVersion.isEmpty()) m_updater->downloadAndApply(); // quando terminar, segue para os plugins (sinal applied)
+    else updateNextPlugin();
+}
+
+void MainWindow::updateNextPlugin()
+{
+    if (m_updQueue.isEmpty()) return finishUpdate();
+    const QString id = m_updQueue.takeFirst();
+    const PluginInfo *pi = m_plugins->info(id);
+    if (!pi) return updateNextPlugin();
+    // instalador próprio desta rodada (o de consulta pode ainda estar com a fila anterior)
+    auto *inst = new PluginInstaller(this);
+    connect(inst, &PluginInstaller::status, this, [this](const QString &t) { m_updateText->setText(t); });
+    connect(inst, &PluginInstaller::finished, this, [this, inst](const QString &pid, bool ok, const QString &error) {
+        inst->deleteLater();
+        if (!ok) {
+            m_updLastError = error;
+        } else if (!inst->upToDate()) {
+            QString err;
+            const auto c = m_plugins->commitStaged(pid, &err);
+            if (c == PluginManager::Commit::NeedsRestart) m_updRestartNeeded = true;
+            else if (c == PluginManager::Commit::Failed) m_updLastError = err;
+        }
+        updateNextPlugin();
+    });
+    inst->install(id, pi->version);
+}
+
+void MainWindow::finishUpdate()
+{
+    m_updBusy = false;
+    m_updPluginVersions.clear();
+    if (!m_updLastError.isEmpty() && !m_updRestartNeeded) {
+        m_updateText->setText("Não foi possível atualizar: " + m_updLastError);
+        m_ubUpdate->setText("Tentar de novo");
+        m_ubUpdate->setEnabled(true);
+        m_ubLater->setEnabled(true);
+        return;
+    }
+    if (m_updRestartNeeded) {
+        m_updateText->setText("Atualizado. Reinicie o shear para concluir.");
+        m_ubUpdate->hide();
+        m_ubRestart->show();
+        m_ubLater->setText("Depois");
+        m_ubLater->setEnabled(true);
+        return;
+    }
+    m_updateBanner->hide();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -1625,6 +1811,7 @@ void MainWindow::openSettings()
         else if (d.wantsPlugins()) {
             PluginsDialog p(m_plugins, this); // "Plugins…": as Configurações já fecharam; só a tela de plugins abre
             p.exec();
+            if (p.wantsCheck()) startUpdateCheck(true);
         }
         return;
     }

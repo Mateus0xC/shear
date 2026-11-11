@@ -133,6 +133,16 @@ void PluginInstaller::install(const QString &pluginId, const QString &installedV
     });
 }
 
+void PluginInstaller::checkOnly(const QString &pluginId, const QString &installedVersion)
+{
+    fetch(QUrl(catalogUrl()), kMaxCatalogBytes, [this, pluginId, installedVersion](const QByteArray &data, const QString &err) {
+        if (!err.isEmpty())
+            return emit checked(pluginId, QString(), err);
+        const auto ver = pickVersion(QJsonDocument::fromJson(data).object(), pluginId);
+        emit checked(pluginId, ver && compareVersions(ver->version, installedVersion) > 0 ? ver->version : QString(), QString());
+    });
+}
+
 void PluginInstaller::downloadNext(int index)
 {
     if (index >= m_files.size())

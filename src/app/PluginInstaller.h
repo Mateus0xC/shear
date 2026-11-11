@@ -33,6 +33,11 @@ public:
     static QString catalogUrl();
     // A versão mais nova do plugin que este shear consegue usar (nullopt se não há nenhuma).
     static std::optional<Version> pickVersion(const QJsonObject &catalog, const QString &pluginId);
+    // Nome, descrição curta e "saiba mais" do plugin, como o catálogo os publica (vêm do plugin.json do próprio plugin).
+    struct Meta {
+        QString name, description, details;
+    };
+    static Meta catalogMeta(const QJsonObject &catalog, const QString &pluginId);
     static int compareVersions(const QString &a, const QString &b); // <0, 0, >0
     static bool safeRelPath(const QString &path);                   // sem "..", sem caminho absoluto
 
@@ -40,6 +45,8 @@ public:
     void install(const QString &pluginId, const QString &installedVersion = QString());
     // Só consulta o catálogo: há versão mais nova (compatível) do plugin instalado? -> checked(id, versão nova ou "", erro)
     void checkOnly(const QString &pluginId, const QString &installedVersion);
+    // Lê o "saiba mais" do catálogo -> metaReady(id, meta, erro). (Só faz rede quando você pede.)
+    void fetchMeta(const QString &pluginId);
     bool busy() const { return m_busy; }
     bool upToDate() const { return m_upToDate; }
     QString newVersion() const { return m_version; }
@@ -48,6 +55,7 @@ signals:
     void status(const QString &text);
     void finished(const QString &pluginId, bool ok, const QString &error); // ok: preparado em stagedDir (ou já atualizado)
     void checked(const QString &pluginId, const QString &newVersion, const QString &error);
+    void metaReady(const QString &pluginId, const QString &name, const QString &description, const QString &details, const QString &error);
 
 private:
     void fetch(const QUrl &url, qint64 maxBytes, std::function<void(const QByteArray &, const QString &)> done);

@@ -12,14 +12,13 @@ $meta = Get-Content "$src\plugin.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = $meta.version
 $out = Join-Path $root "dist\plugins\$Id"
 Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force "$out\tls" | Out-Null
+New-Item -ItemType Directory -Force $out | Out-Null
 
 # arquivos do plugin: (caminho dentro da pasta do plugin) -> (arquivo de origem)
 $files = [ordered]@{
     $meta.library = "$src\$($meta.library)"
     "plugin.json" = "$src\plugin.json"
 }
-if ($Id -eq "valorant") { $files["tls/qschannelbackend.dll"] = "$app\tls\qschannelbackend.dll" } # HTTPS do Qt (o shear base não leva o tls)
 foreach ($k in $files.Keys) {
     $dest = Join-Path $out ($k -replace '/', '\')
     New-Item -ItemType Directory -Force (Split-Path $dest) | Out-Null
@@ -40,10 +39,10 @@ New-Item -ItemType Directory -Force (Split-Path $catPath) | Out-Null
 $catalog = if (Test-Path $catPath) { Get-Content $catPath -Raw -Encoding UTF8 | ConvertFrom-Json } else { [pscustomobject]@{ plugins = @() } }
 $plugins = @($catalog.plugins | Where-Object { $_.id -ne $Id })
 $old = @($catalog.plugins | Where-Object { $_.id -eq $Id } | ForEach-Object { $_.versions } | Where-Object { $_ -and $_.version -ne $version })
-$plugins += [ordered]@{ id = $Id; versions = @($old + $ver) }
+$plugins += [ordered]@{ id = $Id; name = $meta.name; description = $meta.description; details = $meta.details; versions = @($old + $ver) }
 [pscustomobject]@{ plugins = $plugins } | ConvertTo-Json -Depth 8 | Set-Content $catPath -Encoding UTF8
 
 Write-Host "Plugin $Id $version empacotado em $out"
 Get-ChildItem $out -Recurse -File | ForEach-Object { "{0,8:N0} KB  {1}" -f ($_.Length / 1KB), $_.FullName.Substring($out.Length + 1) }
 Write-Host "Catálogo: $catPath"
-Write-Host "Publique os arquivos de $out como assets da Release 'plugin-$Id-$version' (tls\qschannelbackend.dll com o nome tls-qschannelbackend.dll)."
+Write-Host "Publique os arquivos de $out como assets da Release 'plugin-$Id-$version'."

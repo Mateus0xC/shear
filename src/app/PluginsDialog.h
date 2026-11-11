@@ -19,6 +19,7 @@ public:
 private:
     void rebuild();
     void install(const QString &id, const QString &installedVersion);
+    void showDetails(const QString &id);
     void remove(const QString &id);
 
     PluginManager *m_mgr;

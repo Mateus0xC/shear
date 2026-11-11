@@ -26,7 +26,7 @@ if (-not $OutDir) { $OutDir = Join-Path $root "dist\update\v$Version" }
 if (-not (Test-Path "$AppDir\shear.exe")) { throw "shear.exe não encontrado em $AppDir. Compile antes: cmake --build build" }
 
 # o mesmo que o instalador deixa de fora (installer\shear.iss)
-$skipDirs = 'CMakeFiles', 'shear_autogen', 'plugins', 'tls', '.update'
+$skipDirs = 'CMakeFiles', 'shear_autogen', 'plugins', '.update'
 $skipNames = 'CTestTestfile.cmake', 'ffplay.exe', 'ffprobe.exe', 'vc_redist.x64.exe', 'dxcompiler.dll', 'dxil.dll'
 $skipExt = '.cmake', '.ilk', '.pdb', '.lib', '.exp', '.old'
 $appFull = (Resolve-Path $AppDir).Path.TrimEnd('\')

@@ -821,14 +821,31 @@ QWidget *MainWindow::buildEditor()
     m_pluginBannerText = new QLabel;
     m_pluginBannerText->setWordWrap(true);
     m_pbInstall = new QPushButton("Instalar");
+    m_pbMore = new QPushButton("Saiba mais");
     m_pbLater = new QPushButton("Agora não");
     m_pbNever = new QPushButton("Não perguntar de novo");
-    for (auto *b : {m_pbInstall, m_pbLater, m_pbNever}) b->setFocusPolicy(Qt::NoFocus);
+    for (auto *b : {m_pbInstall, m_pbMore, m_pbLater, m_pbNever}) b->setFocusPolicy(Qt::NoFocus);
     pbl->addWidget(m_pluginBannerText, 1);
     pbl->addWidget(m_pbInstall);
+    pbl->addWidget(m_pbMore);
     pbl->addWidget(m_pbLater);
     pbl->addWidget(m_pbNever);
     l->addWidget(m_pluginBanner);
+    connect(m_pbMore, &QPushButton::clicked, this, [this] { // o "saiba mais" vem do catálogo (que o copia do plugin.json do plugin)
+        if (m_bannerPlugin.isEmpty()) return;
+        auto *c = new PluginInstaller(this);
+        connect(c, &PluginInstaller::metaReady, this, [this, c](const QString &pid, const QString &name, const QString &, const QString &details, const QString &err) {
+            c->deleteLater();
+            QString shown = details;
+            if (shown.isEmpty()) {
+                for (const PluginInfo &k : PluginManager::builtinCatalog())
+                    if (k.id == pid) shown = k.description;
+                if (!err.isEmpty()) shown += "\n\n(Não consegui ler os detalhes agora: " + err + ")";
+            }
+            QMessageBox::information(this, name.isEmpty() ? pid : name, shown);
+        });
+        c->fetchMeta(m_bannerPlugin);
+    });
     connect(m_pbLater, &QPushButton::clicked, this, [this] {
         m_sessionDismissed.insert(m_bannerPlugin);
         m_pluginBanner->hide();
@@ -1613,7 +1630,7 @@ void MainWindow::notifyClipOpened()
             m_bannerPlugin = sug;
             QString what = sug;
             for (const PluginInfo &c : PluginManager::builtinCatalog())
-                if (c.id == sug) what = QString("Plugin do %1 disponível: %2").arg(c.name, c.description);
+                if (c.id == sug) what = QString("Plugin do %1 disponível: %2").arg(c.name, c.description); // uma linha; o resto é o "Saiba mais"
             m_pluginBannerText->setText(what);
             m_pbInstall->setText("Instalar");
             m_pbInstall->setEnabled(true);

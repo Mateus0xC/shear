@@ -212,7 +212,7 @@ private:
     void finishUpdate();
     QFrame *m_pluginBanner = nullptr;                // sugestão de instalar um plugin
     QLabel *m_pluginBannerText = nullptr;
-    QPushButton *m_pbInstall = nullptr, *m_pbLater = nullptr, *m_pbNever = nullptr;
+    QPushButton *m_pbInstall = nullptr, *m_pbMore = nullptr, *m_pbLater = nullptr, *m_pbNever = nullptr;
     PluginInstaller *m_installer = nullptr;
     QString m_bannerPlugin;
     QSet<QString> m_sessionDismissed;                // "Agora não" (vale até fechar o shear)

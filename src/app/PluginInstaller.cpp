@@ -133,6 +133,26 @@ void PluginInstaller::install(const QString &pluginId, const QString &installedV
     });
 }
 
+PluginInstaller::Meta PluginInstaller::catalogMeta(const QJsonObject &catalog, const QString &pluginId)
+{
+    for (const auto &pv : catalog.value("plugins").toArray()) {
+        const QJsonObject p = pv.toObject();
+        if (p.value("id").toString() == pluginId)
+            return {p.value("name").toString(), p.value("description").toString(), p.value("details").toString()};
+    }
+    return {};
+}
+
+void PluginInstaller::fetchMeta(const QString &pluginId)
+{
+    fetch(QUrl(catalogUrl()), kMaxCatalogBytes, [this, pluginId](const QByteArray &data, const QString &err) {
+        if (!err.isEmpty())
+            return emit metaReady(pluginId, {}, {}, {}, err);
+        const Meta m = catalogMeta(QJsonDocument::fromJson(data).object(), pluginId);
+        emit metaReady(pluginId, m.name, m.description, m.details, QString());
+    });
+}
+
 void PluginInstaller::checkOnly(const QString &pluginId, const QString &installedVersion)
 {
     fetch(QUrl(catalogUrl()), kMaxCatalogBytes, [this, pluginId, installedVersion](const QByteArray &data, const QString &err) {

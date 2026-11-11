@@ -89,8 +89,8 @@
                   {
                       "path":  "shear.exe",
                       "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/shear.exe",
-                      "sha256":  "d30f4939f6728296cebfd94133a83749a43af99f757a971dd130bdeff57f3cb6",
-                      "size":  700416
+                      "sha256":  "951221df9f74d65428c1ed51087c6193d4fd63f53c057c835bf5e6a763597cc8",
+                      "size":  708096
                   },
                   {
                       "path":  "swresample-6.dll",
@@ -157,6 +157,18 @@
                       "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/styles-qmodernwindowsstyle.dll",
                       "sha256":  "33f30e3ed3159b607cac9fb13c478f3e1059b63b39201194ee5f67d239180f01",
                       "size":  215688
+                  },
+                  {
+                      "path":  "tls/qcertonlybackend.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/tls-qcertonlybackend.dll",
+                      "sha256":  "063f369b7975c97fb989eda88f7a78896e7c6d5de2b73cccf30aefa92b608aff",
+                      "size":  102024
+                  },
+                  {
+                      "path":  "tls/qschannelbackend.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/tls-qschannelbackend.dll",
+                      "sha256":  "c58ab3c5873d3d5187ff1e6703662810f555ebe60c532e025250c47bbac2e50c",
+                      "size":  254600
                   }
               ]
 }

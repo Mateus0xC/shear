@@ -18,9 +18,8 @@ PluginsDialog::PluginsDialog(PluginManager *mgr, QWidget *parent) : QDialog(pare
     setWindowTitle("Plugins e atualizações");
     setMinimumWidth(560);
     auto *root = new QVBoxLayout(this);
-    auto *intro = new QLabel("Plugins acrescentam recursos ao shear (por exemplo, o do Valorant mostra mapa, agente e kills). "
-                             "Eles não vêm instalados; instalar baixa o plugin do catálogo e confere o fingerprint (SHA-256) de "
-                             "cada arquivo antes de ligar.");
+    auto *intro = new QLabel("Plugins acrescentam recursos ao shear. Eles não vêm instalados: instalar baixa o plugin e confere o "
+                             "fingerprint (SHA-256) de cada arquivo antes de ligar.");
     intro->setWordWrap(true);
     root->addWidget(intro);
     m_list = new QVBoxLayout;
@@ -97,6 +96,12 @@ void PluginsDialog::rebuild()
         text->addWidget(st);
         cl->addLayout(text, 1);
         const QString id = known.id;
+        auto *more = new QPushButton("Saiba mais");
+        more->setFlat(true);
+        more->setCursor(Qt::PointingHandCursor);
+        more->setFocusPolicy(Qt::NoFocus);
+        connect(more, &QPushButton::clicked, this, [this, id] { showDetails(id); });
+        text->addWidget(more, 0, Qt::AlignLeft);
         if (!inst) {
             auto *b = new QPushButton("Instalar");
             connect(b, &QPushButton::clicked, this, [this, id] { install(id, QString()); });
@@ -111,6 +116,29 @@ void PluginsDialog::rebuild()
         }
         m_list->addWidget(card);
     }
+}
+
+// "Saiba mais": do próprio plugin (plugin.json) se está instalado; senão, do catálogo (uma consulta rápida, só quando você pede).
+void PluginsDialog::showDetails(const QString &id)
+{
+    if (const PluginInfo *p = m_mgr->info(id); p && !p->details.isEmpty()) {
+        QMessageBox::information(this, p->name, p->details);
+        return;
+    }
+    m_status->setText("Buscando os detalhes…");
+    auto *c = new PluginInstaller(this);
+    connect(c, &PluginInstaller::metaReady, this, [this, c](const QString &pid, const QString &name, const QString &, const QString &details, const QString &err) {
+        c->deleteLater();
+        m_status->clear();
+        QString shown = details;
+        if (shown.isEmpty()) {
+            for (const PluginInfo &k : PluginManager::builtinCatalog())
+                if (k.id == pid) shown = k.description;
+            shown += err.isEmpty() ? QString() : "\n\n(Não consegui ler os detalhes agora: " + err + ")";
+        }
+        QMessageBox::information(this, name.isEmpty() ? pid : name, shown);
+    });
+    c->fetchMeta(id);
 }
 
 void PluginsDialog::install(const QString &id, const QString &installedVersion)

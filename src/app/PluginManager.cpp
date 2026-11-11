@@ -124,6 +124,7 @@ void PluginManager::scanDir(const QString &rootPath, bool user, const QString &o
         info.name = o.value("name").toString(info.id);
         info.version = o.value("version").toString();
         info.description = o.value("description").toString();
+        info.details = o.value("details").toString();
         info.library = o.value("library").toString();
         info.apiMajor = o.value("apiMajor").toInt();
         info.apiMinor = o.value("apiMinor").toInt();
@@ -153,8 +154,7 @@ QVector<PluginInfo> PluginManager::builtinCatalog()
     PluginInfo v;
     v.id = "valorant";
     v.name = "Valorant";
-    v.description = "Mostra mapa, agente, kills e mortes dos clipes do Valorant (pela API local do cliente), marca as kills na "
-                    "timeline, ajusta I/O ao último round e dá nome ao clipe.";
+    v.description = "Mostra mapa, agente e kills dos seus clipes do Valorant."; // curta; o "saiba mais" vem do catálogo (ou do plugin.json, se instalado)
     v.appliesTo = {"valorant"};
     return {v};
 }

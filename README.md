@@ -112,7 +112,7 @@ O shear base é só um cortador de clipes. Recursos de jogos ficam em **plugins*
   `SHEAR_PLUGINS_DIR` troca a pasta e `SHEAR_PLUGIN_CATALOG` troca o catálogo (aceita `file:///...`, para testar sem rede).
 - **Publicar um plugin:** `powershell -File scripts\make-plugin-package.ps1 -Id valorant` gera `dist\plugins\valorant\` e atualiza o
   catálogo; os arquivos vão como assets da Release `plugin-valorant-<versão>` e o `plugins/catalog.json` é commitado.
-- O instalador do shear não leva nenhum plugin (nem o `tls\`, que só o plugin do Valorant usa).
+- O instalador do shear não leva nenhum plugin (leva a pasta `tls\` do Qt: o shear baixa plugins e atualizações por HTTPS).
 
 ### Atualizações (sem reinstalar)
 O shear e os plugins se atualizam sozinhos **só quando você clica**. Uma vez por dia, em segundo plano e depois de a janela aparecer,

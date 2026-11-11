@@ -28,7 +28,8 @@ public:
 };
 
 struct PluginInfo {
-    QString id, name, version, description;
+    QString id, name, version, description; // description = uma linha; details = o "saiba mais"
+    QString details;
     QString dir, library;
     int apiMajor = 0, apiMinor = 0, minHostApiMinor = 0;
     QStringList appliesTo; // padrões do nome/caminho do clipe para os quais vale sugerir este plugin

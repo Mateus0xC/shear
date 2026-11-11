@@ -39,12 +39,12 @@ Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; Flags: un
 Name: "contextmenu"; Description: "Mostrar “Cortar com shear” ao clicar com o botão direito em um vídeo"
 
 [Files]
-; Ficam de fora: "plugins" (o Valorant etc. não vêm instalados: o app baixa quando o usuário quiser), "tls" (só o plugin do
-; Valorant usa HTTPS e ele traz o seu próprio tls) e vc_redist.x64.exe (não é usado em tempo de execução: as DLLs do runtime
-; do Visual C++ vão à parte, abaixo). dxcompiler.dll e dxil.dll (shaders Direct3D12 do Qt) também: o shear pinta por software
-; e abre/exporta normalmente sem eles.
+; Ficam de fora: "plugins" (o Valorant etc. não vêm instalados: o app baixa quando o usuário quiser), vc_redist.x64.exe (não é
+; usado em tempo de execução: as DLLs do runtime do Visual C++ vão à parte, abaixo) e dxcompiler.dll/dxil.dll (shaders Direct3D12
+; do Qt: o shear pinta por software e abre/exporta normalmente sem eles). A pasta "tls" FICA: o shear baixa plugins e
+; atualizações por HTTPS e precisa do módulo TLS do Qt.
 Source: "{#AppDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; \
-  Excludes: "CMakeFiles,shear_autogen,*.cmake,CTestTestfile.cmake,ffplay.exe,ffprobe.exe,*.ilk,*.pdb,*.lib,*.exp,plugins,tls,vc_redist.x64.exe,dxcompiler.dll,dxil.dll"
+  Excludes: "CMakeFiles,shear_autogen,*.cmake,CTestTestfile.cmake,ffplay.exe,ffprobe.exe,*.ilk,*.pdb,*.lib,*.exp,plugins,vc_redist.x64.exe,dxcompiler.dll,dxil.dll"
 #if VcRedist != ""
 ; Runtime do Visual C++ junto do app: funciona em PCs que nunca o instalaram.
 Source: "{#VcRedist}\*.dll"; DestDir: "{app}"; Flags: ignoreversion

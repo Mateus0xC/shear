@@ -2,10 +2,13 @@
   "id": "valorant",
   "name": "Valorant",
   "version": "1.0.0",
-  "description": "Mostra mapa, agente, kills e mortes dos clipes do Valorant (pela API local do cliente), marca as kills na timeline, ajusta I/O ao último round e dá nome ao clipe.",
+  "description": "Mostra mapa, agente e kills dos seus clipes do Valorant.",
+  "details": "O que ele faz:\n• Identifica o mapa e o agente do clipe e mostra ao lado do título, com a imagem do mapa ao fundo.\n• Marca as kills e as mortes na timeline (Q e E pulam entre elas) e dá a tag de kills: 2k, 3k, 5k...\n• Ajusta o início e o fim para o último round do clipe.\n• Dá nome ao clipe exportado: Valorant aaaa.mm.dd - Mapa_Agente_Nk.\n• Na lista de clipes mostra o ícone do agente e o mapa.\n\nComo funciona:\n• Lê a API local do cliente do Valorant (só leitura; precisa do Riot Client aberto e logado) e usa o valorant-api.com para nomes e imagens.\n• Tudo fica guardado no seu computador; senhas e tokens nunca são gravados.\n• Clipes já identificados continuam completos com o jogo fechado.",
   "library": "valorant.dll",
   "apiMajor": 1,
   "apiMinor": 0,
   "minHostApiMinor": 0,
-  "appliesTo": ["valorant"]
+  "appliesTo": [
+    "valorant"
+  ]
 }

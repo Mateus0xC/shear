@@ -84,6 +84,15 @@ private slots:
         const QByteArray bad = R"({"plugins":[{"id":"x","versions":[{"version":"1.0.0","apiMajor":1,"apiMinor":0,"minHostApiMinor":0,"files":[{"path":"../x.dll","url":"u","sha256":"abc"}]}]}]})";
         QVERIFY(!PluginInstaller::pickVersion(QJsonDocument::fromJson(bad).object(), "x").has_value());
     }
+    void catalog_meta_comes_from_the_plugin()
+    {
+        const QByteArray json = R"({"plugins":[{"id":"x","name":"Nome","description":"curta","details":"longa\nem linhas","versions":[]}]})";
+        const auto m = PluginInstaller::catalogMeta(QJsonDocument::fromJson(json).object(), "x");
+        QCOMPARE(m.name, QString("Nome"));
+        QCOMPARE(m.description, QString("curta"));
+        QCOMPARE(m.details, QString("longa\nem linhas"));
+        QVERIFY(PluginInstaller::catalogMeta(QJsonDocument::fromJson(json).object(), "y").details.isEmpty());
+    }
     void versions_compare_numerically()
     {
         QVERIFY(PluginInstaller::compareVersions("1.10.0", "1.9.0") > 0);

@@ -3,8 +3,8 @@
                     {
                         "id":  "valorant",
                         "name":  "Valorant",
-                        "description":  "Mostra mapa, agente, kills e mortes dos clipes do Valorant (pela API local do cliente), marca as kills na timeline, ajusta I/O ao último round e dá nome ao clipe.",
-                        "details":  null,
+                        "description":  "Mostra mapa, agente e kills dos seus clipes do Valorant.",
+                        "details":  "O que ele faz:\n• Identifica o mapa e o agente do clipe e mostra ao lado do título, com a imagem do mapa ao fundo.\n• Marca as kills e as mortes na timeline (Q e E pulam entre elas) e dá a tag de kills: 2k, 3k, 5k...\n• Ajusta o início e o fim para o último round do clipe.\n• Dá nome ao clipe exportado: Valorant aaaa.mm.dd - Mapa_Agente_Nk.\n• Na lista de clipes mostra o ícone do agente e o mapa.\n\nComo funciona:\n• Lê a API local do cliente do Valorant (só leitura; precisa do Riot Client aberto e logado) e usa o valorant-api.com para nomes e imagens.\n• Tudo fica guardado no seu computador; senhas e tokens nunca são gravados.\n• Clipes já identificados continuam completos com o jogo fechado.",
                         "versions":  [
                                          {
                                              "version":  "1.0.0",
@@ -15,12 +15,12 @@
                                                            {
                                                                "path":  "valorant.dll",
                                                                "url":  "https://github.com/Mateus0xC/shear/releases/download/plugin-valorant-1.0.0/valorant.dll",
-                                                               "sha256":  "d2f1cd2d973de36fb9a570bd62bc68fff59063889b500cdf7550cd88831d0812"
+                                                               "sha256":  "a1ac301e626a050e9b51892e82e8b4fcda621296491b3551e487518710cdb129"
                                                            },
                                                            {
                                                                "path":  "plugin.json",
                                                                "url":  "https://github.com/Mateus0xC/shear/releases/download/plugin-valorant-1.0.0/plugin.json",
-                                                               "sha256":  "3cb8ee1a87acdae445870bcc81afb4be07cc24071a529df6652e6f2929465d81"
+                                                               "sha256":  "e68cac67bc9f97cae789ac34e074fd1fa4a5db6bfb279daaf8cd8ac447c51093"
                                                            }
                                                        ]
                                          }

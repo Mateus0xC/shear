@@ -1,0 +1,162 @@
+﻿{
+    "version":  "0.1.0",
+    "notes":  "primeira versão publicada",
+    "files":  [
+                  {
+                      "path":  "avcodec-62.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/avcodec-62.dll",
+                      "sha256":  "d9e4c3a686fe4bfa3a2eddd63c1cd6cb1061343316648958cbfbe663d498fecf",
+                      "size":  119416320
+                  },
+                  {
+                      "path":  "avdevice-62.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/avdevice-62.dll",
+                      "sha256":  "9ba8e5d494418eae576d3af0fc65f37fdc2e798588b4b1832ffead8210a934a2",
+                      "size":  5008384
+                  },
+                  {
+                      "path":  "avfilter-11.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/avfilter-11.dll",
+                      "sha256":  "ff0f7eac2a45521513e3c1e3bae67181bda80fd31329f9a58fcbf43516248451",
+                      "size":  37695488
+                  },
+                  {
+                      "path":  "avformat-62.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/avformat-62.dll",
+                      "sha256":  "a360668a2853320e1341eb5079d9f4053dc63ca68dd2200d7fead5436c40f0b8",
+                      "size":  20092416
+                  },
+                  {
+                      "path":  "avutil-60.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/avutil-60.dll",
+                      "sha256":  "a8b80d29797df62f80012149e14585db4152bdc97b68dbe1a7d63a8e10680443",
+                      "size":  3021824
+                  },
+                  {
+                      "path":  "ffmpeg.exe",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/ffmpeg.exe",
+                      "sha256":  "a5df2e7817386733a38aa5077606c7ebc39585f42fd5999187467c32689bb965",
+                      "size":  552960
+                  },
+                  {
+                      "path":  "libmpv-2.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/libmpv-2.dll",
+                      "sha256":  "2a287ecb1fe2bc5b6ab636cfec0cacbb12ffec05e4eb4e5c2cade1752e2d15e6",
+                      "size":  101853696
+                  },
+                  {
+                      "path":  "Qt6Core.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/Qt6Core.dll",
+                      "sha256":  "0cc62e841959fb8f6d366ea116c6f6bbc273e30f0ef90d8aa2e4adeb81fd63f8",
+                      "size":  6159496
+                  },
+                  {
+                      "path":  "Qt6Gui.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/Qt6Gui.dll",
+                      "sha256":  "ca9f20d9b59d5bc321a87005b926b853ebcd6a2394823e14d3c8b5fc5702fa8c",
+                      "size":  9285768
+                  },
+                  {
+                      "path":  "Qt6Network.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/Qt6Network.dll",
+                      "sha256":  "2c2f65c70989646f06d668883c031f06fac3f8de1f459278c94cc50dfe89988d",
+                      "size":  1755784
+                  },
+                  {
+                      "path":  "Qt6OpenGL.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/Qt6OpenGL.dll",
+                      "sha256":  "85fdcd74cd4a8f6a25a0a4adc7f1e83a1a6e7c17f85b4aec06ad0c80bf827a50",
+                      "size":  1970824
+                  },
+                  {
+                      "path":  "Qt6OpenGLWidgets.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/Qt6OpenGLWidgets.dll",
+                      "sha256":  "c1b46e207730148e7193a2212d3694e86af690fb902687cbf5c33562eec76101",
+                      "size":  64136
+                  },
+                  {
+                      "path":  "Qt6Svg.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/Qt6Svg.dll",
+                      "sha256":  "efaf94c5c757a430ec5b89fc209089b14171b5cce945db961c32264f1cc99f80",
+                      "size":  528520
+                  },
+                  {
+                      "path":  "Qt6Widgets.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/Qt6Widgets.dll",
+                      "sha256":  "d34ef78b3d3b5506ee8279ce6efbfc263d773b74860af76e66b0715346897a3a",
+                      "size":  6500488
+                  },
+                  {
+                      "path":  "shear.exe",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/shear.exe",
+                      "sha256":  "d30f4939f6728296cebfd94133a83749a43af99f757a971dd130bdeff57f3cb6",
+                      "size":  700416
+                  },
+                  {
+                      "path":  "swresample-6.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/swresample-6.dll",
+                      "sha256":  "c0d4d3ffe73e729fe6721a89a2c017173722db0a13d111ff4bd9b8214e296adf",
+                      "size":  747008
+                  },
+                  {
+                      "path":  "swscale-9.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/swscale-9.dll",
+                      "sha256":  "a5f8d554dbffd50c3da43cc6cb305de4a51c774dd0847d1de0e73c507da0ddc4",
+                      "size":  12972544
+                  },
+                  {
+                      "path":  "generic/qtuiotouchplugin.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/generic-qtuiotouchplugin.dll",
+                      "sha256":  "8e123c011d13ddf884d33f6fba50182d6525a3a7504b7eac0788ef45ab2f2cb1",
+                      "size":  102024
+                  },
+                  {
+                      "path":  "iconengines/qsvgicon.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/iconengines-qsvgicon.dll",
+                      "sha256":  "6418cb7f188af89fc6876059692d3940377a80bbdb55d70ab907406b46f671d0",
+                      "size":  77448
+                  },
+                  {
+                      "path":  "imageformats/qgif.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/imageformats-qgif.dll",
+                      "sha256":  "0ee32e5b48bf1404532842862045c523e0c915f223e34ea900c709e7c72b0b1e",
+                      "size":  47752
+                  },
+                  {
+                      "path":  "imageformats/qico.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/imageformats-qico.dll",
+                      "sha256":  "30b344703bccbf4bf70809cb9b6ce0075b74bdc765d18e539339190b095bb552",
+                      "size":  46216
+                  },
+                  {
+                      "path":  "imageformats/qjpeg.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/imageformats-qjpeg.dll",
+                      "sha256":  "1c3f3996b18b9a6d3f2690ef333843c9195bec2a4eb08f6e68a3b3bc7f097c32",
+                      "size":  575624
+                  },
+                  {
+                      "path":  "imageformats/qsvg.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/imageformats-qsvg.dll",
+                      "sha256":  "d901931d7f5da8b408f9fcfcfe9e53a4d2247b5fa391fd67ac22a9e9f13c1636",
+                      "size":  39048
+                  },
+                  {
+                      "path":  "networkinformation/qnetworklistmanager.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/networkinformation-qnetworklistmanager.dll",
+                      "sha256":  "9950a4a34df745df88b84bb605982999332f27217cba5802c2c30df5197db247",
+                      "size":  71304
+                  },
+                  {
+                      "path":  "platforms/qwindows.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/platforms-qwindows.dll",
+                      "sha256":  "12577a7c4f2230bbea53f279573d7e3d1a08d631197855481e1e1580f61bb877",
+                      "size":  907912
+                  },
+                  {
+                      "path":  "styles/qmodernwindowsstyle.dll",
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/styles-qmodernwindowsstyle.dll",
+                      "sha256":  "33f30e3ed3159b607cac9fb13c478f3e1059b63b39201194ee5f67d239180f01",
+                      "size":  215688
+                  }
+              ]
+}

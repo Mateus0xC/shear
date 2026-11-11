@@ -549,6 +549,12 @@ void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
     emit clicked();
 }
 
+void MpvWidget::mouseDoubleClickEvent(QMouseEvent *e)
+{
+    if (e->button() == Qt::LeftButton)
+        emit doubleClicked();
+}
+
 void MpvWidget::togglePause() { setPaused(!m_paused); }
 
 void MpvWidget::stepFrame(bool forward)

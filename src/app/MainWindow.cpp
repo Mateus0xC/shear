@@ -651,7 +651,9 @@ MainWindow::MainWindow()
     sc(Qt::Key_Return, [=, this] { if (inEditor()) startExport(); });
     sc(Qt::Key_Enter, [=, this] { if (inEditor()) startExport(); });
     // Esc só cancela o trecho que está sendo marcado com X (não volta mais para a lista de clipes: use o botão "← Clipes").
+    sc(Qt::Key_F, [=, this] { if (inEditor()) toggleFullscreen(); }); // tela cheia (também: duplo clique no vídeo)
     sc(Qt::Key_Escape, [=, this] {
+        if (m_fullscreen) { toggleFullscreen(); return; } // Esc sai da tela cheia primeiro
         if (!inEditor() || m_job || !m_timeline->pendingGap()) return;
         pushUndo(currentState());
         m_timeline->setPendingGap(std::nullopt);
@@ -1082,7 +1084,10 @@ QWidget *MainWindow::buildEditor()
     ex->addWidget(m_deleteBothBtn);
     ex->addWidget(m_deleteOrigBtn);
     bl->addWidget(rowC);
-    l->addLayout(bottom);
+    bottom->setContentsMargins(0, 0, 0, 0);
+    m_bottomBox = new QWidget; // num widget para a tela cheia poder esconder o bloco inteiro
+    m_bottomBox->setLayout(bottom);
+    l->addWidget(m_bottomBox);
 
     // preencher com os padrões
     setCutMode(m_cfg.mode);
@@ -1137,6 +1142,10 @@ QWidget *MainWindow::buildEditor()
         }
     });
     connect(m_mpv, &MpvWidget::clicked, this, &MainWindow::userTogglePause); // clicar no vídeo = play/pause
+    connect(m_mpv, &MpvWidget::doubleClicked, this, [this] {
+        m_mpv->togglePause();  // o 1º clique do duplo clique já alternou o play/pause: desfaz
+        toggleFullscreen();
+    });
     connect(m_timeline, &TimelineWidget::gapRightClicked, this, &MainWindow::removeGapAt);
     // Tocando e chegou num trecho apagado: pula para o fim dele (o preview mostra o que vai ficar no arquivo).
     connect(m_mpv, &MpvWidget::positionChanged, this, [this](double p) {
@@ -1687,8 +1696,33 @@ QString MainWindow::ffmpegPath() const
 // `created`: quando o arquivo foi CRIADO (é o que vale para "clipado há N min"); a data de modificação é só reserva.
 struct RecentItem { QString path; QDateTime created; qint64 size; QString iconPath, bannerPath, bannerText, tag, comment; bool tagHot = false; };
 
+// Tela cheia: o vídeo ocupa a tela; ficam só o vídeo e a timeline (dá para marcar I/O e navegar). F ou Esc voltam.
+void MainWindow::toggleFullscreen()
+{
+    if (m_stack->currentIndex() != 1 && !m_fullscreen) return;
+    if (!m_fullscreen) {
+        m_fsWasMaximized = isMaximized();
+        m_fsHidden.clear();
+        for (QWidget *w : {static_cast<QWidget *>(m_topBanner), static_cast<QWidget *>(m_pluginBanner),
+                           static_cast<QWidget *>(m_updateBanner), static_cast<QWidget *>(m_bottomBox),
+                           static_cast<QWidget *>(m_audioBox)})
+            if (w && w->isVisible()) {
+                m_fsHidden << w;
+                w->hide();
+            }
+        m_fullscreen = true;
+        showFullScreen();
+    } else {
+        m_fullscreen = false;
+        for (QWidget *w : std::as_const(m_fsHidden)) w->show();
+        m_fsHidden.clear();
+        if (m_fsWasMaximized) showMaximized(); else showNormal();
+    }
+}
+
 void MainWindow::showHome()
 {
+    if (m_fullscreen) toggleFullscreen(); // a lista de clipes nunca aparece em tela cheia sem a barra
     commitComment(true); // o comentário em edição não se perde ao voltar para a lista
     if (m_plugins) m_plugins->clipClosed();
     // Saiu do vídeo: para tudo, senão o áudio continuaria tocando em segundo plano.
@@ -2444,7 +2478,7 @@ void MainWindow::showTitleMenu(const QPoint &global)
         return;
     QMenu menu(this);
     const bool temp = m_tempFiles.contains(m_lastOutput); // clipe ainda não mantido: apagar o original leva o clipe junto
-    auto *del = menu.addAction(temp ? "Apagar original e clipe" : "Apagar original");
+    auto *del = menu.addAction("Excluir"); // (clipe ainda não mantido: a confirmação mostra que vão o original e o clipe)
     del->setEnabled(!m_job);
     connect(del, &QAction::triggered, this, [this, temp] { if (temp) deleteBoth(); else deleteOriginalOnly(); });
     menu.exec(global);

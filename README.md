@@ -17,6 +17,7 @@ marcar início e fim, exportar e colar no Discord.
 |---|---|
 | `F1` (ou **Configurações → Atalhos e controles…**) | abre a ajuda "Atalhos e controles", com abas explicando todas as teclas, gestos do mouse, painéis e Configurações |
 | `F5` ou `Ctrl+R` (na lista de clipes) | relê a pasta e atualiza a lista de clipes |
+| `F` (ou duplo clique no vídeo) | tela cheia: ficam só o vídeo e a timeline; `F` ou `Esc` voltam |
 | `Espaço` ou clique no vídeo | play/pause (com uma animação rápida sobre o vídeo; pular também mostra "+5 s", "−0,5 s"…). Ao chegar na marca de fim (`O`) a reprodução **para**, como se o vídeo tivesse acabado; play de novo (no `O` ou no fim do vídeo) **recomeça do `I`** |
 | `Ctrl` + roda do mouse sobre o vídeo | zoom no vídeo (até 8×); com zoom, arraste com o botão esquerdo para mover a imagem; `Ctrl` + `0` volta a 1× |
 | `[` / `]`, `-` / `+` (ou o botão **1×** no topo) | velocidade do preview: 0,25× a 3× (não muda o arquivo exportado); `Backspace` volta a 1× |

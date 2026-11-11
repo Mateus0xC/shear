@@ -219,6 +219,10 @@ private:
     bool m_listRefreshQueued = false;
     QDateTime m_clipCreated;                         // data de criação do clipe aberto
     bool m_userPaused = false;                       // você pausou/despausou neste vídeo (o shear não mexe mais)
+    QWidget *m_bottomBox = nullptr;                  // opções e exportar (somem na tela cheia)
+    bool m_fullscreen = false, m_fsWasMaximized = false;
+    QVector<QWidget *> m_fsHidden;                   // o que a tela cheia escondeu (volta ao sair)
+    void toggleFullscreen();                         // F ou duplo clique no vídeo; Esc sai
     void rebuildChips();
     void showChipMenu(const QString &pluginId, const plugin::InfoChip &chip, QToolButton *btn);
     void applySuggestedRange();                      // aplica o I/O sugerido por um plugin (se você ainda não mexeu)

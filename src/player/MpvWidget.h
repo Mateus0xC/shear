@@ -67,6 +67,7 @@ signals:
     void firstFrame();
     void playbackRestarted(); // seek concluído
     void clicked();           // clique simples no vídeo (play/pause)
+    void doubleClicked();     // duplo clique no vídeo (tela cheia)
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -75,6 +76,7 @@ protected:
     void mousePressEvent(QMouseEvent *e) override;
     void mouseMoveEvent(QMouseEvent *e) override;
     void mouseReleaseEvent(QMouseEvent *e) override;
+    void mouseDoubleClickEvent(QMouseEvent *e) override;
 
 private slots:
     void handleEvents();

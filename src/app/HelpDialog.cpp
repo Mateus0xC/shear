@@ -70,6 +70,7 @@ HelpDialog::HelpDialog(const QVector<QPair<QString, QString>> &pluginRows, QWidg
             {"Home · End", "Vai para o começo ou para o fim do vídeo"},
             {"0 a 9", "Vai direto para uma parte do vídeo: 0 é o começo, 5 é a metade, 9 é quase o fim"},
             {"Shift + Q · Shift + E", "Vai para o ponto I ou para o ponto O"},
+            {"F · duplo clique no vídeo", "Tela cheia (só o vídeo e a timeline); F ou Esc voltam"},
             {"Q · E", "Pula para a parada anterior ou seguinte: as marcas da timeline (kills/mortes, se houver plugin) e os pontos I e O (o que já está em cima do ponto atual é ignorado)"},
         }},
         {"Volume e zoom", {

@@ -1711,9 +1711,11 @@ void MainWindow::toggleFullscreen()
                 w->hide();
             }
         m_fullscreen = true;
+        m_timeline->setZoomEnabled(false); // sem o zoom de precisão da timeline na tela cheia
         showFullScreen();
     } else {
         m_fullscreen = false;
+        m_timeline->setZoomEnabled(true);
         for (QWidget *w : std::as_const(m_fsHidden)) w->show();
         m_fsHidden.clear();
         if (m_fsWasMaximized) showMaximized(); else showNormal();

@@ -21,6 +21,8 @@ public:
     void setRange(double s, double e); // início e fim de uma vez (desfazer)
     void addKeyframes(const QVector<double> &batch);
     void setScanDone(bool done) { m_scanDone = done; }
+    // Liga/desliga o zoom de precisão (a régua ampliada ao puxar o mouse para baixo durante o arrasto). Na tela cheia fica desligado.
+    void setZoomEnabled(bool on);
     // Modo Rápido: o marcador de início só existe em keyframes, então ele "gruda" neles ao arrastar.
     void setSnapStart(bool snap) { m_snapStart = snap; }
     double snapToKeyframe(double t) const; // keyframe mais próximo (ou t, se ainda não foi lido)
@@ -103,6 +105,7 @@ private:
     std::optional<double> m_ghost;
     bool m_scanDone = false;
     bool m_snapStart = false;
+    bool m_zoomEnabled = true; // zoom de precisão (puxar o mouse para baixo ao arrastar); desligado na tela cheia
     double m_fps = 0;
     Drag m_drag = Drag::None;
     double m_dragT = 0; // valor que está sendo arrastado

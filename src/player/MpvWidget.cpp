@@ -477,6 +477,10 @@ void MpvWidget::mousePressEvent(QMouseEvent *e)
     m_pressed = true;
     m_panning = false;
     m_pressPos = m_lastPos = e->pos();
+    m_secondClick = m_clickClock.isValid() && m_clickClock.elapsed() <= kDoubleClickMs &&
+                    (e->pos() - m_lastClickPos).manhattanLength() <= 8;
+    m_clickClock.restart();
+    m_lastClickPos = e->pos();
 }
 
 void MpvWidget::mouseMoveEvent(QMouseEvent *e)
@@ -546,13 +550,21 @@ void MpvWidget::mouseReleaseEvent(QMouseEvent *e)
         setCursor(m_zoomLog > 1e-9 ? Qt::OpenHandCursor : Qt::ArrowCursor);
         return; // era um arrasto, não um clique
     }
+    if (m_secondClick) { // 2º clique dentro do tempo curto: duplo clique
+        m_secondClick = false;
+        m_clickClock.invalidate(); // um 3º clique não conta como outro duplo com este
+        emit doubleClicked();
+        return;
+    }
     emit clicked();
 }
 
+// O Windows manda este evento se o 2º clique veio em até ~500 ms; mas quem decide o que é duplo clique é o tempo curto de
+// mousePressEvent (kDoubleClickMs). Aqui só repassa como um clique normal.
 void MpvWidget::mouseDoubleClickEvent(QMouseEvent *e)
 {
     if (e->button() == Qt::LeftButton)
-        emit doubleClicked();
+        mousePressEvent(e);
 }
 
 void MpvWidget::togglePause() { setPaused(!m_paused); }

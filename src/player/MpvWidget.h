@@ -116,6 +116,11 @@ private:
     double m_aspect = 16.0 / 9.0; // proporção do vídeo (guardada para não perguntar ao mpv a cada movimento do mouse)
     QPoint m_pressPos, m_lastPos;
     bool m_pressed = false, m_panning = false;
+    // Duplo clique no vídeo: o do Windows aceita até ~500 ms entre os cliques; aqui vale só o que for MAIS RÁPIDO que isso.
+    static constexpr qint64 kDoubleClickMs = 300;
+    QElapsedTimer m_clickClock;   // instante do clique anterior
+    QPoint m_lastClickPos;
+    bool m_secondClick = false;   // este clique é o 2º de um duplo clique
     // animação sobre o vídeo
     Overlay m_ovKind = Overlay::Play;
     bool m_ovActive = false;

@@ -555,6 +555,7 @@ double TimelineWidget::roomBelow() const
 
 void TimelineWidget::showHint()
 {
+    if (!m_zoomEnabled) return;
     if (!m_hint) m_hint = new TimelineHint(this);
     const bool below = roomBelow() >= m_hint->height() + 12;
     m_hint->move(mapToGlobal(QPoint((width() - m_hint->width()) / 2, below ? height() + 6 : -m_hint->height() - 6)));
@@ -564,6 +565,15 @@ void TimelineWidget::showHint()
 void TimelineWidget::hideHint()
 {
     if (m_hint) m_hint->hide();
+}
+
+void TimelineWidget::setZoomEnabled(bool on)
+{
+    m_zoomEnabled = on;
+    if (!on) {
+        if (m_zoom) leaveZoom();
+        hideHint();
+    }
 }
 
 void TimelineWidget::leaveZoom()
@@ -578,6 +588,10 @@ void TimelineWidget::mouseMoveEvent(QMouseEvent *e)
 {
     if (m_drag == Drag::None) return;
     const QPointF pos = e->position();
+    if (!m_zoomEnabled) { // sem zoom de precisão: arrastar só anda na horizontal, não importa o quanto o mouse desça
+        applyDrag(xToSec(pos.x()));
+        return;
+    }
     const double beyond = pos.y() - height(); // quanto o mouse foi puxado para baixo da timeline
     const double w = width() - 2.0 * kMargin;
     const double frac = std::clamp((pos.x() - kMargin) / w, 0.0, 1.0); // posição horizontal dentro da timeline/régua

@@ -48,7 +48,7 @@ QString html(const std::vector<Section> &sections, const QPalette &pal)
 
 } // namespace
 
-HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
+HelpDialog::HelpDialog(const QVector<QPair<QString, QString>> &pluginRows, QWidget *parent) : QDialog(parent)
 {
     setWindowTitle("Atalhos e controles");
     resize(720, 600);
@@ -70,9 +70,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"Home · End", "Vai para o começo ou para o fim do vídeo"},
             {"0 a 9", "Vai direto para uma parte do vídeo: 0 é o começo, 5 é a metade, 9 é quase o fim"},
             {"Shift + Q · Shift + E", "Vai para o ponto I ou para o ponto O"},
-            {"K", "Clipe do Valorant: pause no quadro de uma kill/morte e aperte K — as marcas desta partida se acertam para cair ali (fica guardado)"},
-            {"Shift + K", "Desfaz a calibração do K: as marcas voltam ao ajuste automático (Ctrl + Z também desfaz o K)"},
-            {"Q · E", "Pula para a parada anterior ou seguinte: kills/mortes do Valorant e os pontos I e O (o que já está em cima do ponto atual é ignorado)"},
+            {"Q · E", "Pula para a parada anterior ou seguinte: as marcas da timeline (kills/mortes, se houver plugin) e os pontos I e O (o que já está em cima do ponto atual é ignorado)"},
         }},
         {"Volume e zoom", {
             {"↑ ↓ · W S · roda do mouse sobre o vídeo", "Aumenta ou diminui o volume"},
@@ -134,9 +132,7 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
             {"Engrenagem", "Abre as Configurações"},
             {"Botão direito no nome do arquivo (editor) ou na linha da lista", "Menu: abrir local do arquivo e excluir (na lista); apagar original (no editor). Tudo vai para a Lixeira"},
             {"Arrastar o nome do arquivo ou a linha da lista", "Leva o arquivo: solte no Discord, no Explorer ou no próprio shear"},
-            {"Mapa · Agente · kills (ao lado do título)", "O que o jogo não identificou fica clicável: clique para escolher à mão"},
-            {"✎ (depois do mapa/agente/kills)", "Comentário opcional do clipe: clique, digite e aperte Enter. Também grava ao voltar para a lista ou sair (Esc descarta)"},
-            {"Mapa · Agente (ao lado do título)", "Clipes do Valorant: aparece sozinho se o jogo estiver aberto (ou se o clipe já foi identificado antes)"},
+            {"✎ (ao lado do nome do arquivo)", "Comentário opcional do clipe: clique, digite e aperte Enter. Também grava ao voltar para a lista ou sair (Esc descarta)"},
             {"Arrastar um vídeo para a janela", "Abre o vídeo"},
             {"Cortar com shear (botão direito num vídeo)", "Abre o vídeo no shear; para ativar, vá em Configurações → Menu do Windows"},
         }},
@@ -162,6 +158,16 @@ HelpDialog::HelpDialog(QWidget *parent) : QDialog(parent)
     addTab("Cortar e exportar", cutting);
     addTab("Mouse e painéis", mouse);
     addTab("Janela e arquivos", general);
+
+    // Plugins: o que são e os atalhos que os instalados registraram
+    std::vector<QByteArray> store;
+    store.reserve(pluginRows.size() * 2 + 4);
+    std::vector<Row> prow;
+    auto keep = [&](const QString &str) { store.push_back(str.toUtf8()); return store.back().constData(); };
+    prow.push_back({keep("Configurações → Plugins…"), keep("Instala, atualiza e remove plugins (por exemplo, o do Valorant). Ao abrir um clipe 'Valorant', o shear sugere instalar o plugin")});
+    for (const auto &r : pluginRows)
+        prow.push_back({keep(r.first), keep(r.second)});
+    addTab("Plugins", {{"", prow}});
 
     auto *bb = new QDialogButtonBox(QDialogButtonBox::Close);
     bb->button(QDialogButtonBox::Close)->setText("Fechar");

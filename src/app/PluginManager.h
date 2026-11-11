@@ -50,6 +50,20 @@ public:
 
     void loadAll();
     const QVector<PluginInfo> &plugins() const { return m_infos; }
+    const PluginInfo *info(const QString &id) const;
+    // Plugins oficiais que o shear conhece (nome, descrição, quando sugerir), instalados ou não.
+    static QVector<PluginInfo> builtinCatalog();
+    // Ao abrir: aplica atualizações e remoções que ficaram pendentes (uma DLL carregada não pode ser trocada/apagada).
+    static void applyPending();
+    enum class Commit { Loaded, NeedsRestart, Failed };
+    // Instala o que o PluginInstaller preparou em .stage-<id> e, se der, carrega na hora (sem reiniciar).
+    Commit commitStaged(const QString &id, QString *error = nullptr);
+    // Remove um plugin instalado pelo app. true = removido agora; false = ficou marcado e some na próxima abertura.
+    bool requestRemoval(const QString &id);
+    // Id do plugin oficial (não instalado, não dispensado) que combina com esse clipe ("" = nenhum). Ex.: "valorant".
+    QString suggestionFor(const QString &clipPath) const;
+    static bool suggestionDismissed(const QString &id);
+    static void setSuggestionDismissed(const QString &id, bool dismissed);
     bool isLoaded(const QString &id) const;
     static QString userPluginsDir(); // %LOCALAPPDATA%/Shear/plugins
 
@@ -62,6 +76,7 @@ public:
     void clipClosed();
     void clipOpened(const plugin::ClipContext &clip);
     void durationChanged(double seconds);
+    void clipOpenedFor(const QString &pluginId, const plugin::ClipContext &clip, double duration); // plugin recém-carregado
     struct PluginAction {
         QString pluginId;
         plugin::Action action;
@@ -78,10 +93,11 @@ public:
 
 signals:
     void pluginsChanged();
+    void pluginLoaded(const QString &pluginId); // carregado agora (instalação sem reiniciar)
 
 private:
     struct Loaded;
-    void scanDir(const QString &root, bool user);
+    void scanDir(const QString &root, bool user, const QString &onlyId = QString());
     void loadOne(PluginInfo &info);
     plugin::IShearPlugin *find(const QString &id) const;
 

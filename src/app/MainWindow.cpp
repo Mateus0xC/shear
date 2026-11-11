@@ -70,6 +70,8 @@
 #include <QSet>
 #include <QStyledItemDelegate>
 #include "ClipMeta.h"
+#include "PluginInstaller.h"
+#include "PluginsDialog.h"
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -525,6 +527,13 @@ static const char *kVideoGlobs[] = {"*.mp4", "*.mkv", "*.mov", "*.webm", "*.avi"
 MainWindow::MainWindow()
 {
     m_plugins = new PluginManager(this, this); // os plugins são carregados depois da janela aparecer (deferredInit)
+    connect(m_plugins, &PluginManager::pluginLoaded, this, [this](const QString &id) {
+        rebuildPluginShortcuts();
+        if (!m_file.isEmpty())
+            m_plugins->clipOpenedFor(id, {m_file, m_clipCreated, QFileInfo(m_file).size()}, m_timeline->duration());
+        if (m_pluginBanner) m_pluginBanner->hide();
+        refreshList();
+    });
     setWindowTitle("shear");
     resize(1100, 740);
     setAcceptDrops(true);
@@ -765,6 +774,60 @@ QWidget *MainWindow::buildEditor()
     top->setContentsMargins(6, 3, 6, 3);
     m_topBanner->setLayout(top);
     l->addWidget(m_topBanner);
+
+    // Sugestão de plugin: aparece ao abrir um clipe cujo nome/caminho combina com um plugin que ainda não está instalado
+    m_pluginBanner = new QFrame;
+    m_pluginBanner->setObjectName("pluginBanner");
+    m_pluginBanner->setStyleSheet("#pluginBanner { background: rgba(60, 110, 200, 45); border-radius: 6px; }");
+    m_pluginBanner->hide();
+    auto *pbl = new QHBoxLayout(m_pluginBanner);
+    pbl->setContentsMargins(10, 4, 10, 4);
+    m_pluginBannerText = new QLabel;
+    m_pluginBannerText->setWordWrap(true);
+    m_pbInstall = new QPushButton("Instalar");
+    m_pbLater = new QPushButton("Agora não");
+    m_pbNever = new QPushButton("Não perguntar de novo");
+    for (auto *b : {m_pbInstall, m_pbLater, m_pbNever}) b->setFocusPolicy(Qt::NoFocus);
+    pbl->addWidget(m_pluginBannerText, 1);
+    pbl->addWidget(m_pbInstall);
+    pbl->addWidget(m_pbLater);
+    pbl->addWidget(m_pbNever);
+    l->addWidget(m_pluginBanner);
+    connect(m_pbLater, &QPushButton::clicked, this, [this] {
+        m_sessionDismissed.insert(m_bannerPlugin);
+        m_pluginBanner->hide();
+    });
+    connect(m_pbNever, &QPushButton::clicked, this, [this] {
+        PluginManager::setSuggestionDismissed(m_bannerPlugin, true);
+        m_pluginBanner->hide();
+        m_status->setText("Você pode instalar depois em Configurações → Plugins…");
+    });
+    connect(m_pbInstall, &QPushButton::clicked, this, [this] {
+        if (!m_installer) {
+            m_installer = new PluginInstaller(this);
+            connect(m_installer, &PluginInstaller::status, this, [this](const QString &t) { m_pluginBannerText->setText(t); });
+            connect(m_installer, &PluginInstaller::finished, this, [this](const QString &id, bool ok, const QString &error) {
+                m_pbInstall->setEnabled(true);
+                if (!ok) {
+                    m_pluginBannerText->setText("Não foi possível instalar: " + error);
+                    m_pbInstall->setText("Tentar de novo");
+                    return;
+                }
+                QString err;
+                const auto c = m_plugins->commitStaged(id, &err);
+                if (c == PluginManager::Commit::Failed) {
+                    m_pluginBannerText->setText("Não foi possível instalar: " + err);
+                    m_pbInstall->setText("Tentar de novo");
+                } else {
+                    m_pluginBanner->hide(); // carregado: os chips, as marcas e os atalhos já aparecem (pluginLoaded)
+                    m_status->setText("Plugin instalado.");
+                }
+            });
+        }
+        if (m_installer->busy()) return;
+        m_pbInstall->setEnabled(false);
+        m_installer->install(m_bannerPlugin);
+    });
 
     m_mpv = new MpvWidget(m_cfg.gpuDecode);
     m_scrub = new AudioScrubber(this);
@@ -1358,6 +1421,18 @@ void MainWindow::notifyClipOpened()
     if (m_plugins) {
         m_plugins->clipOpened({m_file, m_clipCreated, fi.size()});
         m_plugins->durationChanged(m_timeline->duration());
+        // plugin disponível para este tipo de clipe (e ainda não instalado)? sugere, sem atrapalhar
+        const QString sug = m_plugins->suggestionFor(m_file);
+        if (!sug.isEmpty() && !m_sessionDismissed.contains(sug)) {
+            m_bannerPlugin = sug;
+            QString what = sug;
+            for (const PluginInfo &c : PluginManager::builtinCatalog())
+                if (c.id == sug) what = QString("Plugin do %1 disponível: %2").arg(c.name, c.description);
+            m_pluginBannerText->setText(what);
+            m_pbInstall->setText("Instalar");
+            m_pbInstall->setEnabled(true);
+            m_pluginBanner->show();
+        }
     }
 }
 
@@ -1534,7 +1609,10 @@ void MainWindow::promptOpen()
 
 void MainWindow::openHelp()
 {
-    HelpDialog d(this);
+    QVector<QPair<QString, QString>> rows;
+    for (const PluginManager::PluginAction &pa : m_plugins->actions())
+        rows.push_back({pa.action.keys.toString(QKeySequence::NativeText).replace('+', " + "), pa.action.text});
+    HelpDialog d(rows, this);
     d.exec();
 }
 
@@ -1544,6 +1622,10 @@ void MainWindow::openSettings()
     if (d.exec() != QDialog::Accepted) {
         if (d.wantsHelp())
             openHelp(); // clicou em "Atalhos e controles…": as Configurações já fecharam; só a ajuda abre
+        else if (d.wantsPlugins()) {
+            PluginsDialog p(m_plugins, this); // "Plugins…": as Configurações já fecharam; só a tela de plugins abre
+            p.exec();
+        }
         return;
     }
     const CutMode oldDefault = m_cfg.mode;
@@ -1585,6 +1667,7 @@ void MainWindow::openFile(const QString &path)
     m_file = path;
     m_title->setText(QFileInfo(path).fileName());
     if (m_plugins) m_plugins->clipClosed(); // os plugins largam o clipe anterior
+    m_pluginBanner->hide();
     m_chipSets.clear();
     m_backdrops.clear();
     m_markers.clear();

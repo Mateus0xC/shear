@@ -94,7 +94,29 @@ Ao arrastar o cursor, o marcador de início ou o de fim, **puxe o mouse para bai
   trecho (de ~0,16 s sem zoom até ~0,05 s no zoom mais fino). Toca quando o **frame muda**: mexer o mouse dentro do mesmo frame,
   ou subir e descer para trocar o nível de zoom, não dispara som. Dá para desligar em **Configurações → Som ao arrastar**.
 
+### Plugins
+O shear base é só um cortador de clipes. Recursos de jogos ficam em **plugins**, que **não vêm instalados**: o primeiro é o do
+**Valorant** (mapa, agente, kills e mortes, marcas na timeline, I/O no último round, nome do arquivo, lista com banner, K / Shift+K).
+
+- **Instalar:** ao abrir um clipe cujo nome ou pasta tem "valorant", aparece um aviso discreto no topo do editor com **Instalar**,
+  **Agora não** e **Não perguntar de novo**. Também dá para instalar, atualizar e remover em **Configurações → Plugins…**. A instalação
+  é por usuário (sem administrador) e o plugin liga na hora, sem reiniciar. Remover um plugin em uso vale na próxima abertura.
+- **Fingerprint:** o catálogo (`plugins/catalog.json` no repositório) traz o SHA-256 de cada arquivo do plugin. O shear confere
+  cada arquivo baixado e **recusa** a instalação se algum não bater; ao instalar grava um `installed.json` com os hashes e os
+  reconfere **a cada abertura**, antes de carregar a DLL (arquivo trocado = plugin não carrega).
+- **Compatibilidade (não precisa ser a mesma versão do shear):** a API de plugins tem versão `MAIOR.MENOR`. Plugin e shear se
+  entendem se a MAIOR for igual e o shear tiver a MENOR que o plugin pede (`minHostApiMinor`). Recursos novos da API entram só
+  como MENOR (no fim das interfaces), então um plugin antigo continua funcionando num shear mais novo, e o catálogo oferece a
+  versão mais nova do plugin que o seu shear consegue usar.
+- **Onde ficam:** `%LOCALAPPDATA%\Shear\plugins\<id>\` (e, para desenvolvimento, `plugins\<id>\` ao lado do `shear.exe`).
+  `SHEAR_PLUGINS_DIR` troca a pasta e `SHEAR_PLUGIN_CATALOG` troca o catálogo (aceita `file:///...`, para testar sem rede).
+- **Publicar um plugin:** `powershell -File scripts\make-plugin-package.ps1 -Id valorant` gera `dist\plugins\valorant\` e atualiza o
+  catálogo; os arquivos vão como assets da Release `plugin-valorant-<versão>` e o `plugins/catalog.json` é commitado.
+- O instalador do shear não leva nenhum plugin (nem o `tls\`, que só o plugin do Valorant usa).
+
 ### Valorant: mapa e agente
+*(recursos do plugin do Valorant; veja "Plugins" acima para instalar)*
+
 Com o Valorant (ou o Riot Client) aberto, o shear mostra "Mapa · Agente" ao lado do título dos clipes do Valorant (nome ou
 pasta com "valorant"). Usa a API local não oficial do cliente, só leitura, sem configurar nada: lê o `lockfile` da Riot, pede
 os tokens ao servidor local, acha a partida (a em andamento, para clipe recente; senão pelo `match-history`, comparando o

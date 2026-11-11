@@ -41,10 +41,13 @@ target_link_libraries(test_valorant PRIVATE shear_valorant_core shear_core Qt6::
 add_test(NAME valorant COMMAND test_valorant)
 
 # gerenciador de plugins: compatibilidade de versão e fingerprint (SHA-256) dos arquivos
-add_executable(test_plugins tests/test_plugins.cpp src/app/PluginManager.cpp)
+add_executable(test_plugins tests/test_plugins.cpp src/app/PluginManager.cpp src/app/PluginInstaller.cpp)
 target_include_directories(test_plugins PRIVATE src)
-target_link_libraries(test_plugins PRIVATE Qt6::Gui Qt6::Test)
+target_link_libraries(test_plugins PRIVATE Qt6::Gui Qt6::Network Qt6::Test)
+target_compile_definitions(test_plugins PRIVATE VALORANT_PLUGIN_DIR="${CMAKE_BINARY_DIR}/src/app/plugins/valorant")
+add_dependencies(test_plugins valorant)
 add_test(NAME plugins COMMAND test_plugins)
+set_tests_properties(plugins PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable(bench_export tests/bench_export.cpp)
 target_link_libraries(bench_export PRIVATE shear_core)

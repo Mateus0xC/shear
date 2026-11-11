@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QDateTime>
 #include <QMap>
+#include <QSet>
 #include <QVariantMap>
 #include <limits>
 #include <optional>
@@ -39,6 +40,8 @@ class AudioScrubber;
 class MpvWidget;
 class TimelineWidget;
 class VerticalFader;
+
+class PluginInstaller;
 
 class MainWindow : public QMainWindow, public IHostBackend {
     Q_OBJECT
@@ -191,6 +194,12 @@ private:
     std::optional<std::pair<double, double>> m_suggested; // último I/O sugerido por um plugin
     std::optional<std::pair<double, double>> m_autoRange; // I/O que o shear pôs sozinho (para refazer se o plugin sugerir outro)
     QVector<QShortcut *> m_pluginShortcuts;
+    QFrame *m_pluginBanner = nullptr;                // sugestão de instalar um plugin
+    QLabel *m_pluginBannerText = nullptr;
+    QPushButton *m_pbInstall = nullptr, *m_pbLater = nullptr, *m_pbNever = nullptr;
+    PluginInstaller *m_installer = nullptr;
+    QString m_bannerPlugin;
+    QSet<QString> m_sessionDismissed;                // "Agora não" (vale até fechar o shear)
     bool m_listRefreshQueued = false;
     QDateTime m_clipCreated;                         // data de criação do clipe aberto
     bool m_userPaused = false;                       // você pausou/despausou neste vídeo (o shear não mexe mais)

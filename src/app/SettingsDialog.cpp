@@ -82,6 +82,13 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
         m_wantsHelp = true;
         reject();
     });
+    // Plugins: também fecha as Configurações (sem salvar) e abre só a tela de plugins
+    auto *plugins = bb->addButton("Plugins…", QDialogButtonBox::ActionRole);
+    plugins->setToolTip("Instalar, atualizar e remover plugins (por exemplo, o do Valorant)");
+    connect(plugins, &QPushButton::clicked, this, [this] {
+        m_wantsPlugins = true;
+        reject();
+    });
     bb->button(QDialogButtonBox::Ok)->setText("Salvar");
     bb->button(QDialogButtonBox::Cancel)->setText("Cancelar");
     connect(bb, &QDialogButtonBox::accepted, this, &QDialog::accept);

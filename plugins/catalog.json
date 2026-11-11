@@ -1,0 +1,32 @@
+﻿{
+    "plugins":  [
+                    {
+                        "id":  "valorant",
+                        "versions":  [
+                                         {
+                                             "version":  "1.0.0",
+                                             "apiMajor":  1,
+                                             "apiMinor":  0,
+                                             "minHostApiMinor":  0,
+                                             "files":  [
+                                                           {
+                                                               "path":  "valorant.dll",
+                                                               "url":  "https://github.com/Mateus0xC/shear/releases/download/plugin-valorant-1.0.0/valorant.dll",
+                                                               "sha256":  "d2f1cd2d973de36fb9a570bd62bc68fff59063889b500cdf7550cd88831d0812"
+                                                           },
+                                                           {
+                                                               "path":  "plugin.json",
+                                                               "url":  "https://github.com/Mateus0xC/shear/releases/download/plugin-valorant-1.0.0/plugin.json",
+                                                               "sha256":  "3cb8ee1a87acdae445870bcc81afb4be07cc24071a529df6652e6f2929465d81"
+                                                           },
+                                                           {
+                                                               "path":  "tls/qschannelbackend.dll",
+                                                               "url":  "https://github.com/Mateus0xC/shear/releases/download/plugin-valorant-1.0.0/tls-qschannelbackend.dll",
+                                                               "sha256":  "c58ab3c5873d3d5187ff1e6703662810f555ebe60c532e025250c47bbac2e50c"
+                                                           }
+                                                       ]
+                                         }
+                                     ]
+                    }
+                ]
+}

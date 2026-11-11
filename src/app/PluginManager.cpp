@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QPluginLoader>
+#include <QSettings>
 #include <QStandardPaths>
 
 namespace shear {
@@ -55,6 +56,8 @@ PluginManager::~PluginManager()
 
 QString PluginManager::userPluginsDir()
 {
+    if (const QString env = qEnvironmentVariable("SHEAR_PLUGINS_DIR"); !env.isEmpty())
+        return QDir::cleanPath(env);
     return QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/../plugins"); // %LOCALAPPDATA%/Shear/plugins
 }
 
@@ -103,10 +106,12 @@ QString PluginManager::verifyInstalled(const QString &dir)
     return {};
 }
 
-void PluginManager::scanDir(const QString &rootPath, bool user)
+void PluginManager::scanDir(const QString &rootPath, bool user, const QString &onlyId)
 {
     const QDir root(rootPath);
     for (const QString &name : root.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (!onlyId.isEmpty() && name != onlyId)
+            continue;
         const QString dir = root.filePath(name);
         QFile f(dir + "/plugin.json");
         if (!f.open(QIODevice::ReadOnly))
@@ -135,8 +140,122 @@ void PluginManager::scanDir(const QString &rootPath, bool user)
     }
 }
 
+const PluginInfo *PluginManager::info(const QString &id) const
+{
+    for (const PluginInfo &p : m_infos)
+        if (p.id == id)
+            return &p;
+    return nullptr;
+}
+
+QVector<PluginInfo> PluginManager::builtinCatalog()
+{
+    PluginInfo v;
+    v.id = "valorant";
+    v.name = "Valorant";
+    v.description = "Mostra mapa, agente, kills e mortes dos clipes do Valorant (pela API local do cliente), marca as kills na "
+                    "timeline, ajusta I/O ao último round e dá nome ao clipe.";
+    v.appliesTo = {"valorant"};
+    return {v};
+}
+
+static void removeDir(const QString &path) { QDir(path).removeRecursively(); }
+
+void PluginManager::applyPending()
+{
+    const QDir root(userPluginsDir());
+    for (const QString &name : root.entryList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden)) {
+        const QString dir = root.filePath(name);
+        if (name.startsWith(".stage-")) { // preparo que ficou pela metade
+            removeDir(dir);
+        } else if (name.endsWith(".new")) { // atualização que esperava o plugin ser descarregado
+            const QString id = name.chopped(4);
+            removeDir(root.filePath(id));
+            QDir().rename(dir, root.filePath(id));
+        } else if (QFile::exists(dir + "/.remove")) { // remoção pedida na sessão anterior
+            removeDir(dir);
+        }
+    }
+}
+
+PluginManager::Commit PluginManager::commitStaged(const QString &id, QString *error)
+{
+    const QString stage = userPluginsDir() + "/.stage-" + id, target = userPluginsDir() + "/" + id;
+    auto fail = [&](const QString &why) {
+        if (error) *error = why;
+        removeDir(stage);
+        return Commit::Failed;
+    };
+    if (!QFile::exists(stage + "/installed.json"))
+        return fail("Preparo do plugin incompleto.");
+    const PluginInfo *cur = info(id);
+    if (cur && cur->loaded) { // a DLL em uso não pode ser trocada: a atualização entra na próxima abertura
+        removeDir(target + ".new");
+        return QDir().rename(stage, target + ".new") ? Commit::NeedsRestart : fail("Não consegui preparar a atualização.");
+    }
+    removeDir(target);
+    if (!QDir().rename(stage, target))
+        return fail("Não consegui instalar na pasta de plugins.");
+    for (int i = 0; i < m_infos.size(); ++i) // tira o registro antigo (ex.: não carregou por erro)
+        if (m_infos[i].id == id) { m_infos.remove(i); break; }
+    scanDir(userPluginsDir(), true, id);
+    PluginInfo *pi = nullptr;
+    for (PluginInfo &p : m_infos)
+        if (p.id == id) pi = &p;
+    if (!pi) {
+        if (error) *error = "O plugin instalado não foi reconhecido.";
+        return Commit::Failed;
+    }
+    loadOne(*pi);
+    emit pluginsChanged();
+    if (!pi->loaded) {
+        if (error) *error = pi->error;
+        return Commit::Failed;
+    }
+    emit pluginLoaded(id);
+    return Commit::Loaded;
+}
+
+bool PluginManager::requestRemoval(const QString &id)
+{
+    const PluginInfo *p = info(id);
+    if (!p || !p->userInstalled)
+        return false;
+    const QString dir = p->dir;
+    if (p->loaded) { // não dá para apagar uma DLL carregada: marca e apaga na próxima abertura
+        QFile f(dir + "/.remove");
+        if (f.open(QIODevice::WriteOnly)) f.close();
+        return false;
+    }
+    removeDir(dir);
+    for (int i = 0; i < m_infos.size(); ++i)
+        if (m_infos[i].id == id) { m_infos.remove(i); break; }
+    emit pluginsChanged();
+    return true;
+}
+
+bool PluginManager::suggestionDismissed(const QString &id) { return QSettings().value("plugins/dismissed/" + id, false).toBool(); }
+
+void PluginManager::setSuggestionDismissed(const QString &id, bool dismissed)
+{
+    QSettings().setValue("plugins/dismissed/" + id, dismissed);
+}
+
+QString PluginManager::suggestionFor(const QString &clipPath) const
+{
+    for (const PluginInfo &c : builtinCatalog()) {
+        if (info(c.id) || suggestionDismissed(c.id)) // já instalado (mesmo que com erro) ou "não perguntar de novo"
+            continue;
+        for (const QString &pattern : c.appliesTo)
+            if (clipPath.contains(pattern, Qt::CaseInsensitive))
+                return c.id;
+    }
+    return {};
+}
+
 void PluginManager::loadAll()
 {
+    applyPending();
     m_infos.clear();
     m_loaded.clear();
     scanDir(userPluginsDir(), true);
@@ -202,6 +321,14 @@ void PluginManager::clipClosed()
 void PluginManager::clipOpened(const plugin::ClipContext &clip)
 {
     for (const auto &l : m_loaded) l->iface->clipOpened(clip);
+}
+
+void PluginManager::clipOpenedFor(const QString &pluginId, const plugin::ClipContext &clip, double duration)
+{
+    if (auto *p = find(pluginId)) {
+        p->clipOpened(clip);
+        p->durationChanged(duration);
+    }
 }
 
 void PluginManager::durationChanged(double seconds)

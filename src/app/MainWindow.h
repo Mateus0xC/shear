@@ -108,7 +108,12 @@ private:
     void keepLastOutput(bool deleteOriginalToo = false);
     bool trashOriginal();
     void setResultLink(const QString &path);
-    void deleteBoth();
+    void deleteBoth(bool fromMenu = false);
+    void openClipAsKept();
+    void deleteShownFile();
+    bool trashPath(const QString &path);
+    bool viewingClip() const { return !m_srcOfOpened.isEmpty(); }
+    QString originFile() const { return viewingClip() ? m_srcOfOpened : m_file; }
     void deleteOriginalOnly();
     void cleanupTemp(bool wholeDir);
     static QString tempDir();
@@ -166,6 +171,7 @@ private:
     bool m_resumeAfterDrag = false; // o vídeo estava tocando quando o mouse foi pressionado na timeline
 
     QString m_file, m_lastOutput;
+    QString m_srcOfOpened; // vídeo de onde saiu o clipe exportado que está aberto no editor (vazio = vídeo comum)
     QStringList m_tempFiles; // exports ainda temporários (apagados ao fechar)
     int m_audioTracks = 2;
     bool m_hasNvenc = true;

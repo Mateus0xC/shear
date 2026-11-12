@@ -31,7 +31,8 @@ public:
     // Guarda as tags (2k, 3k, 4k...) do clipe no clips.json.
     void saveTags(const QString &clipPath, qint64 size, const QStringList &tags);
     // Guarda a entrada de um clipe mantido (arquivo novo, com os dados do original e os eventos no tempo do clipe).
-    void saveKept(const QString &clipPath, qint64 size, const QJsonObject &entry);
+    // temporary: o clipe exportado ainda não foi mantido; os dados ficam só na memória (não vão para o clips.json)
+    void saveKept(const QString &clipPath, qint64 size, const QJsonObject &entry, bool temporary = false);
     // Imagens do valorant-api.com: ícone do agente ("agent") e faixa do mapa ("map"). São baixadas uma vez, reduzidas e
     // guardadas em valorant/img/. `imageFile` devolve o caminho se já está guardada (senão ""); `requestImages` baixa as que
     // faltam em segundo plano e avisa com `imageReady`.
@@ -85,6 +86,7 @@ private:
     QSet<QString> m_imgPending;
     QNetworkAccessManager *m_nam = nullptr; // criado só na primeira consulta
     int m_gen = 0;
+    QHash<QString, QJsonObject> m_tempKept; // clipes exportados ainda não mantidos: só em memória
 };
 
 } // namespace shear::valorant

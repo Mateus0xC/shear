@@ -102,7 +102,7 @@ HelpDialog::HelpDialog(const QVector<QPair<QString, QString>> &pluginRows, QWidg
             {"Manter clipe", "Guarda o clipe. Segure Shift para guardar e já apagar o vídeo original"},
             {"Apagar original", "Manda o vídeo original para a Lixeira"},
             {"Apagar original e clipe", "Apaga os dois"},
-            {"Nome do arquivo exportado (embaixo)", "Abre o clipe no shear; botão direito: abrir local do arquivo"},
+            {"Nome do arquivo exportado (embaixo)", "Abre o clipe no shear como se já tivesse sido mantido (dá para Manter, apagar ou cortar de novo); botão direito: abrir local do arquivo"},
         }},
     };
 

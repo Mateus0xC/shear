@@ -190,12 +190,27 @@ double analyze(const QString &path, unsigned maxThreads, const std::function<boo
     const double clean = firstCleanSecond(counts, fps, 2); // em amostras (cada uma = 6 s)
     if (clean <= 0)
         return 0; // dano sem fim (ou só quedas isoladas): nada a pular
-    // Refina por bisseção entre a última amostra ruim e a primeira boa, até ~1 s de precisão.
+    // Refina entre a última amostra ruim e a primeira boa: os pontos intermediários (a cada ~1,2 s) são medidos em
+    // paralelo, numa rodada só (a bisseção em série levava 3 a 4 medições seguidas).
     const int firstGood = int(clean); // índice da primeira amostra depois do dano
-    double lo = double((firstGood - 1) * kStride), hi = double(firstGood * kStride);
-    while (hi - lo > 1.2) {
-        const double mid = (lo + hi) / 2;
-        if (perSecond(sm, mid) >= 0.5 * fps) hi = mid; else lo = mid;
+    const double lo = double((firstGood - 1) * kStride);
+    double hi = double(firstGood * kStride);
+    {
+        constexpr int kSteps = 4; // 6 s em 5 intervalos de 1,2 s = 4 pontos internos
+        std::vector<char> good(size_t(kSteps), 0);
+        std::vector<std::thread> refine;
+        for (int k = 0; k < kSteps; ++k)
+            refine.emplace_back([&, k] {
+                Source src;
+                if (!src.open(path, false)) return;
+                Sampler s{src.fmt, src.fmt->streams[src.vi], src.vi};
+                const double t = lo + (hi - lo) * double(k + 1) / double(kSteps + 1);
+                good[size_t(k)] = perSecond(s, t) >= 0.5 * fps ? 1 : 0;
+            });
+        for (auto &t : refine) t.join();
+        const double step = (hi - lo) / double(kSteps + 1);
+        for (int k = 0; k < kSteps; ++k)
+            if (good[size_t(k)]) { hi = lo + step * double(k + 1); break; }
     }
     metrics::log(QString("análise do começo de %1: pronta em %2 ms (teste rápido %3 ms); vídeo sadio a partir de ~%4 s")
                      .arg(QFileInfo(path).fileName()).arg(clock.elapsed()).arg(tProbe).arg(hi, 0, 'f', 1));

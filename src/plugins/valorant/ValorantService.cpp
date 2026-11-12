@@ -142,7 +142,8 @@ void ValorantService::identify(const QString &clipPath, const QDateTime &created
     c->clock.start();
 
     // Já associado antes (vale mesmo com o jogo fechado) ou ainda dá para associar à partida em andamento?
-    runAsync(this, [c] { return store::loadClips().value(c->key).toObject(); }, [this, c](QJsonObject known) {
+    const QJsonObject mem = m_tempKept.value(c->key); // clipe exportado e aberto sem ter sido mantido
+    runAsync(this, [c, mem] { return mem.isEmpty() ? store::loadClips().value(c->key).toObject() : mem; }, [this, c](QJsonObject known) {
         if (stale(*c))
             return;
         // dados digitados à mão valem para qualquer clipe (também os de outros jogos)
@@ -482,10 +483,15 @@ void ValorantService::requestImages(const QString &kind, const QStringList &name
     }
 }
 
-void ValorantService::saveKept(const QString &clipPath, qint64 size, const QJsonObject &entry)
+void ValorantService::saveKept(const QString &clipPath, qint64 size, const QJsonObject &entry, bool temporary)
 {
     const QString key = clipKey(QFileInfo(clipPath).fileName(), size);
-    runAsync(this, [key, entry] { return store::saveClip(key, entry); }, [](bool) {});
+    if (temporary) { // ainda temporário: nada em disco (se for mantido, o exportKept volta aqui com o arquivo final)
+        m_tempKept.insert(key, entry);
+        return;
+    }
+    m_tempKept.insert(key, entry); // até terminar de gravar, quem abrir o clipe já vê os dados (sem corrida com o disco)
+    runAsync(this, [key, entry] { return store::saveClip(key, entry); }, [this, key](bool) { m_tempKept.remove(key); });
 }
 
 void ValorantService::saveManual(const QString &clipPath, qint64 size, const QJsonObject &manual, bool wait)

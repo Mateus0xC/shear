@@ -2,6 +2,7 @@
 #include "ValorantNaming.h"
 #include "ValorantParse.h"
 #include "ValorantStore.h"
+#include <QDir>
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
@@ -441,7 +442,9 @@ void ValorantPlugin::exportKept(const QString &finalPath, qint64 size)
                       {"events", evs}};
     if (!m_manual.isEmpty())
         entry.insert("manual", m_manual);
-    svc()->saveKept(finalPath, size, entry);
+    // clipe exportado e ainda temporário (pasta Shear-exports): os dados ficam só na memória até ele ser mantido
+    const bool temporary = QDir::fromNativeSeparators(finalPath).contains("/Shear-exports/", Qt::CaseInsensitive);
+    svc()->saveKept(finalPath, size, entry, temporary);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

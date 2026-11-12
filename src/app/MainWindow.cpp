@@ -1069,9 +1069,7 @@ QWidget *MainWindow::buildEditor()
     m_fileLink->hide();
     connect(m_fileLink, &QPushButton::clicked, this, [this] {
         if (m_job || m_lastOutput.isEmpty() || !QFileInfo::exists(m_lastOutput)) return;
-        // clipe ainda temporário (não mantido): abrir no shear não pode fazê-lo sumir ao voltar para a lista
-        m_tempFiles.removeAll(m_lastOutput);
-        openFile(m_lastOutput);
+        openClipAsKept();
     });
     connect(m_deleteBothBtn, &QPushButton::clicked, this, &MainWindow::deleteBoth);
     hideResultButtons();
@@ -1128,6 +1126,8 @@ QWidget *MainWindow::buildEditor()
     });
     connect(m_mpv, &MpvWidget::firstFrame, this, [this] {
         metrics::log(QString("primeiro frame: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
+        // Vídeo sem análise pendente: já abre tocando (com análise do começo corrompido, quem toca é releaseVideoHold)
+        if (!m_holdVideo && !m_userPaused && m_mpv->paused()) m_mpv->setPaused(false);
         // Plugins: só depois do primeiro quadro (nada disso atrasa a abertura do vídeo)
         QTimer::singleShot(0, this, [this] { notifyClipOpened(); });
     });
@@ -1734,7 +1734,13 @@ void MainWindow::showHome()
         m_scrub->stop();
     if (m_mpv)
         m_mpv->setPaused(true);
+    if (m_mpv && m_tempFiles.contains(m_file)) { // clipe temporário aberto no editor: o player o segura, solta antes de apagar
+        m_mpv->unload();
+        if (m_scrub) m_scrub->unload();
+        QThread::msleep(150);
+    }
     cleanupTemp(false); // clipes cortados que não foram mantidos somem ao sair do vídeo
+    m_srcOfOpened.clear();
     if (m_editor)
         hideResultButtons();
     m_lastOutput.clear();
@@ -1905,6 +1911,7 @@ void MainWindow::openFile(const QString &path)
         m_stack->addWidget(m_editor);
     }
     m_file = path;
+    m_srcOfOpened.clear();
     m_title->setText(QFileInfo(path).fileName());
     if (m_plugins) m_plugins->clipClosed(); // os plugins largam o clipe anterior
     m_pluginBanner->hide();
@@ -2028,6 +2035,7 @@ void MainWindow::releaseVideoHold()
     if (!m_holdVideo) return;
     m_holdVideo = false;
     if (m_mpv) m_mpv->setHold(false);
+    if (m_mpv && !m_file.isEmpty() && !m_userPaused && m_mpv->paused()) m_mpv->setPaused(false); // abre sempre tocando
 }
 
 void MainWindow::applyDamageFloor()
@@ -2411,20 +2419,31 @@ void MainWindow::cleanupTemp(bool wholeDir)
         QDir(tempDir()).removeRecursively();
 }
 
-// Solta o vídeo (player e preview de áudio seguram o arquivo) e manda o original para a Lixeira.
-bool MainWindow::trashOriginal()
+// Solta o vídeo (player e preview de áudio seguram o arquivo) e manda o arquivo para a Lixeira.
+bool MainWindow::trashPath(const QString &path)
 {
-    const QString orig = m_file;
-    m_mpv->unload();
-    m_scrub->unload();
-    QThread::msleep(150);
-    if (!QFile::moveToTrash(orig)) {
-        m_mpv->loadFile(orig);
+    const bool inUse = path == m_file;
+    if (inUse) {
+        m_mpv->unload();
+        m_scrub->unload();
+        QThread::msleep(150);
+    }
+    if (!QFile::moveToTrash(path)) {
+        if (inUse) {
+            m_mpv->loadFile(path);
+            m_scrub->loadFile(path);
+        }
         m_status->setText("Não foi possível apagar o original.");
         return false;
     }
-    metrics::log("original enviado para a Lixeira: " + orig);
+    metrics::log("original enviado para a Lixeira: " + path);
     return true;
+}
+
+// O original é o vídeo de onde saiu o clipe (se o clipe está aberto no editor, não é o arquivo aberto).
+bool MainWindow::trashOriginal()
+{
+    return trashPath(originFile());
 }
 
 // Pergunta com botões nomeados (o padrão é sempre o seguro, "Não").
@@ -2479,35 +2498,50 @@ void MainWindow::showTitleMenu(const QPoint &global)
     if (m_file.isEmpty())
         return;
     QMenu menu(this);
-    const bool temp = m_tempFiles.contains(m_lastOutput); // clipe ainda não mantido: apagar o original leva o clipe junto
+    const bool temp = m_tempFiles.contains(m_lastOutput); // clipe ainda não mantido: excluir leva o original junto
     auto *del = menu.addAction("Excluir"); // (clipe ainda não mantido: a confirmação mostra que vão o original e o clipe)
     del->setEnabled(!m_job);
-    connect(del, &QAction::triggered, this, [this, temp] { if (temp) deleteBoth(); else deleteOriginalOnly(); });
+    connect(del, &QAction::triggered, this, [this, temp] {
+        if (temp) deleteBoth(true);
+        else deleteShownFile();
+    });
     menu.exec(global);
 }
 
-// Botão "Apagar original e clipe": só existe enquanto o clipe cortado é temporário.
-void MainWindow::deleteBoth()
+// "Excluir" no nome do arquivo aberto: manda para a Lixeira o próprio arquivo que está na tela.
+void MainWindow::deleteShownFile()
+{
+    if (m_file.isEmpty() || m_job) return;
+    if (!confirmDestructive(this, "Excluir", "Mandar para a Lixeira o vídeo?\n\n" + QDir::toNativeSeparators(m_file),
+                            "Excluir", "Cancelar"))
+        return;
+    if (trashPath(m_file))
+        showHome();
+}
+
+// Botão "Apagar original e clipe" (ou "Excluir" no nome do arquivo): só existe enquanto o clipe cortado é temporário.
+void MainWindow::deleteBoth(bool fromMenu)
 {
     if (m_file.isEmpty() || m_job || !m_tempFiles.contains(m_lastOutput)) return;
-    if (!confirmDestructive(this, "Apagar original e clipe",
+    const QString orig = originFile();
+    const QString title = fromMenu ? "Excluir" : "Apagar original e clipe";
+    if (!confirmDestructive(this, title,
                             "Apagar o vídeo original (vai para a Lixeira) e o clipe cortado?\n\n" +
-                                QDir::toNativeSeparators(m_file) + "\n" + QDir::toNativeSeparators(m_lastOutput) +
+                                QDir::toNativeSeparators(orig) + "\n" + QDir::toNativeSeparators(m_lastOutput) +
                                 "\n\nVocê perde os dois.",
-                            "Apagar os dois", "Cancelar"))
+                            fromMenu ? "Excluir" : "Apagar os dois", "Cancelar"))
         return;
     if (!trashOriginal()) return;
-    cleanupTemp(false); // o clipe temporário
-    m_lastOutput.clear();
-    showHome();
+    showHome(); // solta o clipe (se estiver aberto) e apaga o temporário
 }
 
 // Botão "Apagar original", que aparece depois de Manter: o clipe mantido fica, só o original vai para a Lixeira.
 void MainWindow::deleteOriginalOnly()
 {
     if (m_file.isEmpty() || m_job) return;
+    const QString orig = originFile();
     if (!confirmDestructive(this, "Apagar o original",
-                            "Mandar para a Lixeira o vídeo original?\n\n" + QDir::toNativeSeparators(m_file) +
+                            "Mandar para a Lixeira o vídeo original?\n\n" + QDir::toNativeSeparators(orig) +
                                 "\n\nO clipe mantido não é apagado.",
                             "Apagar original", "Cancelar"))
         return;
@@ -2515,23 +2549,52 @@ void MainWindow::deleteOriginalOnly()
         showHome();
 }
 
+// Clicar no nome do clipe exportado: abre o clipe no shear como se já tivesse sido mantido (com os dados dos plugins e o
+// comentário), mas ainda temporário: dá para Manter, Apagar original e clipe, ou cortar de novo (sem manter).
+void MainWindow::openClipAsKept()
+{
+    const QString clip = m_lastOutput, src = m_file;
+    if (m_plugins) m_plugins->exportKept(clip, QFileInfo(clip).size()); // mapa, agente e kills já valem para o clipe
+    if (!src.isEmpty()) {
+        const QFileInfo o(src), k(clip);
+        clipmeta::copyComment(clipmeta::key(o.fileName(), o.size()), clipmeta::key(k.fileName(), k.size()));
+    }
+    openFile(clip);
+    m_srcOfOpened = src;
+    m_lastOutput = clip;
+    for (QWidget *b : {static_cast<QWidget *>(m_copyBtn), static_cast<QWidget *>(m_keepBtn), static_cast<QWidget *>(m_deleteBothBtn)})
+        b->show();
+}
+
 void MainWindow::keepLastOutput(bool deleteOriginalToo)
 {
     if (m_lastOutput.isEmpty() || !m_tempFiles.contains(m_lastOutput)) return;
+    const bool viewing = viewingClip() && m_file == m_lastOutput; // o clipe é o que está aberto no editor
+    const QString orig = originFile();
     // Shift: não pergunta "quer apagar o original?", mas ainda pede confirmação (antes de mexer em qualquer arquivo).
-    if (deleteOriginalToo && !m_file.isEmpty() &&
+    if (deleteOriginalToo && !orig.isEmpty() &&
         !confirmDestructive(this, "Manter e apagar o original",
                             "Manter o clipe cortado e mandar o vídeo original para a Lixeira?\n\n" +
-                                QDir::toNativeSeparators(m_file),
+                                QDir::toNativeSeparators(orig),
                             "Manter e apagar original", "Cancelar"))
         return;
-    const QString dir = m_cfg.outputDir.isEmpty() ? QFileInfo(m_file).absolutePath() : m_cfg.outputDir;
+    const QString dir = m_cfg.outputDir.isEmpty() ? QFileInfo(orig).absolutePath() : m_cfg.outputDir;
     QDir().mkpath(dir);
     const QFileInfo src(m_lastOutput);
     // nunca sobrescreve: repetido vira "..._2", "..._3"... (conta a partir do nome-base, não do nome temporário)
     const QString dest = uniquePath(dir, m_exportStem.isEmpty() ? src.completeBaseName() : m_exportStem,
                                     [](const QString &p) { return QFileInfo::exists(p); });
+    if (viewing) { // o player segura o arquivo aberto: solta para poder mover
+        m_mpv->unload();
+        m_scrub->unload();
+        QThread::msleep(150);
+    }
+    const QString oldKey = clipmeta::key(src.fileName(), src.size());
     if (!QFile::rename(m_lastOutput, dest)) {
+        if (viewing) {
+            m_mpv->loadFile(m_lastOutput);
+            m_scrub->loadFile(m_lastOutput);
+        }
         m_status->setText("Não foi possível mover o clipe para " + QDir::toNativeSeparators(dir));
         return;
     }
@@ -2539,17 +2602,27 @@ void MainWindow::keepLastOutput(bool deleteOriginalToo)
     m_lastOutput = dest;
     // o clipe mantido leva os dados dos plugins (já no tempo dele) e o comentário
     const QFileInfo destInfo(dest);
+    const QString newKey = clipmeta::key(destInfo.fileName(), destInfo.size());
     if (m_plugins) m_plugins->exportKept(dest, destInfo.size());
-    if (!m_file.isEmpty()) {
-        const QFileInfo orig(m_file);
-        clipmeta::copyComment(clipmeta::key(orig.fileName(), orig.size()), clipmeta::key(destInfo.fileName(), destInfo.size()));
+    if (viewing) {
+        if (newKey != oldKey) clipmeta::copyComment(oldKey, newKey);
+    } else if (!m_file.isEmpty()) {
+        const QFileInfo o(m_file);
+        clipmeta::copyComment(clipmeta::key(o.fileName(), o.size()), newKey);
     }
     copyFileToClipboard(dest); // o Ctrl+V passa a apontar para o arquivo mantido
+    if (viewing) {
+        // reabre o clipe no novo lugar (o editor volta ao estado inicial do arquivo mantido)
+        openFile(dest);
+        m_srcOfOpened = orig;
+        m_lastOutput = dest;
+        m_copyBtn->show();
+    }
     m_keepBtn->hide();
     m_deleteBothBtn->hide(); // já é um arquivo mantido: nada de apagar por engano
-    setResultLink(dest);
+    if (!viewing) setResultLink(dest);
     m_status->setText("· Mantido");
-    if (m_file.isEmpty() || !QFileInfo::exists(m_file)) return;
+    if (orig.isEmpty() || !QFileInfo::exists(orig)) return;
     if (deleteOriginalToo) {
         if (trashOriginal())
             showHome();
@@ -2593,6 +2666,7 @@ void MainWindow::onExportFinished(bool ok, const QString &path, const QString &e
     m_rates = calibrate(m_rates, m_exportKind, m_hasNvenc, m_exportClipSec,
                         m_exportKind == ExportKind::VideoReencode ? m_exportClipBytes : outBytes, sec);
     saveRates(m_rates);
+    m_srcOfOpened.clear(); // clipe novo: o original passa a ser o vídeo aberto agora
     m_lastOutput = path;
     m_tempFiles << path;
     copyFileToClipboard(path);

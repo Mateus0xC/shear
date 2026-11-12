@@ -6,7 +6,7 @@
   #define VcRedist ""
 #endif
 #define AppName "shear"
-#define AppVersion "0.1.0"
+#define AppVersion "0.1.1"
 
 [Setup]
 AppId={{6E1B8F43-5A2C-4C57-9B0E-7D2F3A9C41E8}

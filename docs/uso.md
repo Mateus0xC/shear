@@ -14,7 +14,9 @@
    - **Apagar original e clipe** (enquanto o clipe é temporário) apaga os dois, com confirmação.
    - Segurando **Shift**, o botão vira **Manter e apagar original**.
    - O ícone de cópia copia o clipe de novo para a área de transferência.
-   - Clicar no nome do arquivo exportado abre o clipe no shear; **botão direito**: *Abrir local do arquivo*. Dá para
+   - Clicar no nome do arquivo exportado abre o clipe no shear **como se já tivesse sido mantido** (com os dados dos plugins e o
+     comentário), mas ainda temporário: dá para **Manter** (com `Shift`, mantém e apaga o original), **Apagar original e clipe**
+     ou cortar de novo para gerar um clipe do clipe, sem manter o clipe; **botão direito**: *Abrir local do arquivo*. Dá para
      **arrastar** o nome para outro programa ou para uma pasta: vai o arquivo.
 4. **Nome do arquivo exportado:** `<nome do vídeo>_shear.mp4`; se já existir, vira `_2`, `_3`… (um plugin pode dar outro nome).
 

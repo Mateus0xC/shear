@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "0.1.0",
-    "notes":  "primeira versão publicada",
+    "version":  "0.1.1",
+    "notes":  "Clipe exportado abre como mantido; análise do começo corrompido mais rápida; sempre abre tocando.",
     "files":  [
                   {
                       "path":  "avcodec-62.dll",
@@ -88,9 +88,9 @@
                   },
                   {
                       "path":  "shear.exe",
-                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.0/shear.exe",
-                      "sha256":  "951221df9f74d65428c1ed51087c6193d4fd63f53c057c835bf5e6a763597cc8",
-                      "size":  708096
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.1/shear.exe",
+                      "sha256":  "967925cca86eef08231c6ba6611df4c44b7ede53eeac370f624142dfc1e26119",
+                      "size":  715264
                   },
                   {
                       "path":  "swresample-6.dll",

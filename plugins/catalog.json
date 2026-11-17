@@ -41,6 +41,24 @@
                                                                "sha256":  "f34d6161eaaa491ac9745a312047549bcc90fe9afd358f8debca8ea859ec693a"
                                                            }
                                                        ]
+                                         },
+                                         {
+                                             "version":  "1.0.2",
+                                             "apiMajor":  1,
+                                             "apiMinor":  0,
+                                             "minHostApiMinor":  0,
+                                             "files":  [
+                                                           {
+                                                               "path":  "valorant.dll",
+                                                               "url":  "https://github.com/Mateus0xC/shear/releases/download/plugin-valorant-1.0.2/valorant.dll",
+                                                               "sha256":  "eaa5f32c374e78c4c25b688cfd2d9692b99a56da15659ee6cf8969727213aac3"
+                                                           },
+                                                           {
+                                                               "path":  "plugin.json",
+                                                               "url":  "https://github.com/Mateus0xC/shear/releases/download/plugin-valorant-1.0.2/plugin.json",
+                                                               "sha256":  "325c46d325c6cdad22f39e0e681998978522c912f6fc6942a3a4f2b2528690c7"
+                                                           }
+                                                       ]
                                          }
                                      ]
                     }

@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "0.1.1",
-    "notes":  "Clipe exportado abre como mantido; análise do começo corrompido mais rápida; sempre abre tocando.",
+    "version":  "0.1.2",
+    "notes":  "Kills manuais no Valorant (K / Shift+K); compressão de 20 MB sem cortar fps e com opção de HEVC; só modo escuro; lista de clipes imediata; análise do começo mais rápida.",
     "files":  [
                   {
                       "path":  "avcodec-62.dll",
@@ -88,9 +88,9 @@
                   },
                   {
                       "path":  "shear.exe",
-                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.1/shear.exe",
-                      "sha256":  "967925cca86eef08231c6ba6611df4c44b7ede53eeac370f624142dfc1e26119",
-                      "size":  715264
+                      "url":  "https://github.com/Mateus0xC/shear/releases/download/v0.1.2/shear.exe",
+                      "sha256":  "60f58b76d9d5b5aa9d00a480ff6f1464c392e19510846c4877f756929eb0432b",
+                      "size":  725504
                   },
                   {
                       "path":  "swresample-6.dll",

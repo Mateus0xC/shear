@@ -109,6 +109,7 @@ private:
     bool trashOriginal();
     void setResultLink(const QString &path);
     void deleteBoth(bool fromMenu = false);
+    void autoPlayOnce();
     void openClipAsKept();
     void deleteShownFile();
     bool trashPath(const QString &path);
@@ -171,6 +172,9 @@ private:
     bool m_resumeAfterDrag = false; // o vídeo estava tocando quando o mouse foi pressionado na timeline
 
     QString m_file, m_lastOutput;
+    QString m_lastViewed;  // último vídeo aberto no editor: fica selecionado na lista ao voltar
+    bool m_autoPlayed = false; // o vídeo aberto já começou a tocar sozinho
+    bool m_listLoaded = false; // a lista de clipes já foi lida uma vez nesta sessão
     QString m_srcOfOpened; // vídeo de onde saiu o clipe exportado que está aberto no editor (vazio = vídeo comum)
     QStringList m_tempFiles; // exports ainda temporários (apagados ao fechar)
     int m_audioTracks = 2;

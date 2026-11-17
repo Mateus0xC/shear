@@ -34,7 +34,13 @@ private:
     void resetState();
     void apply();              // alinha os eventos ao clipe e publica marcas, I/O e chips
     void publishChips();
-    void calibrate();          // K
+    void calibrate();
+    bool manualKillsMode() const;
+    QVector<double> manualKillTimes() const;
+    int manualKillCount() const;
+    void setManualKillTimes(const QVector<double> &times);
+    void addManualKill();
+    void removeNearestManualKill();          // K
     void resetCalibration();   // Shift+K
     void commitManual();
     double currentOffset() const;
@@ -56,6 +62,7 @@ private:
     double m_autoOffset = std::numeric_limits<double>::quiet_NaN();  // achado no log do jogo (NaN = não)
     QVector<ClipEvent> m_keptEvents;        // clipe MANTIDO reaberto: eventos já no tempo dele
     QStringList m_keptTags, m_autoTags, m_vTags;
+    bool m_detected = false; // há kills/mortes detectadas (do jogo ou do clipe mantido) dentro do clipe
 
     // dados do clipe que está sendo exportado
     struct ExportMeta {

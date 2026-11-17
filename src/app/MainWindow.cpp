@@ -43,6 +43,7 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QGuiApplication>
+#include <QSaveFile>
 #include <QStandardPaths>
 #include <QDragEnterEvent>
 #include <QFileDialog>
@@ -1127,11 +1128,19 @@ QWidget *MainWindow::buildEditor()
     connect(m_mpv, &MpvWidget::firstFrame, this, [this] {
         metrics::log(QString("primeiro frame: %1 ms após abrir o arquivo").arg(m_openClock.elapsed()));
         // Vídeo sem análise pendente: já abre tocando (com análise do começo corrompido, quem toca é releaseVideoHold)
-        if (!m_holdVideo && !m_userPaused && m_mpv->paused()) m_mpv->setPaused(false);
+        if (!m_holdVideo) autoPlayOnce();
         // Plugins: só depois do primeiro quadro (nada disso atrasa a abertura do vídeo)
         QTimer::singleShot(0, this, [this] { notifyClipOpened(); });
     });
     connect(m_timeline, &TimelineWidget::dragStarted, this, [this] { m_commentEdit->clearFocus(); }); // sai do campo de comentário
+    // Clicou na timeline enquanto o começo do vídeo ainda é verificado: mostra o vídeo já (a verificação continua em segundo
+    // plano; se achar um começo corrompido, ele é marcado e pulado como sempre).
+    connect(m_timeline, &TimelineWidget::dragStarted, this, [this] {
+        if (m_holdVideo && m_holdUntilPos <= 0) {
+            m_holdVideo = false;
+            m_mpv->setHold(false);
+        }
+    });
     connect(m_timeline, &TimelineWidget::seekRequested, this, [this](double t) {
         m_mpv->seek(t);
         // Arrastando (vídeo parado): o som sai de um player só de áudio, que segue o mouse em qualquer velocidade.
@@ -1744,6 +1753,7 @@ void MainWindow::showHome()
     if (m_editor)
         hideResultButtons();
     m_lastOutput.clear();
+    if (!m_file.isEmpty() && QFileInfo::exists(m_file)) m_lastViewed = m_file; // fica selecionado na lista
     m_file.clear(); // nenhum vídeo aberto (assim o clipe recém-salvo pode ser aberto de novo)
     setWindowTitle("shear");
     m_stack->setCurrentIndex(0);
@@ -1759,10 +1769,121 @@ static QString damageCacheKey(const QString &path)
         QCryptographicHash::Md5).toHex());
 }
 
+// Lista guardada da última leitura da pasta de clipes (só caminho, data e tamanho).
+static QString recentCachePath()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/recent.json";
+}
+
 void MainWindow::refreshRecent(bool autoOpen)
 {
     const QString dir = m_cfg.effectiveShadowPlayDir();
-    auto *t = QThread::create([this, dir, autoOpen] {
+    const bool first = !m_listLoaded;
+    m_listLoaded = true;
+    auto *t = QThread::create([this, dir, autoOpen, first] {
+        QElapsedTimer clock;
+        clock.start();
+        // Monta as linhas (dados dos plugins e comentário) e manda para a tela.
+        auto present = [this, autoOpen](std::vector<RecentItem> v, bool fromCache) {
+            // Dados que os plugins têm de cada clipe (ícone, faixa, tag; só leitura de arquivos, sem rede) e o comentário
+            const QJsonObject metas = clipmeta::loadAll();
+            QVector<plugin::RowQuery> queries;
+            for (const auto &r : v) queries.push_back({r.path, r.size});
+            const QVector<plugin::RowInfo> infos = m_plugins ? m_plugins->rowInfos(queries) : QVector<plugin::RowInfo>(queries.size());
+            for (size_t i = 0; i < v.size(); ++i) {
+                RecentItem &r = v[i];
+                const plugin::RowInfo &info = infos[int(i)];
+                r.iconPath = info.iconPath;
+                r.bannerPath = info.bannerPath;
+                r.bannerText = info.bannerText;
+                r.tag = info.tag;
+                r.tagHot = info.tagHot;
+                r.comment = metas.value(clipmeta::key(QFileInfo(r.path).fileName(), r.size)).toObject().value("comment").toString();
+            }
+            QMetaObject::invokeMethod(this, [this, v, autoOpen, fromCache] {
+                const QDateTime now = QDateTime::currentDateTime();
+                const QColor accent = palette().color(QPalette::Highlight);
+                const QString want = m_lastViewed; // o vídeo que você estava vendo continua selecionado
+                QListWidgetItem *selected = nullptr;
+                m_recent->clear();
+                QPixmap blank(28, 28);
+                blank.fill(Qt::transparent); // linhas sem ícone ficam alinhadas com as que têm
+                for (const auto &r : v) {
+                    const qint64 age = r.created.secsTo(now);
+                    const bool fresh = &r == &v.front() && age <= kFreshHighlightSec; // só o ÚLTIMO clipe, se tiver até 5 min
+                    auto *i = new QListWidgetItem(QFileInfo(r.path).fileName()); // o ClipRowDelegate desenha a linha em colunas
+                    i->setData(RoleDate, r.created.toString("dd/MM/yyyy HH:mm"));
+                    i->setData(RoleTags, r.tag);
+                    i->setData(RoleTagHot, r.tagHot);
+                    i->setData(RoleComment, r.comment);
+                    i->setData(RoleMap, r.bannerText);
+                    if (fresh) { // o clipe mais recente (salvo há até 5 min): destaque; a lista já vem do mais novo para o mais antigo
+                        QColor bg = accent;
+                        bg.setAlpha(70);
+                        i->setBackground(bg);
+                        i->setData(RoleFresh, QString("●  NOVO · há %1").arg(formatAgo(age)));
+                    }
+                    i->setData(Qt::UserRole, r.path);
+                    i->setToolTip(r.path);
+                    i->setIcon(r.iconPath.isEmpty() ? QIcon(blank) : QIcon(r.iconPath));
+                    i->setData(RoleBanner, r.bannerPath);
+                    m_recent->addItem(i);
+                    if (!want.isEmpty() && r.path == want) selected = i;
+                }
+                if (selected) {
+                    m_recent->setCurrentItem(selected);
+                    m_recent->scrollToItem(selected);
+                }
+                if (fromCache)
+                    return; // lista guardada da última vez: a leitura da pasta vem em seguida e completa
+                if (v.empty())
+                    m_recent->addItem("Nenhum clipe encontrado em " + m_cfg.effectiveShadowPlayDir());
+                else if (autoOpen && !m_job && v.front().created.secsTo(now) <= kFreshOpenSec && v.front().path != m_file)
+                    openFile(v.front().path); // clipado há segundos: já abre nele
+
+                // Adianta, em segundo plano, a checagem de começo corrompido dos clipes mais recentes (até 8): quando você
+                // abrir um deles, o resultado já está guardado e o vídeo aparece sem esperar a análise.
+                if (!m_prefetch) {
+                    QStringList todo;
+                    for (size_t k = 0; k < v.size() && todo.size() < 8; ++k)
+                        if (!QSettings().contains(damageCacheKey(v[k].path)) && v[k].path != m_file)
+                            todo << v[k].path;
+                    if (!todo.isEmpty()) {
+                        m_prefetch = new DamagePrefetch(todo);
+                        connect(m_prefetch, &DamagePrefetch::analyzed, this, [](const QString &p, double clean) {
+                            QSettings().setValue(damageCacheKey(p), clean);
+                        });
+                        connect(m_prefetch, &QThread::finished, this, [this] {
+                            m_prefetch->deleteLater();
+                            m_prefetch = nullptr;
+                        });
+                        QTimer::singleShot(2000, m_prefetch, [p = m_prefetch] { p->start(QThread::LowestPriority); }); // depois da abertura
+                    }
+                }
+            }, Qt::QueuedConnection);
+        };
+        // Primeira leitura da sessão: mostra na hora a lista guardada da última vez (ler a pasta com o disco "frio" demora);
+        // a leitura de verdade vem logo depois e substitui.
+        if (first) {
+            std::vector<RecentItem> cached;
+            QFile f(recentCachePath());
+            if (f.open(QIODevice::ReadOnly)) {
+                const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+                if (o.value("dir").toString() == dir)
+                    for (const QJsonValue &x : o.value("items").toArray()) {
+                        const QJsonObject it = x.toObject();
+                        const QString path = it.value("p").toString();
+                        const qint64 size = qint64(it.value("s").toDouble());
+                        const QFileInfo fi(path);
+                        if (fi.exists() && fi.size() == size)
+                            cached.push_back({path, QDateTime::fromMSecsSinceEpoch(qint64(it.value("c").toDouble())), size});
+                    }
+            }
+            if (!cached.empty()) {
+                present(cached, true);
+                metrics::log(QString("lista de clipes (guardada): %1 ms").arg(clock.elapsed()));
+            }
+        }
         std::vector<RecentItem> v;
         QDirIterator it(dir, {std::begin(kVideoGlobs), std::end(kVideoGlobs)}, QDir::Files,
                         QDirIterator::Subdirectories);
@@ -1773,73 +1894,18 @@ void MainWindow::refreshRecent(bool autoOpen)
         }
         std::sort(v.begin(), v.end(), [](auto &a, auto &b) { return a.created > b.created; });
         if (v.size() > 40) v.resize(40);
-        // Dados que os plugins têm de cada clipe (ícone, faixa, tag; só leitura de arquivos, sem rede) e o comentário
-        const QJsonObject metas = clipmeta::loadAll();
-        QVector<plugin::RowQuery> queries;
-        for (const auto &r : v) queries.push_back({r.path, r.size});
-        const QVector<plugin::RowInfo> infos = m_plugins ? m_plugins->rowInfos(queries) : QVector<plugin::RowInfo>(queries.size());
-        for (size_t i = 0; i < v.size(); ++i) {
-            RecentItem &r = v[i];
-            const plugin::RowInfo &info = infos[int(i)];
-            r.iconPath = info.iconPath;
-            r.bannerPath = info.bannerPath;
-            r.bannerText = info.bannerText;
-            r.tag = info.tag;
-            r.tagHot = info.tagHot;
-            r.comment = metas.value(clipmeta::key(QFileInfo(r.path).fileName(), r.size)).toObject().value("comment").toString();
+        {
+            QJsonArray items;
+            for (const auto &r : v)
+                items.push_back(QJsonObject{{"p", r.path}, {"c", double(r.created.toMSecsSinceEpoch())}, {"s", double(r.size)}});
+            QSaveFile f(recentCachePath());
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(QJsonDocument(QJsonObject{{"dir", dir}, {"items", items}}).toJson(QJsonDocument::Compact));
+                f.commit();
+            }
         }
-        QMetaObject::invokeMethod(this, [this, v, autoOpen] {
-            const QDateTime now = QDateTime::currentDateTime();
-            const QColor accent = palette().color(QPalette::Highlight);
-            m_recent->clear();
-            QPixmap blank(28, 28);
-            blank.fill(Qt::transparent); // linhas sem ícone ficam alinhadas com as que têm
-            for (const auto &r : v) {
-                const qint64 age = r.created.secsTo(now);
-                const bool fresh = &r == &v.front() && age <= kFreshHighlightSec; // só o ÚLTIMO clipe, se tiver até 5 min
-                auto *i = new QListWidgetItem(QFileInfo(r.path).fileName()); // o ClipRowDelegate desenha a linha em colunas
-                i->setData(RoleDate, r.created.toString("dd/MM/yyyy HH:mm"));
-                i->setData(RoleTags, r.tag);
-                i->setData(RoleTagHot, r.tagHot);
-                i->setData(RoleComment, r.comment);
-                i->setData(RoleMap, r.bannerText);
-                if (fresh) { // o clipe mais recente (salvo há até 5 min): destaque; a lista já vem do mais novo para o mais antigo
-                    QColor bg = accent;
-                    bg.setAlpha(70);
-                    i->setBackground(bg);
-                    i->setData(RoleFresh, QString("●  NOVO · há %1").arg(formatAgo(age)));
-                }
-                i->setData(Qt::UserRole, r.path);
-                i->setToolTip(r.path);
-                i->setIcon(r.iconPath.isEmpty() ? QIcon(blank) : QIcon(r.iconPath));
-                i->setData(RoleBanner, r.bannerPath);
-                m_recent->addItem(i);
-            }
-            if (v.empty())
-                m_recent->addItem("Nenhum clipe encontrado em " + m_cfg.effectiveShadowPlayDir());
-            else if (autoOpen && !m_job && v.front().created.secsTo(now) <= kFreshOpenSec && v.front().path != m_file)
-                openFile(v.front().path); // clipado há segundos: já abre nele
-
-            // Adianta, em segundo plano, a checagem de começo corrompido dos clipes mais recentes (até 8): quando você
-            // abrir um deles, o resultado já está guardado e o vídeo aparece sem esperar a análise.
-            if (!m_prefetch) {
-                QStringList todo;
-                for (size_t k = 0; k < v.size() && todo.size() < 8; ++k)
-                    if (!QSettings().contains(damageCacheKey(v[k].path)) && v[k].path != m_file)
-                        todo << v[k].path;
-                if (!todo.isEmpty()) {
-                    m_prefetch = new DamagePrefetch(todo);
-                    connect(m_prefetch, &DamagePrefetch::analyzed, this, [](const QString &p, double clean) {
-                        QSettings().setValue(damageCacheKey(p), clean);
-                    });
-                    connect(m_prefetch, &QThread::finished, this, [this] {
-                        m_prefetch->deleteLater();
-                        m_prefetch = nullptr;
-                    });
-                    QTimer::singleShot(2000, m_prefetch, [p = m_prefetch] { p->start(QThread::LowestPriority); }); // depois da abertura
-                }
-            }
-        }, Qt::QueuedConnection);
+        metrics::log(QString("lista de clipes (pasta lida): %1 ms").arg(clock.elapsed()));
+        present(v, false);
     });
     connect(t, &QThread::finished, t, &QObject::deleteLater);
     t->start();
@@ -1925,6 +1991,7 @@ void MainWindow::openFile(const QString &path)
     m_commentEdit->hide();
     refreshCommentUi();
     m_userPaused = false;
+    m_autoPlayed = false;
     m_suggested.reset();
     m_autoRange.reset();
     setWindowTitle("shear"); // o título da janela é sempre só o nome do app
@@ -2009,6 +2076,7 @@ void MainWindow::openFile(const QString &path)
             m_damageT = t;
             applyDamageFloor();
             m_holdUntilPos = m_damageT; // o player só aparece quando passar daqui
+            if (!m_holdVideo) autoPlayOnce(); // a tela já tinha sido liberada por um clique na timeline
         });
         connect(m_damage, &QThread::finished, this, [this, cacheKey] {
             if (m_damageT <= 0) { // sem dano
@@ -2032,10 +2100,23 @@ QString MainWindow::fmt(double s)
 
 void MainWindow::releaseVideoHold()
 {
-    if (!m_holdVideo) return;
-    m_holdVideo = false;
-    if (m_mpv) m_mpv->setHold(false);
-    if (m_mpv && !m_file.isEmpty() && !m_userPaused && m_mpv->paused()) m_mpv->setPaused(false); // abre sempre tocando
+    if (m_holdVideo) {
+        m_holdVideo = false;
+        if (m_mpv) m_mpv->setHold(false);
+    }
+    autoPlayOnce();
+}
+
+// Todo vídeo abre tocando (uma vez por arquivo, e só se você não pausou antes).
+void MainWindow::autoPlayOnce()
+{
+    if (m_autoPlayed || !m_mpv || m_file.isEmpty()) return;
+    m_autoPlayed = true;
+    if (m_userPaused) return;
+    if (m_scrubbing)
+        m_resumeAfterDrag = true; // mouse na timeline: começa a tocar quando soltar
+    else if (m_mpv->paused())
+        m_mpv->setPaused(false);
 }
 
 void MainWindow::applyDamageFloor()
@@ -2273,6 +2354,9 @@ ExportRequest MainWindow::currentRequest() const
     r.endSec = m_timeline->end();
     r.mode = m_exactBtn->isChecked() ? CutMode::Exact : CutMode::Fast;
     r.hasNvenc = m_hasNvenc;
+    r.srcHeight = m_mpv->videoHeight();
+    r.hevc = m_cfg.limitHevc;
+    r.srcFps = m_fps;
     r.gaps = m_timeline->gaps();
     r.fadeSec = m_cfg.fadeJoins ? kJoinFadeSec : 0.0; // opção das Configurações (ligada por padrão)
     if (m_limitCheck && m_limitCheck->isChecked()) {

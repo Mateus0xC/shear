@@ -144,6 +144,7 @@ HelpDialog::HelpDialog(const QVector<QPair<QString, QString>> &pluginRows, QWidg
             {"Placa de vídeo no preview", "Deixa a reprodução mais leve para o computador"},
             {"Som ao arrastar", "Você ouve o som enquanto arrasta na barra de tempo"},
             {"Sempre comprimir para até 20 MB", "Cada vídeo já começa com a opção “Até 20 MB” ligada"},
+            {"Comprimir em HEVC (H.265)", "O “Até 20 MB” sai com mais qualidade (mantém resolução e quadros por segundo), mas pode não tocar em todo lugar"},
             {"Suavizar as emendas", "Quando você tira um pedaço do meio, a junção fica suave (ligado por padrão)"},
         }},
     };

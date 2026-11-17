@@ -30,6 +30,9 @@ struct ExportRequest {
     std::vector<Range> gaps;      // trechos do MEIO a apagar (o que sobra é emendado); dentro de [startSec, endSec]
     double fadeSec = 0;           // > 0: esmaece cada EMENDA entre pedaços (o começo e o fim do vídeo não)
     qint64 maxBytes = 0;          // > 0: comprime o vídeo para caber neste tamanho (recodifica; reduz qualidade/resolução)
+    bool hevc = false;            // a compressão usa HEVC (H.265) em vez de H.264: mais qualidade, menos compatibilidade
+    int srcHeight = 0;            // altura do vídeo de origem (0 = desconhecida); a compressão só reduz a resolução se precisar
+    double srcFps = 0;            // quadros/s do vídeo de origem (0 = desconhecido)
     double bitrateScale = 1.0;    // ajuste fino do bitrate da compressão (reduzido quando o 1º resultado passou do limite)
 };
 

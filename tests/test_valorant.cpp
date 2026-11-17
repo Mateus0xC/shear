@@ -35,6 +35,15 @@ private slots:
         QVERIFY(c.valid());
         QCOMPARE(c.agentId, QString("ABC-1"));
         QVERIFY(!valorant::parseCoreGame(R"({"MapID":"m","Players":[]})", "me").valid());
+        // modo Gauntlet: o agente e sempre o KAY/O
+        const QString kayo = "601dbbe7-43ce-be57-2a40-4abd24953621";
+        QCOMPARE(valorant::parseCoreGame(
+                     R"({"MapID":"m","ModeID":"/Game/GameModes/Gauntlet/GauntletGameMode.GauntletGameMode_C","Players":[{"Subject":"ME","CharacterID":"ABC-1"}]})",
+                     "me").agentId, kayo);
+        QCOMPARE(valorant::parseMatchDetails(
+                     R"({"matchInfo":{"mapId":"m","gameStartMillis":1,"gameLengthMillis":1,"queueID":"gauntlet"},"players":[{"subject":"ME","characterId":"b"}]})",
+                     "me").agentId, kayo);
+        QCOMPARE(valorant::agentIdForMode("/Game/GameModes/Bomb/BombGameMode.BombGameMode_C", "x"), QString("x"));
         const QByteArray agents = R"({"data":[{"uuid":"abc-1","displayName":"Jett"}]})";
         const QByteArray maps = R"({"data":[{"mapUrl":"/Game/Maps/Ascent/Ascent","displayName":"Ascent"}]})";
         QCOMPARE(valorant::agentNameFor(agents, "ABC-1"), QString("Jett"));

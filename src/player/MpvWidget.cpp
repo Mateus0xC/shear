@@ -211,6 +211,13 @@ void MpvWidget::seekBy(double sec)
     command({"seek", QString::number(sec, 'f', 3), "relative+exact"});
 }
 
+int MpvWidget::videoHeight() const
+{
+    int64_t h = 0;
+    if (m_mpv) mpv_get_property(m_mpv, "video-params/h", MPV_FORMAT_INT64, &h);
+    return int(h);
+}
+
 void MpvWidget::setPaused(bool p)
 {
     if (m_mpv) {

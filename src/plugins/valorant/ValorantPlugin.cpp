@@ -132,18 +132,27 @@ void ValorantPlugin::init(plugin::IShearHost *host)
 
 QVector<plugin::Action> ValorantPlugin::actions() const
 {
-    return {{"calibrate", "Valorant: alinhar as marcas à kill/morte do ponto atual (guarda para a partida)",
+    return {{"calibrate", "Valorant: alinhar as marcas à kill/morte do ponto atual (guarda para a partida); sem kills "
+                          "detectadas, marca uma kill no ponto atual",
              QKeySequence(Qt::Key_K)},
-            {"reset", "Valorant: desfazer a calibração (volta ao ajuste automático)",
+            {"reset", "Valorant: desfazer a calibração (volta ao ajuste automático); sem kills detectadas, tira a kill "
+                      "marcada mais próxima",
              QKeySequence(Qt::SHIFT | Qt::Key_K)}};
 }
 
 void ValorantPlugin::triggerAction(const QString &id)
 {
-    if (id == "calibrate")
-        calibrate();
-    else if (id == "reset")
-        resetCalibration();
+    if (id == "calibrate") {
+        if (manualKillsMode()) addManualKill(); // nenhuma kill detectada no clipe: K marca uma kill à mão
+        else calibrate();
+    } else if (id == "reset") {
+        if (manualKillsMode()) { // Shift+K: tira a kill marcada mais próxima
+            if (manualKillTimes().isEmpty()) m_host->showStatus("Nenhuma kill marcada para tirar.");
+            else removeNearestManualKill();
+        } else {
+            resetCalibration();
+        }
+    }
 }
 
 void ValorantPlugin::resetState()
@@ -164,6 +173,7 @@ void ValorantPlugin::resetState()
     m_keptTags.clear();
     m_autoTags.clear();
     m_vTags.clear();
+    m_detected = false;
 }
 
 void ValorantPlugin::clipClosed()
@@ -233,6 +243,18 @@ void ValorantPlugin::apply()
                 marks.push_back({e.t, e.kind == MatchEvent::Kill});
         tags = m_keptTags;
     }
+    m_detected = !marks.isEmpty(); // o jogo (ou o clipe mantido) trouxe kills/mortes
+    // O jogo passou a informar as kills deste clipe: valem as dele, e as que você tinha marcado à mão são descartadas
+    // (daqui em diante o K volta a ser a calibração).
+    if (m_detected && (m_manual.contains("killTimes") || m_manual.contains("kills"))) {
+        m_manual.remove("killTimes");
+        m_manual.remove("kills");
+        svc()->saveManual(m_file, m_clipSize ? m_clipSize : QFileInfo(m_file).size(), m_manual);
+    }
+    if (!m_detected) // nada detectado: valem as kills que você marcou à mão (tecla K)
+        for (const double t : manualKillTimes())
+            if (dur <= 0 || t <= dur)
+                marks.push_back({t, true});
     m_host->setMarkers(marks);
     if (!m_roundStarts.isEmpty() && dur > 0 && m_clipEndMs > 0) // I/O no último round capturado
         if (const auto span = pickLastRoundSpan(m_roundStarts, m_matchEndMs, m_clipEndMs, dur, currentOffset()))
@@ -252,7 +274,7 @@ void ValorantPlugin::publishChips()
     QString killsText;
     if (!killsEditable)
         killsText = m_autoTags.first();
-    else if (const int k = m_manual.value("kills").toInt(0); k >= 1)
+    else if (const int k = manualKillCount(); k >= 1)
         killsText = QString("%1k").arg(k);
 
     const QString mapName = m_apiMap.isEmpty() ? m_manual.value("map").toString() : m_apiMap;
@@ -277,7 +299,11 @@ void ValorantPlugin::publishChips()
     };
     add("map", mapName, "mapa", QString(), m_apiMap.isEmpty(), "Clique para escolher o mapa");
     add("agent", agentName, "agente", agentImg, m_apiAgent.isEmpty(), "Clique para escolher o agente");
-    add("kills", killsText, "kills", QString(), killsEditable, "Clique para dizer quantas kills (no mesmo round)");
+    // kills: só texto, sem menu (as marcadas à mão entram com K e saem com Shift+K)
+    if (!killsText.isEmpty())
+        chips.push_back({"kills", killsText, "kills", QString(), false,
+                         killsEditable ? QStringLiteral("Kills marcadas à mão (K marca, Shift+K tira a mais próxima)")
+                                       : QStringLiteral("Identificado pelo jogo")});
     m_host->setInfoChips(chips);
 }
 
@@ -296,12 +322,7 @@ ChoiceMenu ValorantPlugin::chipMenu(const QString &chipId)
 {
     ChoiceMenu menu;
     if (chipId == "kills") {
-        const int current = m_manual.value("kills").toInt(0);
-        if (current > 0)
-            menu.clearTitle = "Limpar";
-        for (int k = 1; k <= 10; ++k)
-            menu.items.push_back({QString::number(k), QString("%1k").arg(k), {}, {}, k == current});
-        return menu;
+        return menu; // sem menu: as kills são marcadas no vídeo (K / Shift+K)
     }
     if (chipId != "map" && chipId != "agent")
         return menu;
@@ -338,8 +359,7 @@ ChoiceMenu ValorantPlugin::chipMenu(const QString &chipId)
 void ValorantPlugin::chipChosen(const QString &chipId, const QString &value)
 {
     if (chipId == "kills") {
-        if (value.isEmpty()) m_manual.remove("kills");
-        else m_manual.insert("kills", value.toInt());
+        return; // o chip das kills não tem mais menu
     } else if (chipId == "map" || chipId == "agent") {
         if (value.isEmpty()) m_manual.remove(chipId);
         else m_manual.insert(chipId, value);
@@ -372,7 +392,8 @@ QVector<plugin::RowInfo> ValorantPlugin::rowInfos(const QVector<plugin::RowQuery
         const QString mapName = pick("map"), agentName = pick("agent");
         plugin::RowInfo &r = out[i];
         r.bannerText = mapName;
-        if (const int kills = man.value("kills").toInt(0); kills > 0) {
+        const int marked = int(man.value("killTimes").toArray().size()); // kills marcadas à mão no vídeo
+        if (const int kills = marked; kills > 0) {
             r.tag = QString("%1k").arg(kills); // à mão vale até 1k; só as achadas sozinhas exigem 2k ou mais
         } else {
             for (const auto &t : e.value("tags").toArray())
@@ -417,11 +438,18 @@ QString ValorantPlugin::exportStem(const plugin::ExportContext &ctx)
     } else if (!m_keptEvents.isEmpty()) { // reexportando um clipe mantido: os eventos dele, recortados de novo
         m_exportMeta.events = toExported(m_keptEvents, ctx.start, ctx.end, gaps);
     }
+    bool manualEvents = false;
+    if (m_exportMeta.events.isEmpty() && !m_detected) { // kills marcadas à mão: vão para o clipe, no tempo dele
+        QVector<ClipEvent> mine;
+        for (const double t : manualKillTimes())
+            mine.push_back({MatchEvent::Kill, t, 0, QString()});
+        m_exportMeta.events = toExported(mine, ctx.start, ctx.end, gaps);
+        manualEvents = !m_exportMeta.events.isEmpty();
+    }
     if (const auto tags = makeTags(m_exportMeta.events); !tags.isEmpty())
         m_exportMeta.tag = tags.first();
-    if (m_exportMeta.tag.isEmpty()) // sem kills achadas: vale o que foi escolhido à mão
-        if (const int k = m_manual.value("kills").toInt(0); k >= 1)
-            m_exportMeta.tag = QString("%1k").arg(k);
+    if (m_exportMeta.tag.isEmpty() && manualEvents) // à mão vale a partir de 1k (as kills que caem no trecho exportado)
+        m_exportMeta.tag = QString("%1k").arg(m_exportMeta.events.size());
     const QDate date = ctx.clipCreated.isValid() ? ctx.clipCreated.date() : QDate::currentDate();
     return valorantStem(date, m_exportMeta.map, m_exportMeta.agent, m_exportMeta.tag);
 }
@@ -440,8 +468,11 @@ void ValorantPlugin::exportKept(const QString &finalPath, qint64 size)
                       {"tags", m_exportMeta.tag.isEmpty() || m_exportMeta.events.isEmpty() ? QJsonArray()
                                                                                           : QJsonArray{m_exportMeta.tag}},
                       {"events", evs}};
-    if (!m_manual.isEmpty())
-        entry.insert("manual", m_manual);
+    QJsonObject manual = m_manual;
+    manual.remove("killTimes"); // as kills marcadas à mão já foram como eventos, no tempo do clipe novo
+    manual.remove("kills"); // número do menu antigo: não vale mais
+    if (!manual.isEmpty())
+        entry.insert("manual", manual);
     // clipe exportado e ainda temporário (pasta Shear-exports): os dados ficam só na memória até ele ser mantido
     const bool temporary = QDir::fromNativeSeparators(finalPath).contains("/Shear-exports/", Qt::CaseInsensitive);
     svc()->saveKept(finalPath, size, entry, temporary);
@@ -496,14 +527,96 @@ void ValorantPlugin::resetCalibration()
     m_host->showStatus("Marcas de volta ao ajuste automático.");
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// kills marcadas à mão (quando o jogo não trouxe nenhuma): ficam em manual.killTimes, em segundos do clipe
+
+bool ValorantPlugin::manualKillsMode() const
+{
+    if (m_file.isEmpty() || m_detected)
+        return false;
+    // só em clipe do Valorant: pelo nome/pasta, ou porque já tem mapa ou agente
+    return looksLikeValorantClip(m_file) || !m_apiMap.isEmpty() || !m_apiAgent.isEmpty() ||
+           !m_manual.value("map").toString().isEmpty() || !m_manual.value("agent").toString().isEmpty();
+}
+
+QVector<double> ValorantPlugin::manualKillTimes() const
+{
+    QVector<double> out;
+    for (const auto &v : m_manual.value("killTimes").toArray())
+        out.push_back(v.toDouble());
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+int ValorantPlugin::manualKillCount() const
+{
+    return int(m_manual.value("killTimes").toArray().size()); // (o número escolhido no menu antigo é ignorado)
+}
+
+void ValorantPlugin::setManualKillTimes(const QVector<double> &times)
+{
+    m_host->pushUndo(); // Ctrl+Z desfaz
+    QJsonArray a;
+    for (const double t : times)
+        a.push_back(t);
+    if (a.isEmpty()) m_manual.remove("killTimes");
+    else m_manual.insert("killTimes", a);
+    m_manual.remove("kills"); // a contagem agora sai das marcas
+    apply();
+    commitManual();
+}
+
+void ValorantPlugin::addManualKill()
+{
+    if (!manualKillsMode()) {
+        m_host->showStatus("As kills deste clipe já foram detectadas.");
+        return;
+    }
+    QVector<double> times = manualKillTimes();
+    times.push_back(m_host->position());
+    setManualKillTimes(times);
+    m_host->showStatus(QString("Kill marcada (%1k). Shift+K tira a mais próxima.").arg(times.size()));
+}
+
+void ValorantPlugin::removeNearestManualKill()
+{
+    QVector<double> times = manualKillTimes();
+    if (times.isEmpty())
+        return;
+    const double pos = m_host->position();
+    int best = 0;
+    for (int i = 1; i < times.size(); ++i)
+        if (std::abs(times[i] - pos) < std::abs(times[best] - pos)) best = i;
+    times.remove(best);
+    setManualKillTimes(times);
+    m_host->showStatus(times.isEmpty() ? QString("Kill tirada.") : QString("Kill tirada (%1k).").arg(times.size()));
+}
+
 QVariant ValorantPlugin::saveState() const
 {
-    return std::isnan(m_matchOffset) ? QVariant() : QVariant(m_matchOffset);
+    QVariantMap m;
+    if (!std::isnan(m_matchOffset)) m.insert("offset", m_matchOffset);
+    QVariantList kills;
+    for (const double t : manualKillTimes()) kills << t;
+    if (!kills.isEmpty()) m.insert("kills", kills);
+    return m.isEmpty() ? QVariant() : QVariant(m);
 }
 
 void ValorantPlugin::restoreState(const QVariant &state)
 {
-    const double n = state.isValid() ? state.toDouble() : std::numeric_limits<double>::quiet_NaN();
+    const QVariantMap m = state.toMap();
+    // kills marcadas à mão
+    QVector<double> kills;
+    for (const QVariant &v : m.value("kills").toList()) kills.push_back(v.toDouble());
+    if (kills != manualKillTimes() && !m_file.isEmpty()) {
+        QJsonArray a;
+        for (const double t : kills) a.push_back(t);
+        if (a.isEmpty()) m_manual.remove("killTimes");
+        else m_manual.insert("killTimes", a);
+        apply();
+        commitManual();
+    }
+    const double n = m.contains("offset") ? m.value("offset").toDouble() : std::numeric_limits<double>::quiet_NaN();
     const bool same = (std::isnan(n) && std::isnan(m_matchOffset)) || n == m_matchOffset;
     if (same)
         return;

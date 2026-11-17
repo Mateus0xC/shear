@@ -63,7 +63,10 @@ fazer crossfade nas emendas.
 
 ### Até 20 MB
 A caixa **Até 20 MB** comprime o clipe para ficar com até esse tamanho: o bitrate é calculado pela duração (vídeo + áudio em
-AAC), a resolução cai (720p, 540p ou 360p) e o vídeo vai para 30 quadros/s quando o bitrate é baixo. Se o resultado passar do
+AAC) e a qualidade é preservada o máximo possível: bitrate variável com duas passadas, os quadros por segundo
+nunca diminuem e a resolução **só diminui se faltar bitrate**, um degrau por vez (900p, 720p, 540p…). Em
+**Configurações → Tamanho**, "Comprimir em HEVC (H.265)" dá bem mais qualidade no mesmo tamanho (um clipe de 60 s fica em
+1080p60), mas o arquivo pode não tocar em navegadores e aparelhos sem suporte a HEVC. Se o resultado passar do
 limite, o shear tenta de novo (até 2 vezes) com bitrate menor. Recodifica, então o modo fica Exato. Em **Configurações → Tamanho**
 dá para fazer cada vídeo já começar com ela ligada.
 

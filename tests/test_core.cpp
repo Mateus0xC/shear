@@ -117,10 +117,40 @@ private slots:
         c = planCompression(r, 300);
         QVERIFY(c.videoKbps < 600);
         QCOMPARE(c.height, 360);
-        QVERIFY(c.cap30fps);
+        QVERIFY(!c.cap30fps);
         // 'bitrateScale' reduz o bitrate (usado quando o 1º resultado passou do limite)
         r.bitrateScale = 0.8;
         QVERIFY(planCompression(r, 60).videoKbps < c.videoKbps * 10);
+        // com a origem conhecida a resolucao so cai se faltar bitrate por pixel: 1080p60 em 60 s fica em 1080p, a 30 quadros/s
+        r.bitrateScale = 1.0;
+        r.srcHeight = 1080;
+        r.srcFps = 60;
+        c = planCompression(r, 60);
+        QCOMPARE(c.height, 720);
+        QVERIFY(!c.cap30fps); // os quadros/s nunca diminuem
+        c = planCompression(r, 20); // trecho curto: sobra bitrate, nada muda
+        QCOMPARE(c.height, 0);
+        QVERIFY(!c.cap30fps);
+        c = planCompression(r, 150); // trecho longo: um degrau por vez
+        QVERIFY(c.height == 540 || c.height == 480);
+        QVERIFY(!c.cap30fps);
+        c = planCompression(r, 600);
+        QCOMPARE(c.height, 360);
+        // HEVC: aguenta a resolucao original com bem menos bitrate
+        r.hevc = true;
+        QCOMPARE(planCompression(r, 60).height, 0);
+        QVERIFY(planCompression(r, 300).height > 0);
+        {
+            auto rr = r;
+            rr.mode = CutMode::Exact;
+            const auto args = buildFfmpegArgs(rr, planCut(rr));
+            QVERIFY(args.contains("hevc_nvenc") && args.contains("hvc1"));
+            rr.hasNvenc = false;
+            QVERIFY(buildFfmpegArgs(rr, planCut(rr)).contains("libx265"));
+        }
+        r.hevc = false;
+        r.srcHeight = 0;
+        r.srcFps = 0;
         // sem limite: nada
         r.maxBytes = 0;
         QCOMPARE(planCompression(r, 60).videoKbps, 0);
@@ -136,7 +166,7 @@ private slots:
         QCOMPARE(plan.actualStartSec, 60.0);
         const auto args = buildFfmpegArgs(r, plan);
         QVERIFY(!args.contains("copy"));              // nem vídeo nem áudio são copiados
-        QVERIFY(args.contains("-b:v") && args.contains("-maxrate") && args.contains("cbr"));
+        QVERIFY(args.contains("-b:v") && args.contains("-maxrate") && args.contains("vbr"));
         QVERIFY(args.contains("aac"));
         const int vf = args.indexOf("-vf");
         QVERIFY(vf >= 0);

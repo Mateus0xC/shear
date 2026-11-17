@@ -62,6 +62,10 @@ QString buildAudioMixGraph(const std::vector<AudioTrack> &tracks, bool forMpv, c
     return parts.join(';');
 }
 
+// Bits por pixel de cada quadro: abaixo disto a imagem fica pior do que numa resolução menor. O HEVC aguenta bem menos
+// (medido: 1080p60 a 2,4 Mbps dá VMAF 78 em HEVC e 50 em H.264).
+static constexpr double kMinBpp = 0.032, kMinBppHevc = 0.016;
+
 Compression planCompression(const ExportRequest &r, double seconds)
 {
     Compression c;
@@ -72,9 +76,23 @@ Compression planCompression(const ExportRequest &r, double seconds)
     const double totalKbps = double(r.maxBytes) * 8.0 * 0.94 / 1000.0 / seconds;
     c.audioKbps = hasAudio ? (totalKbps < 450 ? 64 : 96) : 0;
     c.videoKbps = std::max(60, int((totalKbps - c.audioKbps) * r.bitrateScale));
-    // quanto menos bitrate, menor a resolução (mais nítido do que esticar poucos bits num quadro grande)
-    c.height = c.videoKbps >= 4000 ? 0 : c.videoKbps >= 2000 ? 720 : c.videoKbps >= 1000 ? 540 : 360;
-    c.cap30fps = c.videoKbps < 2500;
+    if (r.srcHeight <= 0) { // origem desconhecida: escolhe só pelo bitrate
+        c.height = c.videoKbps >= 4000 ? 0 : c.videoKbps >= 2000 ? 720 : c.videoKbps >= 1000 ? 540 : 360;
+        return c;
+    }
+    // Os quadros/s nunca diminuem. A resolução é preservada enquanto der: o que decide é quantos bits sobram por pixel de cada
+    // quadro (16:9); só quando faltam é que ela diminui, um degrau por vez. (Medido com VMAF num clipe 1080p60 a 2,4 Mbps:
+    // manter 1080p dá 50; 900p, 66; 720p, 73.)
+    const double fps = r.srcFps > 1 ? r.srcFps : 30.0;
+    auto bitsPerPixel = [&](int h, double f) { return c.videoKbps * 1000.0 / (double(h) * double(h) * 16.0 / 9.0 * f); };
+    int h = r.srcHeight;
+    for (const int step : {1080, 900, 720, 540, 480, 360}) {
+        if (bitsPerPixel(h, fps) >= (r.hevc ? kMinBppHevc : kMinBpp))
+            break;
+        if (step < h)
+            h = step;
+    }
+    c.height = h < r.srcHeight ? h : 0;
     return c;
 }
 
@@ -92,11 +110,26 @@ static QString compressionFilters(const Compression &c)
 static void videoEncodeArgs(QStringList &a, const ExportRequest &r, const Compression &c = {})
 {
     if (c.videoKbps > 0) { // compressão: bitrate fixo, perto do alvo
-        const QString k = QString::number(c.videoKbps) + "k", buf = QString::number(c.videoKbps * 2) + "k";
-        if (r.hasNvenc)
-            a << "-c:v" << "h264_nvenc" << "-preset" << "p5" << "-rc" << "cbr" << "-b:v" << k << "-maxrate" << k << "-bufsize" << buf;
+        // Bitrate MÉDIO no alvo, com folga para os picos (cenas paradas cedem bits às de ação), em vez de bitrate constante.
+        // Se o arquivo passar do limite, o shear tenta de novo com menos (bitrateScale).
+        const QString k = QString::number(c.videoKbps) + "k", peak = QString::number(c.videoKbps * 3 / 2) + "k",
+                      buf = QString::number(c.videoKbps * 2) + "k";
+        if (r.hevc) { // HEVC: "hvc1" para tocar nos players da Apple e na maioria dos outros
+            if (r.hasNvenc)
+                a << "-c:v" << "hevc_nvenc" << "-preset" << "p7" << "-tune" << "hq" << "-rc" << "vbr" << "-multipass" << "fullres"
+                  << "-rc-lookahead" << "32" << "-b:v" << k << "-maxrate" << peak << "-bufsize" << buf;
+            else
+                a << "-c:v" << "libx265" << "-preset" << "medium" << "-x265-params" << "log-level=error"
+                  << "-b:v" << k << "-maxrate" << peak << "-bufsize" << buf;
+            a << "-tag:v" << "hvc1";
+            return;
+        }
+        if (r.hasNvenc) // o melhor que a NVENC faz: duas passadas e análise à frente (o AQ piorou o resultado medido)
+            a << "-c:v" << "h264_nvenc" << "-preset" << "p7" << "-tune" << "hq" << "-rc" << "vbr" << "-multipass" << "fullres"
+              << "-rc-lookahead" << "32" << "-bf" << "3" << "-b_ref_mode" << "middle" << "-profile:v" << "high"
+              << "-b:v" << k << "-maxrate" << peak << "-bufsize" << buf;
         else
-            a << "-c:v" << "libx264" << "-preset" << "veryfast" << "-b:v" << k << "-maxrate" << k << "-bufsize" << buf;
+            a << "-c:v" << "libx264" << "-preset" << "slow" << "-b:v" << k << "-maxrate" << peak << "-bufsize" << buf;
         return;
     }
     if (r.hasNvenc)

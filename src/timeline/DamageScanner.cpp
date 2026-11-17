@@ -89,7 +89,8 @@ struct Sampler {
             }
         };
         if (av_seek_frame(fmt, vi, target, AVSEEK_FLAG_BACKWARD) >= 0) {
-            for (int guard = 0; guard < 300 && total < n; ++guard) {
+            // aviso do decodificador = trecho quebrado: não precisa decodificar o resto da amostra
+            for (int guard = 0; guard < 300 && total < n && t_decodeWarnings == 0; ++guard) {
                 if (av_read_frame(fmt, pkt) < 0) break;
                 if (pkt->stream_index == vi) {
                     avcodec_send_packet(ctx, pkt);
@@ -128,9 +129,16 @@ double analyze(const QString &path, unsigned maxThreads, const std::function<boo
     av_log_set_callback(countDecodeWarnings);
     QElapsedTimer clock;
     clock.start();
+    // Sem sondar os streams (o mp4 já traz os parâmetros no moov): sondar lê e decodifica o começo do arquivo e, num
+    // vídeo com o começo quebrado, é a parte mais lenta. Só sonda se os parâmetros não vieram.
     Source main;
-    if (!main.open(path))
+    if (!main.open(path, false))
         return 0;
+    if (const AVCodecParameters *par = main.fmt->streams[main.vi]->codecpar;
+        par->codec_id == AV_CODEC_ID_NONE || par->width <= 0 || main.fmt->duration <= 0) {
+        if (avformat_find_stream_info(main.fmt, nullptr) < 0)
+            return 0;
+    }
     const double duration = main.fmt->duration > 0 ? double(main.fmt->duration) / AV_TIME_BASE : 0;
     if (duration < 4)
         return 0;

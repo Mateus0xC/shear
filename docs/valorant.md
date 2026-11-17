@@ -18,7 +18,10 @@ Ao lado do nome do arquivo aparece `· Mapa · Agente · 3k`, com o ícone do ag
 é **clicável** para você escolher à mão:
 - Mapas e agentes vêm da lista do valorant-api.com; **Outro…** aceita qualquer nome. No menu de mapas cada item é a imagem do
   mapa com o nome por cima; ficam só os do modo bomba, e os demais (treino, mata-mata etc.) ficam em **Outros modos**.
-- **Kills** de 1k a 10k; só aparece quando o jogo não achou kills no clipe.
+- **Kills:** quando o jogo não achou kills no clipe, você marca à mão. Vá até o momento da kill e aperte **`K`**: aparece um losango verde na timeline e a contagem (`1k`, `2k`…) sai das
+  marcas. **`Shift+K`** tira a marca mais próxima; `Ctrl+Z` desfaz. No clipe exportado conta o que cai no trecho. Se depois o
+  jogo informar as kills do clipe, valem as dele e as marcadas à mão são descartadas.
+- No modo **Gauntlet** o agente mostrado é sempre o KAY/O.
 - O que o jogo identificou aparece como texto e não dá para mudar.
 
 ### Kills e mortes na timeline

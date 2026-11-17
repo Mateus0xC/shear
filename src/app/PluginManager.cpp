@@ -1,4 +1,5 @@
 #include "PluginManager.h"
+#include "PluginInstaller.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -133,9 +134,15 @@ void PluginManager::scanDir(const QString &rootPath, bool user, const QString &o
             info.appliesTo << v.toString();
         info.dir = dir;
         info.userInstalled = user;
+        // Mesmo plugin em dois lugares (instalado pelo app e ao lado do shear.exe, num build de desenvolvimento): vale o
+        // instalado, a não ser que o outro seja de versão MAIS NOVA.
         bool dup = false;
-        for (const PluginInfo &p : std::as_const(m_infos))
-            dup = dup || p.id == info.id;
+        for (PluginInfo &p : m_infos)
+            if (p.id == info.id) {
+                dup = true;
+                if (PluginInstaller::compareVersions(info.version, p.version) > 0)
+                    p = info;
+            }
         if (!dup)
             m_infos.push_back(info);
     }

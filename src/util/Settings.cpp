@@ -13,6 +13,7 @@ Config Config::load()
     c.scrubAudio = s.value("player/scrubAudio", true).toBool();
     c.fadeJoins = s.value("export/fadeJoins", true).toBool();
     c.limit20 = s.value("export/limit20Default", false).toBool();
+    c.limitHevc = s.value("export/limitHevc", false).toBool();
     c.outputDir = s.value("paths/output").toString();
     c.shadowPlayDir = s.value("paths/shadowplay").toString();
     return c;
@@ -26,6 +27,7 @@ void Config::save() const
     s.setValue("player/scrubAudio", scrubAudio);
     s.setValue("export/fadeJoins", fadeJoins);
     s.setValue("export/limit20Default", limit20);
+    s.setValue("export/limitHevc", limitHevc);
     s.setValue("paths/output", outputDir);
     s.setValue("paths/shadowplay", shadowPlayDir);
 }

@@ -5,6 +5,8 @@
 #include <QApplication>
 #include <QFileInfo>
 #include <QIcon>
+#include <QStyle>
+#include <QStyleHints>
 #include <QTimer>
 #include <windows.h>
 
@@ -14,6 +16,11 @@ int main(int argc, char **argv)
     const double tMain = processAgeMs();
     shear::crashlog::install(); // se quebrar, grava onde em crash.log
     QApplication app(argc, argv);
+    // Por enquanto só modo escuro (o claro ainda não está bem resolvido). O estilo clássico do Windows 10 não tem versão
+    // escura: nele, usa o Fusion.
+    app.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    if (app.style()->name().compare("windowsvista", Qt::CaseInsensitive) == 0)
+        app.setStyle("Fusion");
     const double tApp = processAgeMs();
     QApplication::setOrganizationName("Shear");
     QApplication::setApplicationName("Shear");

@@ -24,6 +24,7 @@ public:
     void seek(double sec);
     void seekBy(double sec);
     // Segura a imagem (tela preta) enquanto o app descobre se o começo do vídeo é utilizável: nada de quadro quebrado.
+    int videoHeight() const; // altura do vídeo aberto, em pixels (0 = ainda não sabe)
     void setHold(bool hold)
     {
         m_hold = hold;

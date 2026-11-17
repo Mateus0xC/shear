@@ -37,6 +37,14 @@ RegionInfo parseShooterLog(const QString &text)
     return r;
 }
 
+// Modo Gauntlet: todo mundo joga de KAY/O, qualquer que seja o agente que a API informe.
+static const char *const kKayoId = "601dbbe7-43ce-be57-2a40-4abd24953621";
+bool isGauntletMode(const QString &mode) { return mode.contains("gauntlet", Qt::CaseInsensitive); }
+QString agentIdForMode(const QString &mode, const QString &agentId)
+{
+    return isGauntletMode(mode) ? QString::fromLatin1(kKayoId) : agentId;
+}
+
 QString parseMatchId(const QByteArray &json)
 {
     return QJsonDocument::fromJson(json).object().value("MatchID").toString();
@@ -55,6 +63,8 @@ CoreGameInfo parseCoreGame(const QByteArray &json, const QString &puuid)
             break;
         }
     }
+    if (isGauntletMode(c.modeId) || isGauntletMode(o.value("ProvisioningFlow").toString()))
+        c.agentId = QString::fromLatin1(kKayoId);
     return c;
 }
 
@@ -88,6 +98,8 @@ MatchSummary parseMatchDetails(const QByteArray &json, const QString &puuid)
             break;
         }
     }
+    if (isGauntletMode(info.value("gameMode").toString()) || isGauntletMode(info.value("queueID").toString()))
+        m.agentId = QString::fromLatin1(kKayoId);
     return m;
 }
 

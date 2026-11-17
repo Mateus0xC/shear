@@ -60,6 +60,11 @@ SettingsDialog::SettingsDialog(const Config &c, QWidget *parent) : QDialog(paren
     m_limit20->setChecked(c.limit20);
     m_limit20->setToolTip("Começa cada vídeo com a opção “Até 20 MB” ligada (dá para desligar na hora de exportar).");
     form->addRow("Tamanho:", m_limit20);
+    m_hevc = new QCheckBox("Comprimir em HEVC (H.265): mais qualidade no mesmo tamanho");
+    m_hevc->setChecked(c.limitHevc);
+    m_hevc->setToolTip("Vale para o “Até 20 MB”. Com HEVC o clipe mantém a resolução e os quadros por segundo por muito mais tempo.\n"
+                       "Atenção: o arquivo pode não tocar em navegadores e aparelhos sem suporte a HEVC. Desligado, usa H.264 (toca em tudo).");
+    form->addRow(QString(), m_hevc);
 
     m_fade = new QCheckBox("Suavizar as emendas ao apagar trechos do meio");
     m_fade->setChecked(c.fadeJoins);
@@ -119,6 +124,7 @@ Config SettingsDialog::config() const
     c.scrubAudio = m_scrub->isChecked();
     c.fadeJoins = m_fade->isChecked();
     c.limit20 = m_limit20->isChecked();
+    c.limitHevc = m_hevc->isChecked();
     c.outputDir = m_out->text().trimmed();
     c.shadowPlayDir = m_sp->text().trimmed();
     return c;

@@ -29,7 +29,11 @@ struct CoreGameInfo {
     QString mapId, agentId, modeId;
     bool valid() const { return !mapId.isEmpty() && !agentId.isEmpty(); }
 };
-// /core-game/v1/matches/{id}: mapa e o agente do jogador `puuid`.
+// Modo Gauntlet (nome do modo ou da fila contém "gauntlet"): o agente é sempre o KAY/O.
+bool isGauntletMode(const QString &mode);
+QString agentIdForMode(const QString &mode, const QString &agentId);
+
+// /core-game/v1/matches/{id}: mapa e o agente do jogador `puuid` (no modo Gauntlet, o KAY/O).
 CoreGameInfo parseCoreGame(const QByteArray &json, const QString &puuid);
 
 // /match-history/v1/history/{puuid}: a partida mais recente que COMEÇOU antes de `clipEndMs` (ms desde 1970), ou "".
